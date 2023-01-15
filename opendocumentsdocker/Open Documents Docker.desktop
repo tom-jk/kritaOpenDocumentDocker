@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=OpenDocumentsDocker
+X-Python-2-Compatible=false
+X-Krita-Manual=Manual.html
+Name=Open Documents Docker
+Comment=Docker listing currently open documents.
+Name[en_GB]=Open Documents Docker
