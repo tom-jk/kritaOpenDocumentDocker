@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: CC0-1.0
 
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider
+from PyQt5.QtGui import QPixmap, QScreen
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
 import krita
 from krita import *
 from pathlib import Path
@@ -27,11 +27,11 @@ class OpenDocumentsDocker(krita.DockWidget):
                     view.setVisible()
                     return
     
-    """
-    returns true if at least one open view shows this document
-    (any view besides exception, if provided).
-    """
     def documentHasViews(self, doc, exception):
+        """
+        returns true if at least one open view shows this document
+        (any view besides exception, if provided).
+        """
         app = Application
         #print("a", doc, self.documentUniqueId(doc))
         #print("b", exception)
@@ -65,8 +65,6 @@ class OpenDocumentsDocker(krita.DockWidget):
     def entered(self, index):
         #print("entered index: col", index.column(), ", row", index.row(), ", data", index.data())      
         
-        # TODO: tooltip position bad on horizontal list layout
-        ttPos = self.mapToGlobal(self.listView.frameGeometry().topRight()) + self.listView.visualRect(index).topLeft()
         item = self.listView.item(index.row())
         
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
@@ -97,6 +95,45 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.listToolTip.setWindowFlags(Qt.ToolTip)
         self.listToolTip.setText(ttText)
+        
+        ttPos = None
+        
+        listTopLeft = self.mapToGlobal(self.listView.frameGeometry().topLeft())
+        listBottomRight = self.mapToGlobal(self.listView.frameGeometry().bottomRight())
+        listTopRight = self.mapToGlobal(self.listView.frameGeometry().topRight())
+        listCenter = (listTopLeft+listBottomRight)/2
+        itemRect = self.listView.visualRect(index)
+        
+        if hasattr(self, "screen"):
+            # work out which side of the widget has the most space and put the tooltip there.
+            screen = self.screen()            
+            screenTopLeft = screen.availableGeometry().topLeft()
+            screenBottomRight = screen.availableGeometry().bottomRight()
+            screenCenter = (screenTopLeft+screenBottomRight)/2
+            if self.listView.flow() == QListView.TopToBottom:
+                if listCenter.x() < screenCenter.x():
+                    ttPos = listTopRight + itemRect.topLeft()
+                else:
+                    ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
+            else:
+                if listCenter.y() < screenCenter.y():
+                    ttPos = listTopLeft + itemRect.bottomLeft()
+                else:
+                    ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
+        else:
+            # fallback to using dock area
+            if self.listView.flow() == QListView.TopToBottom:
+                if self.dockLocation == Qt.LeftDockWidgetArea or self.dockLocation == Qt.TopDockWidgetArea:
+                    ttPos = listTopRight + itemRect.topLeft()
+                else:
+                    ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
+            else:
+                if self.dockLocation == Qt.LeftDockWidgetArea or self.dockLocation == Qt.TopDockWidgetArea:
+                    ttPos = listTopLeft + itemRect.bottomLeft()
+                else:
+                    ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
+            
+        
         self.listToolTip.move(ttPos)
         self.listToolTip.show()
     
@@ -113,17 +150,19 @@ class OpenDocumentsDocker(krita.DockWidget):
     def setViewDirectionToHorizontal(self):
         print("setViewDirectionToHorizontal")
         Application.writeSetting("OpenDocumentsDocker", "viewDirection", "horizontal")
-        self.listView.setFlow(QListView.LeftToRight)
+        #self.listView.setFlow(QListView.LeftToRight)
+        self.setDockerDirection("horizontal")
 
     def setViewDirectionToVertical(self):
         print("setViewDirectionToVertical")
         Application.writeSetting("OpenDocumentsDocker", "viewDirection", "vertical")
-        self.listView.setFlow(QListView.TopToBottom)
+        #self.listView.setFlow(QListView.TopToBottom)
+        self.setDockerDirection("vertical")
 
     def setViewDirectionToAuto(self):
         print("setViewDirectionToAuto")
         Application.writeSetting("OpenDocumentsDocker", "viewDirection", "auto")
-        # TODO: set flow from longest side
+        self.setDockerDirection("auto")
     
     def convertViewThumbnailsScaleSettingToSlider(self, value):        
         if value in self.viewThumbnailsScaleSliderStrings:
@@ -270,6 +309,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def delayedResize(self):
         self.resizeDelay.stop()
+        self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
         self.refreshOpenDocuments()
     
     def imageCreated(self, image):
@@ -310,23 +350,31 @@ class OpenDocumentsDocker(krita.DockWidget):
 #    def applicationClosing(self):
 #        print("application closing")
     
+    def dockMoved(self, area):
+        print("dockMoved:", area)
+        self.dockLocation = area
+    
     def __init__(self):
         print("OpenDocumentsDocker: begin init")
         super(OpenDocumentsDocker, self).__init__()
         
+        self.dockLocation = None
+        self.dockLocationChanged.connect(self.dockMoved)
+        
         self.baseWidget = QWidget()
-        self.layout = QVBoxLayout()
+        self.layout = QBoxLayout(QBoxLayout.TopToBottom)
         self.listView = QListWidget()
         self.listToolTip = QLabel()
-        self.buttonLayout = QHBoxLayout()
+        self.buttonLayout = QBoxLayout(QBoxLayout.LeftToRight)
         self.loadButton = QPushButton() #i18n("Refresh"))
         self.loadButton.setIcon(Application.icon('view-refresh'))
         self.viewButton = QPushButton()
         self.viewButton.setIcon(Application.icon('view-choose'))
         #self.listModel = opendocumentslistmodel.OpenDocumentsListModel(self.devicePixelRatioF())
         
-        self.listView.setFlow(QListView.TopToBottom)
         # TODO: set list flow from saved setting on startup
+        self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
+
         self.listView.setMovement(QListView.Free)
         self.listView.clicked.connect(self.clicked)
         self.listView.setMouseTracking(True)
@@ -377,6 +425,26 @@ class OpenDocumentsDocker(krita.DockWidget):
         #appNotifier.applicationClosing.connect(self.applicationClosing)
         
         appNotifier.windowCreated.connect(self.windowCreated)
+    
+    def longestDockerSide(self):
+        dockrect = self.layout.geometry()
+        return ("horizontal" if dockrect.width() > dockrect.height() else "vertical")
+    
+    def setDockerDirection(self, direction):
+        if direction == "auto":
+            direction = self.longestDockerSide()
+        if direction == "horizontal":
+            self.layout.setDirection(QBoxLayout.LeftToRight)
+            self.listView.setFlow(QListView.LeftToRight)
+            self.buttonLayout.setDirection(QBoxLayout.TopToBottom)
+            self.loadButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+            self.viewButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        else:
+            self.layout.setDirection(QBoxLayout.TopToBottom)
+            self.listView.setFlow(QListView.TopToBottom)
+            self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
+            self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     
     def windowCreated(self):
         # TODO: is it ok to repeatedly connect same window?
@@ -634,11 +702,11 @@ class OpenDocumentsDocker(krita.DockWidget):
             if thumbnail.isNull():
                 return None
             
-            thumbSize = QSize(width*self.devicePixelRatioF(), width*0.75*self.devicePixelRatioF())
+            thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*0.75*self.devicePixelRatioF()))
             thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.FastTransformation)
         
         #thumbSize = QSize(200*self.devicePixelRatioF, 150*self.devicePixelRatioF)
-        thumbSize = QSize(width*self.devicePixelRatioF(), width*0.75*self.devicePixelRatioF())
+        thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*0.75*self.devicePixelRatioF()))
         if thumbnail.width() <= thumbSize.width() or thumbnail.height() <= thumbSize.height():
         	thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.FastTransformation)
         else:
