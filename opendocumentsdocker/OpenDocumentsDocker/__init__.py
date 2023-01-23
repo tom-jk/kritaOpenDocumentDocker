@@ -3,7 +3,7 @@
 #
 
 import krita
-from .opendocumentsdocker import OpenDocumentsDocker
+from .opendocumentsdocker import OpenDocumentsDocker, ODDExtension
 
 
 Application.addDockWidgetFactory(
