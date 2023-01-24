@@ -46,6 +46,9 @@ class OpenDocumentsDocker(krita.DockWidget):
                         return True
         return False
     
+    def activated(self, index):
+        self.clicked(index)
+    
     def clicked(self, index):
         #print("clicked index: col", index.column(), ", row", index.row(), ", data", index.data())
         #print(self.listModel.openDocuments[index.row()])
@@ -376,6 +379,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
 
         self.listView.setMovement(QListView.Free)
+        self.listView.activated.connect(self.clicked)
         self.listView.clicked.connect(self.clicked)
         self.listView.setMouseTracking(True)
         self.listView.entered.connect(self.entered)
@@ -481,6 +485,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def contextMenuEvent(self, event):
         print("ctx menu event -", str(event))
+        self.listToolTip.hide()
         if len(self.listView.selectedIndexes()) == 0:
             print("ctx menu cancelled (no selection)")
             return
