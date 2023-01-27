@@ -144,11 +144,13 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("setViewDisplayToThumbnails")
         Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails")
         self.refreshOpenDocuments()
+        self.updateScrollBarPolicy()
 
     def setViewDisplayToText(self):
         print("setViewDisplayToText")
         Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "text")
         self.refreshOpenDocuments()
+        self.updateScrollBarPolicy()
 
     def setViewDirectionToHorizontal(self):
         print("setViewDirectionToHorizontal")
@@ -312,8 +314,21 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def delayedResize(self):
         self.resizeDelay.stop()
+        print("delayedResize: lastSize:", self.lastSize)
+        print("               new size:", self.baseWidget.size())
+        lastFlow = self.listView.flow()
         self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
-        self.refreshOpenDocuments()
+        if self.lastSize == self.baseWidget.size():
+            print("delayedResize: size did not change - no refresh.")
+        elif self.listView.flow() == lastFlow and (
+                (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or
+                (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height())
+        ):
+            print("delayedResize: list is longer/shorter, but not narrower/wider - no refresh.")
+        else:
+            print("delayedResize: size changed - refresh.")
+            self.refreshOpenDocuments()
+        self.lastSize = self.baseWidget.size()
     
     def imageCreated(self, image):
         print("image created -", image, end=" ")
@@ -375,10 +390,10 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.viewButton.setIcon(Application.icon('view-choose'))
         #self.listModel = opendocumentslistmodel.OpenDocumentsListModel(self.devicePixelRatioF())
         
-        # TODO: set list flow from saved setting on startup
         self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
-
         self.listView.setMovement(QListView.Free)
+        self.listView.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.listView.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.listView.activated.connect(self.clicked)
         self.listView.clicked.connect(self.clicked)
         self.listView.setMouseTracking(True)
@@ -412,6 +427,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.baseWidget.setMinimumHeight(56)
         self.setWidget(self.baseWidget)
         
+        self.lastSize = self.baseWidget.size()
         self.resizeDelay = QTimer(self.baseWidget)
         self.resizeDelay.timeout.connect(self.delayedResize)
         
@@ -449,6 +465,18 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
             self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.updateScrollBarPolicy()
+    
+    def updateScrollBarPolicy(self):
+        if self.listView.flow() == QListView.LeftToRight:
+            self.listView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+            self.listView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        else:
+            if Application.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails") == "text":
+                self.listView.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            else:
+                self.listView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.listView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
     
     def windowCreated(self):
         # TODO: is it ok to repeatedly connect same window?
@@ -675,22 +703,21 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("generate thumbnail for doc", doc)
         
         # ensure the thumbnail will be complete
-        print("waiting for doc ready ...", end=" ")
         doc.waitForDone()
-        print("done")
         
-        kludgePixels=10
+        kludgePixels=6
         width = 0
         if self.listView.flow() == QListView.TopToBottom:
-            width = self.baseWidget.width() - kludgePixels
+            scrollBarWidth = self.listView.verticalScrollBar().sizeHint().width()
+            width = self.listView.width() - kludgePixels - scrollBarWidth
         else:
-            width = self.baseWidget.height() - kludgePixels
-        #print("width:", width)
+            scrollBarHeight = self.listView.horizontalScrollBar().sizeHint().height()
+            width = self.listView.height() - kludgePixels - scrollBarHeight
+        print("gtfd: calculated width:", width)
         
         # keep size from getting too big and slowing things down
         width = min(width, 256)
         
-        path = doc.fileName()
         thumbnail = None
         
         scaleFactor = self.viewThumbnailsScaleSliderValues[self.viewPanelThumbnailsScaleSlider.value()]
@@ -710,13 +737,21 @@ class OpenDocumentsDocker(krita.DockWidget):
             thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*0.75*self.devicePixelRatioF()))
             thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.FastTransformation)
         
-        #thumbSize = QSize(200*self.devicePixelRatioF, 150*self.devicePixelRatioF)
-        thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*0.75*self.devicePixelRatioF()))
-        if thumbnail.width() <= thumbSize.width() or thumbnail.height() <= thumbSize.height():
-        	thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.FastTransformation)
+        thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*self.devicePixelRatioF()))
+        #print("desired thumbSize:", thumbSize.width(), "x", thumbSize.height())
+        
+        if self.listView.flow() == QListView.TopToBottom:
+            if thumbnail.width() < thumbSize.width():
+                thumbnail = thumbnail.scaledToWidth(thumbSize.width(), Qt.FastTransformation)
+            else:
+                thumbnail = thumbnail.scaledToWidth(thumbSize.width(), Qt.SmoothTransformation)
         else:
-        	thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            if thumbnail.height() < thumbSize.height():
+                thumbnail = thumbnail.scaledToHeight(thumbSize.height(), Qt.FastTransformation)
+            else:
+                thumbnail = thumbnail.scaledToHeight(thumbSize.height(), Qt.SmoothTransformation)
         thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
+        #print("final size:", thumbnail.width(), "x", thumbnail.height())
         
         return thumbnail
 
@@ -763,3 +798,4 @@ class ODDExtension(Extension):
 
 # And add the extension to Krita's list of extensions:
 Application.addExtension(ODDExtension(Application))
+
