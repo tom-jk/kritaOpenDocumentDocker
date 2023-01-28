@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
-from PyQt5.QtGui import QPixmap, QScreen
+from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
 import krita
 from krita import *
@@ -101,9 +101,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         ttPos = None
         
-        listTopLeft = self.mapToGlobal(self.listView.frameGeometry().topLeft())
-        listBottomRight = self.mapToGlobal(self.listView.frameGeometry().bottomRight())
-        listTopRight = self.mapToGlobal(self.listView.frameGeometry().topRight())
+        listTopLeft = self.listView.mapToGlobal(self.listView.frameGeometry().topLeft())
+        listBottomRight = self.listView.mapToGlobal(self.listView.frameGeometry().bottomRight())
+        listTopRight = self.listView.mapToGlobal(self.listView.frameGeometry().topRight())
         listCenter = (listTopLeft+listBottomRight)/2
         itemRect = self.listView.visualRect(index)
         
@@ -308,6 +308,7 @@ class OpenDocumentsDocker(krita.DockWidget):
 
     def clickedViewButton(self):
         kludgePixels = 14
+        # self.mapToGlobal or self.viewButton.mapToGlobal?
         self.viewPanel.move(
                 self.mapToGlobal(self.viewButton.frameGeometry().topLeft()) + QPoint(0, -self.viewPanel.sizeHint().height() + kludgePixels))
         self.viewPanel.show()
@@ -512,13 +513,28 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.listToolTip.hide()
     
     def contextMenuEvent(self, event):
-        print("ctx menu event -", str(event))
+        print("ctx menu event -", event.globalPos(), event.reason())
         self.listToolTip.hide()
         if len(self.listView.selectedIndexes()) == 0:
             print("ctx menu cancelled (no selection)")
             return
+        
         app = Application
         index = self.listView.selectedIndexes()[0]
+        item = self.listView.selectedItems()[0]
+        listTopLeft = self.listView.mapToGlobal(self.listView.frameGeometry().topLeft())
+        itemRect = self.listView.visualItemRect(item)
+        itemRect.translate(listTopLeft)
+        print("itemRect:", itemRect)
+        
+        pos = QPoint(0, 0)
+        if event.reason() == QContextMenuEvent.Mouse:
+            if not itemRect.contains(event.globalPos()):
+                print("ctx menu cancelled (mouse not over item)")
+                return
+            pos = event.globalPos()
+        else:
+            pos = (itemRect.topLeft() + itemRect.bottomRight()) / 2
         item = self.listView.item(index.row())
         
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
@@ -527,7 +543,10 @@ class OpenDocumentsDocker(krita.DockWidget):
             return
         
         print("selected:", index, " -", doc.fileName())
+        app.activeDocument().waitForDone()
         self.find_and_activate_view(doc)
+        app.setActiveDocument(doc)
+        doc.waitForDone()
         menu = QMenu(self)
         menu.addAction(app.action('file_save'))
         menu.addAction(app.action('file_save_as'))
@@ -537,7 +556,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         # seperator
         # new file
         menu.addAction(app.action('file_close'))
-        menu.exec(event.globalPos())
+        menu.exec(pos)
     
 #    def quickCopyMergedAction(self):
 #        app = Application
