@@ -3,7 +3,6 @@
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
 from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
-import krita
 from krita import *
 from pathlib import Path
 
@@ -372,6 +371,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     def dockMoved(self, area):
         print("dockMoved:", area)
         self.dockLocation = area
+        self.listToolTip.hide()
     
     def __init__(self):
         print("OpenDocumentsDocker: begin init")
@@ -655,6 +655,18 @@ class OpenDocumentsDocker(krita.DockWidget):
             #print("updating thumbnail.")
             item = self.listView.selectedItems()[0]
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
+    
+    def findItemWithDocument(self, doc):
+        uid = self.documentUniqueId(doc)
+        itemCount = self.listView.count()
+        for i in range(itemCount):
+            searchItem = self.listView.item(i)
+            if searchItem.data(self.ItemDocumentRole) == uid:
+                return searchItem
+        return None
+    
+    def findDocumentWithItem(self, item):
+        return self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
     
     def addDocumentToList(self, doc):
         item = None
