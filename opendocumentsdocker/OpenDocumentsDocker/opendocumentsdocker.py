@@ -14,6 +14,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     viewThumbnailsTooltipsSliderStrings = ["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"]
     viewThumbnailsTooltipsSliderValues = [0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")]
     ItemDocumentRole = Qt.UserRole
+    ItemUpdateDeferredRole = Qt.UserRole+1
     
     # https://krita-artists.org/t/scripting-open-an-existing-file/32124/4
     def find_and_activate_view(self, doc):
@@ -379,6 +380,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.dockLocation = None
         self.dockLocationChanged.connect(self.dockMoved)
+        self.dockVisible = True
+        self.visibilityChanged.connect(self.dockVisibilityChanged)
+        self.deferredItemThumbnailCount = 0
         
         self.baseWidget = QWidget()
         self.layout = QBoxLayout(QBoxLayout.TopToBottom)
@@ -433,7 +437,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.resizeDelay.timeout.connect(self.delayedResize)
         
         #self.loadButton.clicked.connect(self.refreshOpenDocuments)
-        self.loadButton.clicked.connect(self.updateDocumentThumbnail)
+        self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
         self.setWindowTitle(i18n("Open Documents Docker"))
         
         appNotifier = Application.notifier()
@@ -460,12 +464,24 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.buttonLayout.setDirection(QBoxLayout.TopToBottom)
             self.loadButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             self.viewButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+            try:
+                self.listView.verticalScrollBar().valueChanged.disconnect(self.listScrolled)
+            except TypeError:
+                print("couldn't disconnect vscoll")
+                pass
+            self.listView.horizontalScrollBar().valueChanged.connect(self.listScrolled)
         else:
             self.layout.setDirection(QBoxLayout.TopToBottom)
             self.listView.setFlow(QListView.TopToBottom)
             self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
             self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            try:
+                self.listView.horizontalScrollBar().valueChanged.disconnect(self.listScrolled)
+            except TypeError:
+                print("couldn't disconnect hscoll")
+                pass
+            self.listView.verticalScrollBar().valueChanged.connect(self.listScrolled)
         self.updateScrollBarPolicy()
     
     def updateScrollBarPolicy(self):
@@ -478,6 +494,10 @@ class OpenDocumentsDocker(krita.DockWidget):
             else:
                 self.listView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.listView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+    
+    def listScrolled(self, value):
+        #print("listScrolled by", value)
+        self.processDeferredDocumentThumbnails()
     
     def windowCreated(self):
         # TODO: is it ok to repeatedly connect same window?
@@ -511,6 +531,57 @@ class OpenDocumentsDocker(krita.DockWidget):
     def viewportEntered(self):
         print("viewport entered!")
         self.listToolTip.hide()
+    
+    def dockVisibilityChanged(self, visible):
+        print("visibilityChanged: visible =", visible)
+        self.dockVisible = visible
+        self.processDeferredDocumentThumbnails()
+    
+    def markDocumentThumbnailAsDeferred(self, doc=None, item=None):
+        """
+        can specify document or list item.
+        if item not specified, find from doc.
+        if both specified, doc is ignored.
+        """
+        if not item:
+            if not doc:
+                print("mark deferred: no doc or item specified.")
+                return
+            item = self.findItemWithDocument(doc)
+            if not item:
+                print("mark deferred: no list item associated with document.")
+                return
+        
+        if item.data(self.ItemUpdateDeferredRole):
+            print("mark deferred: already marked.")
+            return
+            
+        self.deferredItemThumbnailCount += 1
+        item.setData(self.ItemUpdateDeferredRole, True)
+        print("mark deferred: " + self.documentDisplayName(self.findDocumentWithItem(item)) + " thumbnail update has been deferred.")
+    
+    def processDeferredDocumentThumbnails(self):
+        if not self.dockVisible:
+            return
+        
+        if self.deferredItemThumbnailCount == 0:
+            return
+        
+        assert self.deferredItemThumbnailCount >= 0, "ODD: deferredItemThumbnailCount is negative."
+        
+        listRect = self.listView.childrenRect()
+        itemCount = self.listView.count()
+        for i in range(itemCount):
+            item = self.listView.item(i)
+            if item.data(self.ItemUpdateDeferredRole):
+                visRect = self.listView.visualItemRect(item)
+                if not listRect.intersected(visRect).isEmpty():
+                    item.setData(self.ItemUpdateDeferredRole, False)
+                    self.deferredItemThumbnailCount -= 1
+                    self.updateDocumentThumbnail(self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole)))
+                else:
+                    #print("item", i, "is scrolled out of view")
+                    pass
     
     def contextMenuEvent(self, event):
         print("ctx menu event -", event.globalPos(), event.reason())
@@ -640,21 +711,42 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("could not find item for active document!")
         return False
     
-    def updateDocumentThumbnail(self):
-        doc = Application.activeDocument()
+    def isItemOnScreen(self, item):
+        if not self.dockVisible:
+            return False
+
+        listRect = self.listView.childrenRect()
+        visRect = self.listView.visualItemRect(item)
+        return listRect.intersected(visRect).isValid()
+    
+    def updateDocumentThumbnailForced(self):
+        self.updateDocumentThumbnail(doc=None, force=True)
+    
+    def updateDocumentThumbnail(self, doc=None, force=False):
+        if not doc:
+            doc = Application.activeDocument()
         if not doc:
             print("update thumb: no active document.")
             return
         if self.viewPanelDisplayButtonGroup.checkedButton() == self.viewPanelDisplayTextButton:
             print("update thumb: docker list is in text-only mode.")
             return
+        
+        item = self.findItemWithDocument(doc)
+        if not item:
+            print("update thumb: no list item associated with document.")
+            return
+        
+        if not force:
+            if not self.isItemOnScreen(item):
+                self.markDocumentThumbnailAsDeferred(None, item)
+                print("update thumb: item not currently visible, update later.")
+                return
+        
         print("update thumb for", doc, " -", doc.fileName())
         thumbnail = self.generateThumbnailForDocument(doc)
         print("generated:", thumbnail)
-        if self.ensureListSelectionIsActiveDocument():
-            #print("updating thumbnail.")
-            item = self.listView.selectedItems()[0]
-            item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
+        item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
     
     def findItemWithDocument(self, doc):
         uid = self.documentUniqueId(doc)
