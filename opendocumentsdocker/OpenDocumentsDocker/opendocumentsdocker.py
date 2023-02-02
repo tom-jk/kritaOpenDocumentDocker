@@ -846,7 +846,15 @@ class OpenDocumentsDocker(krita.DockWidget):
         scaleFactor = self.viewThumbnailsScaleSliderValues[self.viewPanelThumbnailsScaleSlider.value()]
         
         if scaleFactor == 1:
-            thumbnail = doc.thumbnail(width, width)
+            # new document may briefly exist as qobject type before becoming document,
+            # during which projection isn't available but thumbnail is.
+            # projection is much faster so prefer it when available.
+            if type(doc) == Document:
+                print("projection->thumbnail")
+                thumbnail = doc.projection(0, 0, doc.width(), doc.height())
+            else:
+                print("regular thumbnail")
+                thumbnail = doc.thumbnail(width, width)
         
             if thumbnail.isNull():
                 return None
