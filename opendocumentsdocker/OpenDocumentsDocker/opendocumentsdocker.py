@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
 from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
 from krita import *
+from time import *
 from pathlib import Path
 
 
@@ -13,6 +14,10 @@ class OpenDocumentsDocker(krita.DockWidget):
     viewThumbnailsScaleSliderValues = [1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0/2.0, 1]
     viewThumbnailsTooltipsSliderStrings = ["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"]
     viewThumbnailsTooltipsSliderValues = [0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")]
+    viewThumbnailsRefreshPeriodicallyChecksStrings = ["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"]
+    viewThumbnailsRefreshPeriodicallyChecksValues = [1000, 500, 333, 250, 200, 125, 100, 67, 50, 33]
+    viewThumbnailsRefreshPeriodicallyDelayStrings = ["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"]
+    viewThumbnailsRefreshPeriodicallyDelayValues = [500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000]
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
     
@@ -169,25 +174,25 @@ class OpenDocumentsDocker(krita.DockWidget):
         Application.writeSetting("OpenDocumentsDocker", "viewDirection", "auto")
         self.setDockerDirection("auto")
     
-    def convertViewThumbnailsScaleSettingToSlider(self, value):        
+    def convertViewThumbnailsScaleSettingToSlider(self, value):
         if value in self.viewThumbnailsScaleSliderStrings:
-            return self.viewThumbnailsScaleSliderStrings.index(value) 
+            return self.viewThumbnailsScaleSliderStrings.index(value)
         else:
             return self.viewThumbnailsScaleSliderStrings.index("1")
     
-    def convertViewThumbnailsScaleSliderToSetting(self, value):        
+    def convertViewThumbnailsScaleSliderToSetting(self, value):
         if value < len(self.viewThumbnailsScaleSliderStrings):
             return self.viewThumbnailsScaleSliderStrings[value] 
         else:
             return "1"
     
-    def convertViewThumbnailsTooltipsSettingToSlider(self, value):        
+    def convertViewThumbnailsTooltipsSettingToSlider(self, value):
         if value in self.viewThumbnailsTooltipsSliderStrings:
-            return self.viewThumbnailsTooltipsSliderStrings.index(value) 
+            return self.viewThumbnailsTooltipsSliderStrings.index(value)
         else:
             return self.viewThumbnailsTooltipsSliderStrings.index("≤4096px²")
     
-    def convertViewThumbnailsTooltipsSliderToSetting(self, value):        
+    def convertViewThumbnailsTooltipsSliderToSetting(self, value):
         if value < len(self.viewThumbnailsTooltipsSliderStrings):
             return self.viewThumbnailsTooltipsSliderStrings[value] 
         else:
@@ -208,6 +213,62 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("changedThumbnailsRefreshOnSave to", setting)
         Application.writeSetting("OpenDocumentsDocker", "viewRefreshOnSave", setting)
     
+    def changedThumbnailsRefreshPeriodically(self, state):
+        setting = str(state==2).lower()
+        print("changedThumbnailsRefreshPeriodically to", setting)
+        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodically", setting)
+        if state == 2:
+            if hasattr(self, "viewPanelThumbnailsRefreshPeriodicallyChecksSlider"):
+                self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(True)
+                self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(True)
+            self.imageChangeDetectionTimer.start()
+        else:
+            if hasattr(self, "viewPanelThumbnailsRefreshPeriodicallyChecksSlider"):
+                self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(False)
+                self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(False)
+            self.imageChangeDetectionTimer.stop()
+            self.refreshTimer.stop()
+    
+    def convertViewThumbnailsRefreshPeriodicallyChecksSettingToSlider(self, value):
+        if value in self.viewThumbnailsRefreshPeriodicallyChecksStrings:
+            return self.viewThumbnailsRefreshPeriodicallyChecksStrings.index(value)
+        else:
+            return self.viewThumbnailsRefreshPeriodicallyChecksStrings.index("15/sec")
+    
+    def convertViewThumbnailsRefreshPeriodicallyChecksSliderToSetting(self, value):
+        if value < len(self.viewThumbnailsRefreshPeriodicallyChecksStrings):
+            return self.viewThumbnailsRefreshPeriodicallyChecksStrings[value] 
+        else:
+            return "15/sec"
+    
+    def convertViewThumbnailsRefreshPeriodicallyDelaySettingToSlider(self, value):
+        if value in self.viewThumbnailsRefreshPeriodicallyDelayStrings:
+            return self.viewThumbnailsRefreshPeriodicallyDelayStrings.index(value)
+        else:
+            return self.viewThumbnailsRefreshPeriodicallyDelayStrings.index("2sec")
+    
+    def convertViewThumbnailsRefreshPeriodicallyDelaySliderToSetting(self, value):
+        if value < len(self.viewThumbnailsRefreshPeriodicallyDelayStrings):
+            return self.viewThumbnailsRefreshPeriodicallyDelayStrings[value] 
+        else:
+            return "2sec"
+    
+    def changedViewPanelThumbnailsRefreshPeriodicallyChecksSlider(self, value):
+        setting = self.convertViewThumbnailsRefreshPeriodicallyChecksSliderToSetting(value)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksValue.setText(setting)
+        self.imageChangeDetectionTimer.setInterval(
+                self.viewThumbnailsRefreshPeriodicallyChecksValues[self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.value()]
+        )
+        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", setting)
+    
+    def changedViewPanelThumbnailsRefreshPeriodicallyDelaySlider(self, value):
+        setting = self.convertViewThumbnailsRefreshPeriodicallyDelaySliderToSetting(value)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayValue.setText(setting)
+        self.refreshTimer.setInterval(
+                self.viewThumbnailsRefreshPeriodicallyDelayValues[self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.value()]
+        )
+        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", setting)
+        
     def createViewPanel(self):
         app = Application
         
@@ -257,6 +318,43 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.viewPanelThumbnailsRefreshOnSaveCheckBox.setChecked(app.readSetting("OpenDocumentsDocker", "viewRefreshOnSave", "false") == "true")
         self.viewPanelThumbnailsRefreshOnSaveCheckBox.setToolTip("When you save an image, refresh its thumbnail automatically.")
         
+        self.viewPanelThumbnailsRefreshPeriodicallyCheckBox = QCheckBox("Refresh periodically (experimental)")
+        self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.stateChanged.connect(self.changedThumbnailsRefreshPeriodically)
+        self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.setChecked(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodically", "false") == "true")
+        self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.setToolTip(
+                "Automatically refresh the thumbnail for the active image if a change is detected.\n" + 
+                "Checks for changes to the image so-many times each second.\n" +
+                "Then tries to refresh the thumbnail every so-many seconds.\n" +
+                "May not catch quick changes if they happen between checks.\n" +
+                "Aggressive settings may degrade performance."
+        )
+        
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Check", self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec"), self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider = QSlider(Qt.Horizontal, self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setRange(0, 9)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setTickPosition(QSlider.NoTicks)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setTickInterval(1)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setValue(
+                self.convertViewThumbnailsRefreshPeriodicallyChecksSettingToSlider(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec"))
+        )
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setToolTip("Number of times each second the image is checked for activity.")
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
+        
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout = QHBoxLayout()
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec"), self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider = QSlider(Qt.Horizontal, self.viewPanel)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setRange(0, 10)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setTickPosition(QSlider.NoTicks)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setTickInterval(1)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setValue(
+                self.convertViewThumbnailsRefreshPeriodicallyDelaySettingToSlider(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec"))
+        )
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setToolTip("How long after the last detected change to refresh the thumbnail.")
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
+        
         self.viewPanelDisplayButtonGroup.addButton(self.viewPanelDisplayThumbnailsButton)
         self.viewPanelDisplayButtonGroup.addButton(self.viewPanelDisplayTextButton)
         settingViewDisplay = app.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails")
@@ -298,6 +396,21 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.viewPanelThumbnailsTooltipsLayout.setStretch(2, 5)
         self.viewPanelLayout.addLayout(self.viewPanelThumbnailsTooltipsLayout)
         self.viewPanelLayout.addWidget(self.viewPanelThumbnailsRefreshOnSaveCheckBox)
+        self.viewPanelLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyCheckBox)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyChecksLabel)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyChecksValue)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(0, 2)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(1, 2)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(2, 5)
+        self.viewPanelLayout.addLayout(self.viewPanelThumbnailsRefreshPeriodicallyChecksLayout)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyDelayLabel)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyDelayValue)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(0, 2)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(1, 2)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(2, 5)
+        self.viewPanelLayout.addLayout(self.viewPanelThumbnailsRefreshPeriodicallyDelayLayout)
         self.viewPanel.setLayout(self.viewPanelLayout)
         self.viewPanel.setMinimumWidth(384)
         #viewPanel.setMinimumHeight(200)
@@ -305,6 +418,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.viewPanelThumbnailsScaleSlider.valueChanged.connect(self.changedViewPanelThumbnailsScaleSlider)
         self.viewPanelThumbnailsTooltipsSlider.valueChanged.connect(self.changedViewPanelThumbnailsTooltipsSlider)
+        self.viewPanelThumbnailsRefreshPeriodicallyChecksSlider.valueChanged.connect(self.changedViewPanelThumbnailsRefreshPeriodicallyChecksSlider)
+        self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.valueChanged.connect(self.changedViewPanelThumbnailsRefreshPeriodicallyDelaySlider)
 
     def clickedViewButton(self):
         kludgePixels = 14
@@ -364,6 +479,9 @@ class OpenDocumentsDocker(krita.DockWidget):
                 break
         print("image saved -", filename, "(doc", str(doc) + ")")
         if self.viewPanelThumbnailsRefreshOnSaveCheckBox.isChecked():
+            if self.imageChangeDetected:
+                self.imageChangeDetected = False
+                self.refreshTimer.stop()
             self.updateDocumentThumbnail()
     
 #    def applicationClosing(self):
@@ -418,6 +536,21 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.layout.addWidget(self.listView)
         
+        self.imageChangeDetected = False
+        self.imageOldSize = QSize(0, 0)
+        self.imageChangeDetectionTimer = QTimer(self.baseWidget)
+        setting = Application.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec")
+        self.imageChangeDetectionTimer.setInterval(
+            self.viewThumbnailsRefreshPeriodicallyChecksValues[self.viewThumbnailsRefreshPeriodicallyChecksStrings.index(setting)]
+        )
+        self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
+        self.refreshTimer = QTimer(self.baseWidget)
+        setting = Application.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec")
+        self.refreshTimer.setInterval(
+            self.viewThumbnailsRefreshPeriodicallyDelayValues[self.viewThumbnailsRefreshPeriodicallyDelayStrings.index(setting)]
+        )
+        self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
+        
         #menu = QMenu("Menu Title", None)
         #menu.aboutToShow.connect(self.viewmenuabouttoshow)
         #self.viewButton.setMenu(menu)
@@ -440,6 +573,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
         self.setWindowTitle(i18n("Open Documents Docker"))
         
+        # used for doing things with the document that was current before active view changed
+        self.currentDocument = None
+        
         appNotifier = Application.notifier()
         appNotifier.setActive(True)
         #appNotifier.viewCreated.connect(self.refreshOpenDocuments)
@@ -451,6 +587,59 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         appNotifier.windowCreated.connect(self.windowCreated)
     
+    tavg = 0
+    def imageChangeDetectionTimerTimeout(self):
+        t0 = process_time_ns()
+        doc = Application.activeDocument()
+        if doc == None:
+            return
+        if self.imageChangeDetected:
+            if doc.tryBarrierLock():
+                #print("imageChangeDetectionTimerTimeout - imageChangeDetected:false, lock:success - no refresh needed")
+                doc.unlock()
+                if not self.refreshTimer.isActive():
+                    self.refreshTimer.start()
+            else:
+                if self.refreshTimer.isActive():
+                    self.refreshTimer.stop()
+        else:
+            changed = False
+            if doc.tryBarrierLock():
+                doc.unlock()
+                if self.imageOldSize != doc.bounds().size():
+                    print(self.imageOldSize)
+                    print(doc.bounds().size())
+                    print("imageChangeDetectionTimerTimeout - size changed")
+                    changed = True
+            else:
+                print("imageChangeDetectionTimerTimeout - barrier lock failed")
+                changed = True
+            if changed:
+                print("imageChangeDetectionTimerTimeout - imageChangeDetected:false, lock:failed - document busy, it is being changed")
+                self.imageChangeDetected = True
+        
+        self.imageOldSize = doc.bounds().size()
+        t1 = process_time_ns()
+        tdiff = (t1-t0)
+        self.tavg = self.tavg + (tdiff - self.tavg) * 0.125
+        tps =  1000.0/50.0
+        #print(float(self.tavg)/1000000.0*tps, "ms/sec")
+    
+    def refreshTimerTimeout(self):
+        #return
+        doc = Application.activeDocument()
+        if doc == None:
+            return
+        if self.imageChangeDetected:
+            if doc.tryBarrierLock():
+                print("refreshTimerTimeout - imageChangeDetected:true, lock:success - refresh")
+                doc.unlock()
+                self.updateDocumentThumbnail()
+                self.imageChangeDetected = False
+                self.refreshTimer.stop()
+            else:
+                print("refreshTimerTimeout - imageChangeDetected:true, lock:failed - document busy, wait")
+
     def longestDockerSide(self):
         dockrect = self.layout.geometry()
         return ("horizontal" if dockrect.width() > dockrect.height() else "vertical")
@@ -512,6 +701,16 @@ class OpenDocumentsDocker(krita.DockWidget):
     def activeViewChanged(self):
         print("active view changed")
         #print("active doc:", Application.activeDocument())
+        if self.imageChangeDetected:
+            # flush thumbnail update for now-previous doc
+            if self.currentDocument:
+                print("flush thumbnail update for", self.currentDocument, "-", self.documentDisplayName(self.currentDocument))
+                self.updateDocumentThumbnail(self.currentDocument)
+            self.imageChangeDetected = False
+            self.refreshTimer.stop()
+        if Application.activeDocument():
+            self.currentDocument = Application.activeDocument()
+            self.imageOldSize = Application.activeDocument().bounds().size()
         self.ensureListSelectionIsActiveDocument()
     
     def canvasChanged(self, canvas):
@@ -536,6 +735,15 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("visibilityChanged: visible =", visible)
         self.dockVisible = visible
         self.processDeferredDocumentThumbnails()
+        if self.viewPanelThumbnailsRefreshPeriodicallyCheckBox.isChecked():
+            if visible:
+                self.imageChangeDetectionTimer.start()
+            else:
+                self.imageChangeDetectionTimer.stop()
+                self.refreshTimer.stop()
+                if self.imageChangeDetected:
+                    self.markDocumentThumbnailAsDeferred(Application.activeDocument())
+                    self.imageChangeDetected = False
     
     def markDocumentThumbnailAsDeferred(self, doc=None, item=None):
         """
