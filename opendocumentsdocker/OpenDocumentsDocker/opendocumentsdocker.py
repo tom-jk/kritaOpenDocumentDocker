@@ -453,8 +453,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.addDocumentToList(image)
     
     def viewClosed(self, view):
-        print("view closed:", view)
-        print(" doc:", view.document(), ", name:", self.documentDisplayName(view.document()), "id:", self.documentUniqueId(view.document()))
+        print("view closed - doc name:", self.documentDisplayName(view.document()), "id:", self.documentUniqueId(view.document()))
         #print("document remains open." if self.documentHasViews(view.document(), view) else "document has no views left, will close.")
         
         self.documentUniqueIdFromLastClosedView = self.documentUniqueId(view.document())
@@ -462,12 +461,26 @@ class OpenDocumentsDocker(krita.DockWidget):
     def imageClosed(self, filename):
         print("image closed -", filename)
         
-        if self.documentUniqueIdFromLastClosedView:
-            # a view just closed, and now an image just closed.
-            # so this image must be the document from that view.
-            self.removeDocumentFromList(self.documentUniqueIdFromLastClosedView)
-            self.documentUniqueIdFromLastClosedView = None
-        #self.refreshOpenDocuments()
+        # a view just closed, and now an image just closed.
+        # so this image must be the document from that view.
+        assert self.documentUniqueIdFromLastClosedView != None, "ODD: imageClosed: an image closed without a view closing first?"
+        
+        self.removeDocumentFromList(self.documentUniqueIdFromLastClosedView)
+        
+        print("", self.currentDocumentId)
+        print("", self.documentUniqueIdFromLastClosedView)
+        if self.currentDocumentId == self.documentUniqueIdFromLastClosedView:
+            print(" we've closed the document that was current.")
+            if self.imageChangeDetected:
+                print(" it was waiting to refresh, cancelling.")
+                self.imageChangeDetected = False
+                self.refreshTimer.stop()
+            
+            if len(Application.documents()) == 0:
+                print(" it was the last open document.")
+                self.currentDocumentId = None
+        
+        self.documentUniqueIdFromLastClosedView = None
     
     def imageSaved(self, filename):
         # unnecessary? the document just saved should be the active one
@@ -574,7 +587,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.setWindowTitle(i18n("Open Documents Docker"))
         
         # used for doing things with the document that was current before active view changed
-        self.currentDocument = None
+        self.currentDocumentId = None
         
         appNotifier = Application.notifier()
         appNotifier.setActive(True)
@@ -592,6 +605,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         t0 = process_time_ns()
         doc = Application.activeDocument()
         if doc == None:
+            return
+        if not self.findItemWithDocument(doc):
+            print("imageChangeDetectionTimerTimeout - image has not been formally created yet, bail.")
             return
         if self.imageChangeDetected:
             if doc.tryBarrierLock():
@@ -703,13 +719,16 @@ class OpenDocumentsDocker(krita.DockWidget):
         #print("active doc:", Application.activeDocument())
         if self.imageChangeDetected:
             # flush thumbnail update for now-previous doc
-            if self.currentDocument:
-                print("flush thumbnail update for", self.currentDocument, "-", self.documentDisplayName(self.currentDocument))
-                self.updateDocumentThumbnail(self.currentDocument)
+            print(" currdocid:", self.currentDocumentId)
+            if self.currentDocumentId:
+                doc = self.findDocumentWithUniqueId(self.currentDocumentId)
+                print(" flush thumbnail update for", self.currentDocumentId, "-", self.documentDisplayName(doc))
+                self.updateDocumentThumbnail(doc)
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         if Application.activeDocument():
-            self.currentDocument = Application.activeDocument()
+            self.currentDocumentId = Application.activeDocument().rootNode().uniqueId()
+            print(" set currentDocumentId:", self.currentDocumentId)
             self.imageOldSize = Application.activeDocument().bounds().size()
         self.ensureListSelectionIsActiveDocument()
     
