@@ -426,10 +426,52 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.viewPanelThumbnailsRefreshPeriodicallyDelaySlider.valueChanged.connect(self.changedViewPanelThumbnailsRefreshPeriodicallyDelaySlider)
 
     def clickedViewButton(self):
-        kludgePixels = 14
-        # self.mapToGlobal or self.viewButton.mapToGlobal?
-        self.viewPanel.move(
-                self.mapToGlobal(self.viewButton.frameGeometry().topLeft()) + QPoint(0, -self.viewPanel.sizeHint().height() + kludgePixels))
+        btnTopLeft = self.baseWidget.mapToGlobal(self.viewButton.frameGeometry().topLeft())
+        btnBottomLeft = self.baseWidget.mapToGlobal(self.viewButton.frameGeometry().bottomLeft())
+        btnBottomRight = self.baseWidget.mapToGlobal(self.viewButton.frameGeometry().bottomRight())
+        btnTopRight = self.baseWidget.mapToGlobal(self.viewButton.frameGeometry().topRight())
+        btnCenter = (btnTopLeft+btnBottomRight)/2
+        
+        self.viewPanel.show()
+        self.viewPanel.layout().invalidate()
+        self.viewPanel.hide()
+        panelSize = self.viewPanel.size()
+        
+        pos = QPoint(0, 0)
+        
+        if hasattr(self, "screen"):
+            # work out which side of the widget has the most space and put the view panel there.
+            screen = self.screen()
+            screenTopLeft = screen.availableGeometry().topLeft()
+            screenBottomRight = screen.availableGeometry().bottomRight()
+            screenCenter = (screenTopLeft+screenBottomRight)/2
+            if btnCenter.x() < screenCenter.x():
+                if btnCenter.y() < screenCenter.y():
+                    # top left
+                    pos = btnBottomLeft
+                else:
+                    # bottom left
+                    pos = btnTopLeft - QPoint(0, panelSize.height())
+            else:
+                if btnCenter.y() < screenCenter.y():
+                    # top right
+                    pos = btnBottomRight - QPoint(panelSize.width(), 0)
+                else:
+                    # bottom right
+                    pos = btnTopRight - QPoint(panelSize.width(), panelSize.height())
+        else:
+            # fallback to using dock area
+            if self.dockLocation == Qt.LeftDockWidgetArea:
+                # bottom left
+                pos = btnTopLeft - QPoint(0, panelSize.height())
+            elif self.dockLocation == Qt.TopDockWidgetArea:
+                # top right
+                pos = btnBottomRight - QPoint(panelSize.width(), 0)
+            else:
+                # bottom right
+                pos = btnTopRight - QPoint(panelSize.width(), panelSize.height())
+        
+        self.viewPanel.move(pos)
         self.viewPanel.show()
     
     def delayedResize(self):
