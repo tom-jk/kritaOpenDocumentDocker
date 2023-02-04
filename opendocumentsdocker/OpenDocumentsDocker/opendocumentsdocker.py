@@ -150,12 +150,16 @@ class OpenDocumentsDocker(krita.DockWidget):
         Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails")
         self.refreshOpenDocuments()
         self.updateScrollBarPolicy()
+        if self.itemTextUpdateTimer.isActive():
+            self.itemTextUpdateTimer.stop()
 
     def setViewDisplayToText(self):
         print("setViewDisplayToText")
         Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "text")
         self.refreshOpenDocuments()
         self.updateScrollBarPolicy()
+        if not self.itemTextUpdateTimer.isActive():
+            self.itemTextUpdateTimer.start()
 
     def setViewDirectionToHorizontal(self):
         print("setViewDirectionToHorizontal")
@@ -443,7 +447,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             print("delayedResize: list is longer/shorter, but not narrower/wider - no refresh.")
         else:
             print("delayedResize: size changed - refresh.")
-            self.refreshOpenDocuments()
+            self.refreshOpenDocuments(soft=True)
         self.lastSize = self.baseWidget.size()
     
     def imageCreated(self, image):
@@ -582,6 +586,12 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.resizeDelay = QTimer(self.baseWidget)
         self.resizeDelay.timeout.connect(self.delayedResize)
         
+        self.itemTextUpdateTimer = QTimer(self.baseWidget)
+        self.itemTextUpdateTimer.setInterval(1000)
+        self.itemTextUpdateTimer.timeout.connect(self.itemTextUpdateTimerTimeout)
+        if Application.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails") == "text":
+            self.itemTextUpdateTimer.start()
+        
         #self.loadButton.clicked.connect(self.refreshOpenDocuments)
         self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
         self.setWindowTitle(i18n("Open Documents Docker"))
@@ -599,6 +609,13 @@ class OpenDocumentsDocker(krita.DockWidget):
         #appNotifier.applicationClosing.connect(self.applicationClosing)
         
         appNotifier.windowCreated.connect(self.windowCreated)
+    
+    def itemTextUpdateTimerTimeout(self):
+        count = self.listView.count()
+        for i in range(count):
+            item = self.listView.item(i)
+            doc = self.findDocumentWithItem(item)
+            item.setText(self.documentDisplayName(doc))
     
     tavg = 0
     def imageChangeDetectionTimerTimeout(self):
@@ -784,6 +801,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             return
             
         self.deferredItemThumbnailCount += 1
+        print("DEFERRED ITEM COUNT +1, =", self.deferredItemThumbnailCount)
         item.setData(self.ItemUpdateDeferredRole, True)
         print("mark deferred: " + self.documentDisplayName(self.findDocumentWithItem(item)) + " thumbnail update has been deferred.")
     
@@ -805,6 +823,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 if not listRect.intersected(visRect).isEmpty():
                     item.setData(self.ItemUpdateDeferredRole, False)
                     self.deferredItemThumbnailCount -= 1
+                    print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
                     self.updateDocumentThumbnail(self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole)))
                 else:
                     #print("item", i, "is scrolled out of view")
@@ -870,11 +889,16 @@ class OpenDocumentsDocker(krita.DockWidget):
     def dropEvent(self, event):
         print("dropEvent: ", event)
     
-    def refreshOpenDocuments(self):
-        self.listView.clear()
-        
-        for i in Application.documents():
-            self.addDocumentToList(i)
+    def refreshOpenDocuments(self, soft=False):
+        if soft:
+            count = self.listView.count()
+            for i in range(count):
+                item = self.listView.item(i)
+                self.updateDocumentThumbnail(self.findDocumentWithItem(item))
+        else:
+            self.listView.clear()
+            for i in Application.documents():
+                self.addDocumentToList(i)
         
         self.ensureListSelectionIsActiveDocument()
     
