@@ -21,6 +21,8 @@ class OpenDocumentsDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
     
+    imageChangeDetected = False
+    
     # https://krita-artists.org/t/scripting-open-an-existing-file/32124/4
     def find_and_activate_view(self, doc):
         app = Application
@@ -907,26 +909,26 @@ class OpenDocumentsDocker(krita.DockWidget):
         app.setActiveDocument(doc)
         doc.waitForDone()
         menu = QMenu(self)
+        menu.addAction(self.documentDisplayName(doc))
+        menu.actions()[0].setEnabled(False)
+        menu.addSeparator()
         menu.addAction(app.action('file_save'))
         menu.addAction(app.action('file_save_as'))
         menu.addAction(app.action('file_export_file'))
         menu.addAction(app.action('create_copy'))
         menu.addAction(app.action('file_documentinfo'))
-        # seperator
-        # new file
+        menu.addSeparator()
+        menu.addAction(app.action('ODDQuickCopyMergedAction'))
+        menu.addSeparator()
+        if doc.fileName():
+            menu.addAction(app.action('ODDFileRevertAction'))
+        else:
+            print("disable revert")
+            menu.addAction("Revert")
+            menu.actions()[-1].setEnabled(False)
         menu.addAction(app.action('file_close'))
+        
         menu.exec(pos)
-    
-#    def quickCopyMergedAction(self):
-#        app = Application
-#        app.action('select_all').trigger()
-#        app.action('copy_merged').trigger()
-#        app.action('edit_undo').trigger()
-#        app.action('edit_undo').trigger()
-#
-#    def createActions(self, window):
-#        action = window.createAction("quickCopyMergedAction", "Quick Copy Merged")
-#        action.triggered.connect(self.quickCopyMergedAction)
     
     def dropEvent(self, event):
         print("dropEvent: ", event)
@@ -941,8 +943,6 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.listView.clear()
             for i in Application.documents():
                 self.addDocumentToList(i)
-        
-        self.ensureListSelectionIsActiveDocument()
     
     def debugDump(self):
         count = len(Application.documents())
@@ -1218,7 +1218,53 @@ class ODDExtension(Extension):
     def createActions(self, window):
         #print("myextension createactions")
         #action = window.createAction("myAction", "My Script", "tools/scripts")
-        pass
+        actionCopyMerged = window.createAction("ODDQuickCopyMergedAction", "Quick Copy Merged", "")
+        actionCopyMerged.triggered.connect(self.quickCopyMergedAction)
+        
+        actionFileRevert = window.createAction("ODDFileRevertAction", "Revert", "")
+        actionFileRevert.triggered.connect(self.fileRevertAction)
+    
+    def quickCopyMergedAction(self):
+        print("perform ODDQuickCopyMergedAction")
+        app = Application
+        app.action('select_all').trigger()
+        app.action('copy_merged').trigger()
+        app.action('edit_undo').trigger()
+        app.action('edit_undo').trigger()
+    
+    def fileRevertAction(self):
+        doc = Application.activeDocument()
+        fname = doc.fileName()
+        docname = OpenDocumentsDocker.documentDisplayName(self, doc)
+
+        msgBox = QMessageBox(
+                QMessageBox.Warning,
+                "Krita",
+                "Revert unsaved changes to the document <b>'"+docname+"'</b>?<br/><br/>" \
+                "Any unsaved changes will be permanently lost."
+        )
+        btnCancel = msgBox.addButton(QMessageBox.Cancel)
+        btnRevert = msgBox.addButton("Revert", QMessageBox.DestructiveRole)
+        btnRevert.setIcon(Application.icon('warning'))
+        msgBox.setDefaultButton(QMessageBox.Cancel)
+        msgBox.exec()
+        
+        if msgBox.clickedButton() == btnRevert:
+            print("Revert")
+            # suppress save prompt by telling Krita the document wasn't modified.
+            doc.setBatchmode(True)
+            doc.setModified(False)
+            
+            if OpenDocumentsDocker.imageChangeDetected:
+                OpenDocumentsDocker.imageChangeDetected = False
+                OpenDocumentsDocker.refreshTimer.stop()
+            
+            Application.action('file_close').trigger()
+            newdoc = Application.openDocument(fname)
+            Application.activeWindow().addView(newdoc)
+
+        else:
+            print("Cancel")
 
 # And add the extension to Krita's list of extensions:
 Application.addExtension(ODDExtension(Application))
