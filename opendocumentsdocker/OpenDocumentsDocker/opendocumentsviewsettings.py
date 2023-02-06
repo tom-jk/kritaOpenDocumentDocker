@@ -13,12 +13,33 @@ class OpenDocumentsViewSettings:
     ThumbnailsRefreshPeriodicallyDelayStrings = ["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"]
     ThumbnailsRefreshPeriodicallyDelayValues = [500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000]
     
+    Defaults = {
+            "viewDirection":"auto",
+            "viewDisplay":"thumbnails",
+            "viewRefreshOnSave":"true",
+            "viewRefreshPeriodically":"false",
+            "viewRefreshPeriodicallyChecks":"15/sec",
+            "viewRefreshPeriodicallyDelay":"2sec",
+            "viewThumbnailsScale":"1",
+            "viewThumbnailsTooltips":"≤4096px²",
+    }
+    
     def __init__(self, odd):
         self.odd = odd
     
+    def readSetting(self, setting):
+        if not setting in self.Defaults:
+            return
+        return Application.readSetting("OpenDocumentsDocker", setting, self.Defaults[setting])
+    
+    def writeSetting(self, setting, value):
+        if not setting in self.Defaults:
+            return
+        Application.writeSetting("OpenDocumentsDocker", setting, value)
+    
     def setDisplayToThumbnails(self):
         print("setDisplayToThumbnails")
-        Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails")
+        self.writeSetting("viewDisplay", "thumbnails")
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
         if self.odd.itemTextUpdateTimer.isActive():
@@ -26,7 +47,7 @@ class OpenDocumentsViewSettings:
 
     def setDisplayToText(self):
         print("setDisplayToText")
-        Application.writeSetting("OpenDocumentsDocker", "viewDisplay", "text")
+        self.writeSetting("viewDisplay", "text")
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
         if not self.odd.itemTextUpdateTimer.isActive():
@@ -34,17 +55,17 @@ class OpenDocumentsViewSettings:
 
     def setDirectionToHorizontal(self):
         print("setDirectionToHorizontal")
-        Application.writeSetting("OpenDocumentsDocker", "viewDirection", "horizontal")
+        self.writeSetting("viewDirection", "horizontal")
         self.odd.setDockerDirection("horizontal")
 
     def setDirectionToVertical(self):
         print("setDirectionToVertical")
-        Application.writeSetting("OpenDocumentsDocker", "viewDirection", "vertical")
+        self.writeSetting("viewDirection", "vertical")
         self.odd.setDockerDirection("vertical")
 
     def setDirectionToAuto(self):
         print("setDirectionToAuto")
-        Application.writeSetting("OpenDocumentsDocker", "viewDirection", "auto")
+        self.writeSetting("viewDirection", "auto")
         self.odd.setDockerDirection("auto")
     
     def convertThumbnailsScaleSettingToSlider(self, value):
@@ -74,22 +95,22 @@ class OpenDocumentsViewSettings:
     def changedPanelThumbnailsScaleSlider(self, value):
         setting = self.convertThumbnailsScaleSliderToSetting(value)
         self.panelThumbnailsScaleValue.setText(setting)
-        Application.writeSetting("OpenDocumentsDocker", "viewThumbnailsScale", setting)
+        self.writeSetting("viewThumbnailsScale", setting)
     
     def changedPanelThumbnailsTooltipsSlider(self, value):
         setting = self.convertThumbnailsTooltipsSliderToSetting(value)
         self.panelThumbnailsTooltipsValue.setText(setting)
-        Application.writeSetting("OpenDocumentsDocker", "viewThumbnailsTooltips", setting)
+        self.writeSetting("viewThumbnailsTooltips", setting)
     
     def changedThumbnailsRefreshOnSave(self, state):
         setting = str(state==2).lower()
         print("changedThumbnailsRefreshOnSave to", setting)
-        Application.writeSetting("OpenDocumentsDocker", "viewRefreshOnSave", setting)
+        self.writeSetting("viewRefreshOnSave", setting)
     
     def changedThumbnailsRefreshPeriodically(self, state):
         setting = str(state==2).lower()
         print("changedThumbnailsRefreshPeriodically to", setting)
-        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodically", setting)
+        self.writeSetting("viewRefreshPeriodically", setting)
         if state == 2:
             if hasattr(self, "panelThumbnailsRefreshPeriodicallyChecksSlider"):
                 self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(True)
@@ -132,7 +153,7 @@ class OpenDocumentsViewSettings:
         self.odd.imageChangeDetectionTimer.setInterval(
                 self.ThumbnailsRefreshPeriodicallyChecksValues[self.panelThumbnailsRefreshPeriodicallyChecksSlider.value()]
         )
-        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", setting)
+        self.writeSetting("viewRefreshPeriodicallyChecks", setting)
     
     def changedPanelThumbnailsRefreshPeriodicallyDelaySlider(self, value):
         setting = self.convertThumbnailsRefreshPeriodicallyDelaySliderToSetting(value)
@@ -140,7 +161,7 @@ class OpenDocumentsViewSettings:
         self.odd.refreshTimer.setInterval(
                 self.ThumbnailsRefreshPeriodicallyDelayValues[self.panelThumbnailsRefreshPeriodicallyDelaySlider.value()]
         )
-        Application.writeSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", setting)
+        self.writeSetting("viewRefreshPeriodicallyDelay", setting)
         
     def createPanel(self):
         app = Application
@@ -161,39 +182,41 @@ class OpenDocumentsViewSettings:
         self.panelDirectionAutoButton = QRadioButton("Auto", self.panel)
         self.panelDirectionAutoButton.setToolTip("The list will be arranged on its longest side.")
         
+        setting = self.readSetting("viewThumbnailsScale")
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         self.panelThumbnailsScaleLayout = QHBoxLayout()
         self.panelThumbnailsScaleLabel = QLabel("Scale", self.panel)
-        self.panelThumbnailsScaleValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewThumbnailsScale", "1"), self.panel)
+        self.panelThumbnailsScaleValue = QLabel(setting, self.panel)
         self.panelThumbnailsScaleSlider = QSlider(Qt.Horizontal, self.panel)
         self.panelThumbnailsScaleSlider.setRange(0, 4)
         self.panelThumbnailsScaleSlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsScaleSlider.setTickInterval(1)
         self.panelThumbnailsScaleSlider.setValue(
-                self.convertThumbnailsScaleSettingToSlider(app.readSetting("OpenDocumentsDocker", "viewThumbnailsScale", "1"))
+                self.convertThumbnailsScaleSettingToSlider(setting)
         )
         self.panelThumbnailsScaleSlider.setToolTip("Thumbnails in the list can be generated at a reduced size then scaled up.")
         
+        setting = self.readSetting("viewThumbnailsTooltips")
         self.panelThumbnailsTooltipsLayout = QHBoxLayout()
         self.panelThumbnailsTooltipsLabel = QLabel("Tooltips", self.panel)
-        self.panelThumbnailsTooltipsValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewThumbnailsTooltips", "≤4096px²"), self.panel)
+        self.panelThumbnailsTooltipsValue = QLabel(setting, self.panel)
         self.panelThumbnailsTooltipsSlider = QSlider(Qt.Horizontal, self.panel)
         self.panelThumbnailsTooltipsSlider.setRange(0, 9)
         self.panelThumbnailsTooltipsSlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsTooltipsSlider.setTickInterval(1)
         self.panelThumbnailsTooltipsSlider.setValue(
-                self.convertThumbnailsTooltipsSettingToSlider(app.readSetting("OpenDocumentsDocker", "viewThumbnailsTooltips", "≤4096px²"))
+                self.convertThumbnailsTooltipsSettingToSlider(setting)
         )
         self.panelThumbnailsTooltipsSlider.setToolTip("Thumbnails in tooltips will be generated for images up to the chosen size.")
         
         self.panelThumbnailsRefreshOnSaveCheckBox = QCheckBox("Refresh on save")
         self.panelThumbnailsRefreshOnSaveCheckBox.stateChanged.connect(self.changedThumbnailsRefreshOnSave)
-        self.panelThumbnailsRefreshOnSaveCheckBox.setChecked(app.readSetting("OpenDocumentsDocker", "viewRefreshOnSave", "false") == "true")
+        self.panelThumbnailsRefreshOnSaveCheckBox.setChecked(self.readSetting("viewRefreshOnSave") == "true")
         self.panelThumbnailsRefreshOnSaveCheckBox.setToolTip("When you save an image, refresh its thumbnail automatically.")
         
         self.panelThumbnailsRefreshPeriodicallyCheckBox = QCheckBox("Refresh periodically (experimental)")
         self.panelThumbnailsRefreshPeriodicallyCheckBox.stateChanged.connect(self.changedThumbnailsRefreshPeriodically)
-        self.panelThumbnailsRefreshPeriodicallyCheckBox.setChecked(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodically", "false") == "true")
+        self.panelThumbnailsRefreshPeriodicallyCheckBox.setChecked(self.readSetting("viewRefreshPeriodically") == "true")
         self.panelThumbnailsRefreshPeriodicallyCheckBox.setToolTip(
                 "Automatically refresh the thumbnail for the active image if a change is detected.\n" + 
                 "Checks for changes to the image so-many times each second.\n" +
@@ -202,40 +225,42 @@ class OpenDocumentsViewSettings:
                 "Aggressive settings may degrade performance."
         )
         
+        setting = self.readSetting("viewRefreshPeriodicallyChecks")
         self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Check", self.panel)
-        self.panelThumbnailsRefreshPeriodicallyChecksValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec"), self.panel)
+        self.panelThumbnailsRefreshPeriodicallyChecksValue = QLabel(setting, self.panel)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider = QSlider(Qt.Horizontal, self.panel)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setRange(0, 9)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickInterval(1)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setValue(
-                self.convertThumbnailsRefreshPeriodicallyChecksSettingToSlider(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec"))
+                self.convertThumbnailsRefreshPeriodicallyChecksSettingToSlider(setting)
         )
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setToolTip("Number of times each second the image is checked for activity.")
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
         
+        setting = self.readSetting("viewRefreshPeriodicallyDelay")
         self.panelThumbnailsRefreshPeriodicallyDelayLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.panel)
-        self.panelThumbnailsRefreshPeriodicallyDelayValue = QLabel(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec"), self.panel)
+        self.panelThumbnailsRefreshPeriodicallyDelayValue = QLabel(setting, self.panel)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider = QSlider(Qt.Horizontal, self.panel)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setRange(0, 10)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickInterval(1)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setValue(
-                self.convertThumbnailsRefreshPeriodicallyDelaySettingToSlider(app.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec"))
+                self.convertThumbnailsRefreshPeriodicallyDelaySettingToSlider(setting)
         )
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setToolTip("How long after the last detected change to refresh the thumbnail.")
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
         
         self.panelDisplayButtonGroup.addButton(self.panelDisplayThumbnailsButton)
         self.panelDisplayButtonGroup.addButton(self.panelDisplayTextButton)
-        settingDisplay = app.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails")
+        settingDisplay = self.readSetting("viewDisplay")
         self.panelDisplayThumbnailsButton.setChecked(settingDisplay=="thumbnails")
         self.panelDisplayTextButton.setChecked(settingDisplay=="text")
         self.panelDisplayThumbnailsButton.clicked.connect(self.setDisplayToThumbnails)
         self.panelDisplayTextButton.clicked.connect(self.setDisplayToText)
-        settingDirection = app.readSetting("OpenDocumentsDocker", "viewDirection", "auto")
+        settingDirection = self.readSetting("viewDirection")
         self.panelDirectionButtonGroup.addButton(self.panelDirectionHorizontalButton)
         self.panelDirectionButtonGroup.addButton(self.panelDirectionVerticalButton)
         self.panelDirectionButtonGroup.addButton(self.panelDirectionAutoButton)

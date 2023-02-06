@@ -132,7 +132,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("delayedResize: lastSize:", self.lastSize)
         print("               new size:", self.baseWidget.size())
         lastFlow = self.list.flow()
-        self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
+        self.setDockerDirection(self.vs.readSetting("viewDirection"))
         if self.lastSize == self.baseWidget.size():
             print("delayedResize: size did not change - no refresh.")
         elif self.list.flow() == lastFlow and (
@@ -207,6 +207,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("OpenDocumentsDocker: begin init")
         super(OpenDocumentsDocker, self).__init__()
         
+        self.vs = ODVS(self)
+        
         self.dockLocation = None
         self.dockLocationChanged.connect(self.dockMoved)
         self.dockVisible = True
@@ -223,7 +225,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.viewButton = QPushButton()
         self.viewButton.setIcon(Application.icon('view-choose'))
         
-        self.setDockerDirection(Application.readSetting("OpenDocumentsDocker", "viewDirection", "auto"))
+        self.setDockerDirection(self.vs.readSetting("viewDirection"))
         self.list.setMovement(QListView.Free)
         self.list.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
@@ -249,19 +251,18 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.imageChangeDetected = False
         self.imageOldSize = QSize(0, 0)
         self.imageChangeDetectionTimer = QTimer(self.baseWidget)
-        setting = Application.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyChecks", "15/sec")
+        setting = self.vs.readSetting("viewRefreshPeriodicallyChecks")
         self.imageChangeDetectionTimer.setInterval(
             ODVS.ThumbnailsRefreshPeriodicallyChecksValues[ODVS.ThumbnailsRefreshPeriodicallyChecksStrings.index(setting)]
         )
         self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
         self.refreshTimer = QTimer(self.baseWidget)
-        setting = Application.readSetting("OpenDocumentsDocker", "viewRefreshPeriodicallyDelay", "2sec")
+        setting = self.vs.readSetting("viewRefreshPeriodicallyDelay")
         self.refreshTimer.setInterval(
             ODVS.ThumbnailsRefreshPeriodicallyDelayValues[ODVS.ThumbnailsRefreshPeriodicallyDelayStrings.index(setting)]
         )
         self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
         
-        self.vs = ODVS(self)
         self.vs.createPanel()
         self.viewButton.clicked.connect(self.vs.clickedViewButton)
         self.buttonLayout.addWidget(self.loadButton)
@@ -280,7 +281,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.itemTextUpdateTimer = QTimer(self.baseWidget)
         self.itemTextUpdateTimer.setInterval(1000)
         self.itemTextUpdateTimer.timeout.connect(self.itemTextUpdateTimerTimeout)
-        if Application.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails") == "text":
+        if self.vs.readSetting("viewDisplay") == "text":
             self.itemTextUpdateTimer.start()
         
         self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
@@ -396,7 +397,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
             self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         else:
-            if Application.readSetting("OpenDocumentsDocker", "viewDisplay", "thumbnails") == "text":
+            if self.vs.readSetting("viewDisplay") == "text":
                 self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             else:
                 self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
