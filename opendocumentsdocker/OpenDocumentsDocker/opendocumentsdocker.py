@@ -5,6 +5,7 @@ from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
 from krita import *
 from time import *
+import uuid
 from pathlib import Path
 from .opendocumentsviewsettings import OpenDocumentsViewSettings as ODVS
 
@@ -149,7 +150,70 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("image created -", image, end=" ")
         fName = image.fileName()
         print("name:", (fName if fName else "[not saved]"))
+        
+        docCount = len(Application.documents())
+        for i in range(docCount):
+            d = Application.documents()[i]
+            print("#"+str(i)+":", d, "-", d.rootNode().uniqueId())
+        
+        #self.setDocumentExtraUid(image, Application.documents()[docCount-1])
+        self.setDocumentExtraUid(Application.documents()[docCount-1])
+        
         self.addDocumentToList(image)
+    
+    def isDocumentUniquelyIdentified(self, doc):
+        uid = doc.rootNode().uniqueId()
+        extraUid = doc.annotation("ODD_extra_uid") or b''
+        docCount = len(Application.documents())
+        for i in range(docCount):
+            d = Application.documents()[i]
+            if d != doc:
+                if uid == d.rootNode().uniqueId():
+                    if extraUid == d.annotation("ODD_extra_uid"):
+                        return False
+        return True
+        
+    def setDocumentExtraUid(self, doc):
+        """
+        Compares a document's uid/extraUid against all other open documents, and:
+         If any share both uid and extraUid (ie. both have empty extraUid's):
+          assign this document a new extraUid.
+         If any share uid but not extraUid:
+          do nothing, document is satisfactorily disambiguated.
+         If none share uid:
+          remove extraUid from document if it has one, it no longer needs it.
+        """
+        isUnique = True
+        canRemoveExtraUid = True
+        uid = doc.rootNode().uniqueId()
+        extraUid = doc.annotation("ODD_extra_uid") or b''
+        #print("doc:      ", doc)
+        #print("uid:      ", uid)
+        #print("extraUid: ", extraUid)
+        docCount = len(Application.documents())
+        for i in range(docCount):
+            d = Application.documents()[i]
+            if d != doc:
+                if uid == d.rootNode().uniqueId():
+                    canRemoveExtraUid = False
+                    if extraUid == d.annotation("ODD_extra_uid"):
+                        print("uid clash between this image", doc, "and", d)
+                        isUnique = False
+                        break
+        if not isUnique:
+            if True:#not extraUid:
+                if self.vs.readSetting("idAutoDisambiguateCopies") == "true":
+                    print("setting extra uid for document", doc, "with uid", uid)
+                    doc.setAnnotation(
+                            "ODD_extra_uid",
+                            "An extra id used by Open Documents Docker to distinguish copied images from their origin during a krita session.",
+                            QByteArray(str(uuid.uuid4()).encode())
+                    )
+        else:
+            if canRemoveExtraUid:
+                if extraUid:
+                    print("remove redundant extra uid from document", doc, "with uid", uid, "and extra uid", extraUid)
+                    doc.removeAnnotation("ODD_extra_uid")
     
     def viewClosed(self, view):
         print("view closed - doc name:", self.documentDisplayName(view.document()), "id:", self.documentUniqueId(view.document()))
@@ -422,8 +486,9 @@ class OpenDocumentsDocker(krita.DockWidget):
             print(" currdocid:", self.currentDocumentId)
             if self.currentDocumentId:
                 doc = self.findDocumentWithUniqueId(self.currentDocumentId)
-                print(" flush thumbnail update for", self.currentDocumentId, "-", self.documentDisplayName(doc))
-                self.updateDocumentThumbnail(doc)
+                if doc:
+                    print(" flush thumbnail update for", self.currentDocumentId, "-", self.documentDisplayName(doc))
+                    self.updateDocumentThumbnail(doc)
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         if Application.activeDocument():
@@ -551,7 +616,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         menu.addAction(app.action('file_save_as'))
         menu.addAction(app.action('file_export_file'))
         menu.addAction(app.action('create_copy'))
+        menu.addSeparator()
         menu.addAction(app.action('file_documentinfo'))
+        menu.addAction(app.action('image_properties'))
         menu.addSeparator()
         menu.addAction(app.action('ODDQuickCopyMergedAction'))
         menu.addSeparator()
@@ -707,14 +774,23 @@ class OpenDocumentsDocker(krita.DockWidget):
         for that session).
         This method wraps this implementation detail so it can more
         easily be swapped out with something better in the future.
+        Update: an option allows additional identifying data to be
+        stored in the image as an annotation, which we read here.
         """
-        return doc.rootNode().uniqueId()
+        #return doc.rootNode().uniqueId()
+        return [doc.rootNode().uniqueId(), QUuid(doc.annotation("ODD_extra_uid"))]
     
-    def findDocumentWithUniqueId(self, uid):
+    def findDocumentWithUniqueId(self, uid, enableFallback=False):
         for doc in Application.documents():
             if uid == self.documentUniqueId(doc):
                 return doc
         print("ODD: could not find document with uid", str(uid))
+        if enableFallback:
+            print("ODD: falling back to best match")
+            uid[1] = QUuid()
+            for doc in Application.documents():
+                if uid == self.documentUniqueId(doc):
+                    return doc
         return None
     
     def generateThumbnailForDocument(self, doc):        

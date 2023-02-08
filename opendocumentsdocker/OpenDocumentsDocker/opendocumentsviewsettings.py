@@ -22,6 +22,7 @@ class OpenDocumentsViewSettings:
             "viewRefreshPeriodicallyDelay":"2sec",
             "viewThumbnailsScale":"1",
             "viewThumbnailsTooltips":"≤4096px²",
+            "idAutoDisambiguateCopies":"false",
     }
     
     def __init__(self, odd):
@@ -122,6 +123,78 @@ class OpenDocumentsViewSettings:
                 self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(False)
             self.odd.imageChangeDetectionTimer.stop()
             self.odd.refreshTimer.stop()
+    
+    def changedIdAutoDisambiguateCopies(self, state):
+        setting = str(state==2).lower()
+        print("changedIdAutoDisambiguateCopies to", setting)
+        self.writeSetting("idAutoDisambiguateCopies", setting)
+        
+        if state == 2:
+            # turned on, scan current open documents for ambiguous id's.
+            # if detected, ask user if they would like to add the annotations now.
+            
+            isAnyDocAmbiguous = False
+            for i in Application.documents():
+                if not self.odd.isDocumentUniquelyIdentified(i):
+                    isAnyDocAmbiguous = True
+            
+            if not isAnyDocAmbiguous:
+                return
+            
+            msgBox = QMessageBox(
+                    QMessageBox.Question,
+                    "Krita",
+                    "ODD would like to add ID annotations to some open documents."
+            )
+            btnCancel = msgBox.addButton(QMessageBox.Cancel)
+            btnOk = msgBox.addButton(QMessageBox.Ok)
+            msgBox.setDefaultButton(QMessageBox.Cancel)
+            msgBox.exec()
+            
+            if msgBox.clickedButton() == btnOk:
+                print("Ok")
+                # for every open document, check ambiguity and add extraUid as required.
+                # iterate backwards over doc list, because we want to only add extraUid's
+                # to the documents that are copies, and they will(? presumably) always be
+                # later in the list than their source doc.
+                docCount = len(Application.documents())
+                for i in range(docCount-1, -1, -1):
+                    self.odd.setDocumentExtraUid(Application.documents()[i])
+                self.odd.refreshOpenDocuments()
+            else:
+                print("Cancel")
+        else:
+            # turned off, scan current open documents for disambiguated id's.
+            # if detected, ask user if they would like to delete the annotations now.
+            
+            isAnyDocWithExtraUid = False
+            for i in Application.documents():
+                if i.annotation("ODD_extra_uid"):
+                    isAnyDocWithExtraUid = True
+            
+            if not isAnyDocWithExtraUid:
+                return
+            
+            msgBox = QMessageBox(
+                    QMessageBox.Question,
+                    "Krita",
+                    "ODD has added ID annotations to some open documents.<br/><br/>" \
+                    "Would you like to remove these immediately?"
+            )
+            btnCancel = msgBox.addButton(QMessageBox.Cancel)
+            btnOk = msgBox.addButton(QMessageBox.Ok)
+            msgBox.setDefaultButton(QMessageBox.Cancel)
+            msgBox.exec()
+            
+            if msgBox.clickedButton() == btnOk:
+                print("Ok")
+                for i in Application.documents():
+                    i.removeAnnotation("ODD_extra_uid")
+                self.odd.currentDocumentId = self.odd.findDocumentWithUniqueId(self.odd.currentDocumentId, enableFallback=True)
+                self.odd.refreshOpenDocuments()
+
+            else:
+                print("Cancel")
     
     def convertThumbnailsRefreshPeriodicallyChecksSettingToSlider(self, value):
         if value in self.ThumbnailsRefreshPeriodicallyChecksStrings:
@@ -253,6 +326,20 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setToolTip("How long after the last detected change to refresh the thumbnail.")
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
         
+        self.panelMiscLabel = QLabel("Miscellaneous", self.panel)
+        self.panelIdAutoDisambiguateCopiesCheckBox = QCheckBox("Auto disambiguate document ID's (modifies file)")
+        self.panelIdAutoDisambiguateCopiesCheckBox.stateChanged.connect(self.changedIdAutoDisambiguateCopies)
+        self.panelIdAutoDisambiguateCopiesCheckBox.setChecked(self.readSetting("idAutoDisambiguateCopies") == "true")
+        self.panelIdAutoDisambiguateCopiesCheckBox.setToolTip(
+                "ODD uses a unique ID supplied by Krita to identify documents.\n" +
+                "When you 'create copy from current image', This copy does not receive a new ID.\n" +
+                "This means ODD can't distinguish the original from the copy.\n" +
+                "This setting permits ODD to annotate documents with an additional unique identifier.\n" +
+                "If you save the image as a krita document, this data is also saved.\n" +
+                "If you open it again at a later time, krita will provide it a new unique ID,\n" +
+                "and ODD will remove the redudant annotation. You can then save the image again to remove it from the file."
+        )
+        
         self.panelDisplayButtonGroup.addButton(self.panelDisplayThumbnailsButton)
         self.panelDisplayButtonGroup.addButton(self.panelDisplayTextButton)
         settingDisplay = self.readSetting("viewDisplay")
@@ -309,6 +396,8 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(1, 2)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsRefreshPeriodicallyDelayLayout)
+        self.panelLayout.addWidget(self.panelMiscLabel)
+        self.panelLayout.addWidget(self.panelIdAutoDisambiguateCopiesCheckBox)
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(384)
         
