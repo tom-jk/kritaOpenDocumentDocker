@@ -50,10 +50,10 @@ class OpenDocumentsDocker(krita.DockWidget):
         else:
             print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
     
-    def documentDisplayName(self, doc):
+    def documentDisplayName(self, doc, showIfModified=True):
         fPath = doc.fileName()
         fName = Path(fPath).name
-        tModi = " *" * doc.modified()
+        tModi = " *" * doc.modified() * showIfModified
         return (fName if fName else "[not saved]") + tModi
     
     def entered(self, index):        
@@ -69,8 +69,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         ttText += "<table border='0' style='margin:16px; padding:16px'><tr>"
         
         # From answer to "Use a picture or image in a QToolTip": https://stackoverflow.com/a/34300771
-        if doc.width() * doc.height() <= ODVS.ThumbnailsTooltipsSliderValues[self.vs.panelThumbnailsTooltipsSlider.value()]:
-            img = doc.thumbnail(128, 128)
+        if doc.width() * doc.height() <= ODVS.TooltipThumbnailLimitSliderValues[self.vs.panelTooltipThumbnailLimitSlider.value()]:
+            size = ODVS.TooltipThumbnailSizeSliderValues[self.vs.panelTooltipThumbnailSizeSlider.value()]
+            img = doc.thumbnail(size, size)
             data = QByteArray()
             buffer = QBuffer(data)
             img.save(buffer, "PNG", 100)
@@ -342,6 +343,11 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.resizeDelay = QTimer(self.baseWidget)
         self.resizeDelay.timeout.connect(self.delayedResize)
         
+        self.refreshAllDelay = QTimer(self.baseWidget)
+        self.refreshAllDelay.setInterval(1000)
+        self.refreshAllDelay.setSingleShot(True)
+        self.refreshAllDelay.timeout.connect(self.refreshAllDelayTimeout)
+        
         self.itemTextUpdateTimer = QTimer(self.baseWidget)
         self.itemTextUpdateTimer.setInterval(1000)
         self.itemTextUpdateTimer.timeout.connect(self.itemTextUpdateTimerTimeout)
@@ -362,6 +368,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         appNotifier.imageSaved.connect(self.imageSaved)
         
         appNotifier.windowCreated.connect(self.windowCreated)
+    
+    def refreshAllDelayTimeout(self):
+        self.refreshOpenDocuments(soft=True)
     
     def itemTextUpdateTimerTimeout(self):
         count = self.list.count()
@@ -793,10 +802,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                     return doc
         return None
     
-    def generateThumbnailForDocument(self, doc):        
-        # ensure the thumbnail will be complete
-        doc.waitForDone()
-        
+    def calculateWidthForThumbnail(self):
         kludgePixels=6
         width = 0
         if self.list.flow() == QListView.TopToBottom:
@@ -807,18 +813,35 @@ class OpenDocumentsDocker(krita.DockWidget):
             width = self.list.height() - kludgePixels - scrollBarHeight
         #print("gtfd: calculated width:", width)
         
+        print("width: ", width)
+        print("setting: ", self.vs.readSetting("viewThumbnailsDisplayScale"))
+        width = int(width * float(self.vs.readSetting("viewThumbnailsDisplayScale")))
+        print("width: ", width)
+        
         # keep size from getting too big and slowing things down
         width = min(width, 256)
+        return width
+    
+    def generateThumbnailForDocument(self, doc):        
+        # ensure the thumbnail will be complete
+        doc.waitForDone()
+        
+        width = self.calculateWidthForThumbnail()
         
         thumbnail = None
         
-        scaleFactor = ODVS.ThumbnailsScaleSliderValues[self.vs.panelThumbnailsScaleSlider.value()]
+        settingUseProj = self.vs.readSetting("thumbnailUseProjectionMethod") == "true"
+        
+        scaleFactor = (
+                ODVS.ThumbnailsRenderScaleSliderValues[self.vs.panelThumbnailsRenderScaleSlider.value()]
+                if not settingUseProj else 1
+        )
         
         def generator(doc, width):
             # new document may briefly exist as qobject type before becoming document,
             # during which projection isn't available but thumbnail is.
             # projection is much faster so prefer it when available.
-            if type(doc) == Document:
+            if type(doc) == Document and settingUseProj:
                 return doc.projection(0, 0, doc.width(), doc.height())
             else:
                 return doc.thumbnail(width, width)
@@ -884,7 +907,7 @@ class ODDExtension(Extension):
     def fileRevertAction(self):
         doc = Application.activeDocument()
         fname = doc.fileName()
-        docname = OpenDocumentsDocker.documentDisplayName(self, doc)
+        docname = OpenDocumentsDocker.documentDisplayName(self, doc, showIfModified=False)
 
         msgBox = QMessageBox(
                 QMessageBox.Warning,
