@@ -334,13 +334,17 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.imageChangeDetectionTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyChecks")
         self.imageChangeDetectionTimer.setInterval(
-            self.vs.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
+            ODVS.Settings["viewRefreshPeriodicallyChecks"]["values"][
+                    self.vs.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
+            ]
         )
         self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
         self.refreshTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyDelay")
         self.refreshTimer.setInterval(
-            self.vs.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
+            ODVS.Settings["viewRefreshPeriodicallyDelay"]["values"][
+                    self.vs.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
+            ]
         )
         self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
         
