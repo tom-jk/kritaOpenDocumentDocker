@@ -69,8 +69,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         ttText += "<table border='0' style='margin:16px; padding:16px'><tr>"
         
         # From answer to "Use a picture or image in a QToolTip": https://stackoverflow.com/a/34300771
-        if doc.width() * doc.height() <= ODVS.TooltipThumbnailLimitSliderValues[self.vs.panelTooltipThumbnailLimitSlider.value()]:
-            size = ODVS.TooltipThumbnailSizeSliderValues[self.vs.panelTooltipThumbnailSizeSlider.value()]
+        if doc.width() * doc.height() <= ODVS.Settings["viewTooltipThumbnailLimit"]["values"][self.vs.panelTooltipThumbnailLimitSlider.value()]:
+            size = ODVS.Settings["viewTooltipThumbnailSize"]["values"][self.vs.panelTooltipThumbnailSizeSlider.value()]
             img = doc.thumbnail(size, size)
             data = QByteArray()
             buffer = QBuffer(data)
@@ -318,13 +318,13 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.imageChangeDetectionTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyChecks")
         self.imageChangeDetectionTimer.setInterval(
-            ODVS.ThumbnailsRefreshPeriodicallyChecksValues[ODVS.ThumbnailsRefreshPeriodicallyChecksStrings.index(setting)]
+            self.vs.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
         )
         self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
         self.refreshTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyDelay")
         self.refreshTimer.setInterval(
-            ODVS.ThumbnailsRefreshPeriodicallyDelayValues[ODVS.ThumbnailsRefreshPeriodicallyDelayStrings.index(setting)]
+            self.vs.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
         )
         self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
         
@@ -833,7 +833,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         settingUseProj = self.vs.readSetting("thumbnailUseProjectionMethod") == "true"
         
         scaleFactor = (
-                ODVS.ThumbnailsRenderScaleSliderValues[self.vs.panelThumbnailsRenderScaleSlider.value()]
+                ODVS.Settings["viewThumbnailsRenderScale"]["values"][self.vs.panelThumbnailsRenderScaleSlider.value()]
                 if not settingUseProj else 1
         )
         

@@ -4,42 +4,65 @@ from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton
 from krita import *
 
 class OpenDocumentsViewSettings:
-    ThumbnailsRenderScaleSliderStrings = ["1/16", "1/8", "1/4", "1/2", "1"]
-    ThumbnailsRenderScaleSliderValues = [1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0/2.0, 1]
-    TooltipThumbnailLimitSliderStrings = ["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"]
-    TooltipThumbnailLimitSliderValues = [0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")]
-    TooltipThumbnailSizeSliderStrings = ["64px", "96px", "128px", "160px", "192px", "256px", "384px", "512px"]
-    TooltipThumbnailSizeSliderValues = [64, 96, 128, 160, 192, 256, 384, 512]
-    ThumbnailsRefreshPeriodicallyChecksStrings = ["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"]
-    ThumbnailsRefreshPeriodicallyChecksValues = [1000, 500, 333, 250, 200, 125, 100, 67, 50, 33]
-    ThumbnailsRefreshPeriodicallyDelayStrings = ["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"]
-    ThumbnailsRefreshPeriodicallyDelayValues = [500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000]
-    
-    Defaults = {
-            "viewDirection":"auto",
-            "viewDisplay":"thumbnails",
-            "viewRefreshOnSave":"true",
-            "viewRefreshPeriodically":"false",
-            "viewRefreshPeriodicallyChecks":"15/sec",
-            "viewRefreshPeriodicallyDelay":"2sec",
-            "viewThumbnailsDisplayScale":"1.00",
-            "viewThumbnailsRenderScale":"1",
-            "viewTooltipThumbnailLimit":"≤4096px²",
-            "viewTooltipThumbnailSize":"128px",
-            "idAutoDisambiguateCopies":"false",
-            "thumbnailUseProjectionMethod":"true",
+    Settings = {
+            "viewDirection": {
+                    "default":"auto",
+            },
+            "viewDisplay": {
+                    "default":"thumbnails",
+            },
+            "viewRefreshOnSave": {
+                    "default":"true",
+            },
+            "viewRefreshPeriodically": {
+                    "default":"false",
+            },
+            "viewRefreshPeriodicallyChecks": {
+                    "default":"15/sec",
+                    "strings":["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"],
+                    "values" :[1000, 500, 333, 250, 200, 125, 100, 67, 50, 33],
+            },
+            "viewRefreshPeriodicallyDelay": {
+                    "default":"2sec",
+                    "strings":["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"],
+                    "values" :[500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000],
+            },
+            "viewThumbnailsDisplayScale": {
+                    "default":"1.00",
+            },
+            "viewThumbnailsRenderScale": {
+                    "default":"1",
+                    "strings":["1/16", "1/8", "1/4", "1/2", "1"],
+                    "values" :[1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0/2.0, 1],
+            },
+            "viewTooltipThumbnailLimit": {
+                    "default":"≤4096px²",
+                    "strings":["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"],
+                    "values" :[0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")],
+            },
+            "viewTooltipThumbnailSize": {
+                    "default":"128px",
+                    "strings":["64px", "96px", "128px", "160px", "192px", "256px", "384px", "512px"],
+                    "values" :[64, 96, 128, 160, 192, 256, 384, 512],
+            },
+            "idAutoDisambiguateCopies": {
+                    "default":"false",
+            },
+            "thumbnailUseProjectionMethod": {
+                    "default":"true",
+            },
     }
     
     def __init__(self, odd):
         self.odd = odd
     
     def readSetting(self, setting):
-        if not setting in self.Defaults:
+        if not setting in self.Settings:
             return
-        return Application.readSetting("OpenDocumentsDocker", setting, self.Defaults[setting])
+        return Application.readSetting("OpenDocumentsDocker", setting, self.Settings[setting]["default"])
     
     def writeSetting(self, setting, value):
-        if not setting in self.Defaults:
+        if not setting in self.Settings:
             return
         Application.writeSetting("OpenDocumentsDocker", setting, value)
     
@@ -74,41 +97,37 @@ class OpenDocumentsViewSettings:
         self.writeSetting("viewDirection", "auto")
         self.odd.setDockerDirection("auto")
     
-    def convertThumbnailsRenderScaleSettingToSlider(self, value):
-        if value in self.ThumbnailsRenderScaleSliderStrings:
-            return self.ThumbnailsRenderScaleSliderStrings.index(value)
+    def convertSettingStringToValue(self, settingName, string):
+        setting = self.Settings[settingName]
+        if string in setting["strings"]:
+            return setting["strings"].index(string)
         else:
-            return self.ThumbnailsRenderScaleSliderStrings.index(self.Defaults["viewThumbnailsRenderScale"])
+            return setting["strings"].index(setting["default"])
     
-    def convertThumbnailsRenderScaleSliderToSetting(self, value):
-        if value < len(self.ThumbnailsRenderScaleSliderStrings):
-            return self.ThumbnailsRenderScaleSliderStrings[value] 
+    def convertSettingValueToString(self, settingName, value):
+        setting = self.Settings[settingName]
+        if value >= 0 and value < len(setting["strings"]):
+            return setting["strings"][value]
         else:
-            return self.Defaults["viewThumbnailsRenderScale"]
+            return setting["default"]
     
-    def convertTooltipThumbnailLimitSettingToSlider(self, value):
-        if value in self.TooltipThumbnailLimitSliderStrings:
-            return self.TooltipThumbnailLimitSliderStrings.index(value)
-        else:
-            return self.TooltipThumbnailLimitSliderStrings.index(self.Defaults["viewTooltipThumbnailLimit"])
+    def convertThumbnailsRenderScaleStringToValue(self, string):
+        return self.convertSettingStringToValue("viewThumbnailsRenderScale", string)
     
-    def convertTooltipThumbnailLimitSliderToSetting(self, value):
-        if value < len(self.TooltipThumbnailLimitSliderStrings):
-            return self.TooltipThumbnailLimitSliderStrings[value] 
-        else:
-            return self.Defaults["viewTooltipThumbnailLimit"]
+    def convertThumbnailsRenderScaleValueToString(self, value):
+        return self.convertSettingValueToString("viewThumbnailsRenderScale", value)
     
-    def convertTooltipThumbnailSizeSettingToSlider(self, value):
-        if value in self.TooltipThumbnailSizeSliderStrings:
-            return self.TooltipThumbnailSizeSliderStrings.index(value)
-        else:
-            return self.TooltipThumbnailSizeSliderStrings.index(self.Defaults["viewTooltipThumbnailSize"])
+    def convertTooltipThumbnailLimitStringToValue(self, string):
+        return self.convertSettingStringToValue("viewTooltipThumbnailLimit", string)
     
-    def convertTooltipThumbnailSizeSliderToSetting(self, value):
-        if value < len(self.TooltipThumbnailSizeSliderStrings):
-            return self.TooltipThumbnailSizeSliderStrings[value] 
-        else:
-            return self.Defaults["viewTooltipThumbnailSize"]
+    def convertTooltipThumbnailLimitValueToString(self, value):
+        return self.convertSettingValueToString("viewTooltipThumbnailLimit", value)
+    
+    def convertTooltipThumbnailSizeStringToValue(self, string):
+        return self.convertSettingStringToValue("viewTooltipThumbnailSize", string)
+    
+    def convertTooltipThumbnailSizeValueToString(self, value):
+        return self.convertSettingValueToString("viewTooltipThumbnailSize", value)
     
     def changedPanelThumbnailsDisplayScaleSlider(self, value):
         setting = "{:4.2f}".format(value * 0.05)
@@ -126,14 +145,14 @@ class OpenDocumentsViewSettings:
         self.startRefreshAllDelayTimer()
     
     def changedPanelThumbnailsRenderScaleSlider(self, value):
-        setting = self.convertThumbnailsRenderScaleSliderToSetting(value)
+        setting = self.convertThumbnailsRenderScaleValueToString(value)
         self.panelThumbnailsRenderScaleValue.setText(setting)
         self.writeSetting("viewThumbnailsRenderScale", setting)
         
         self.startRefreshAllDelayTimer()
     
     def changedPanelTooltipThumbnailLimitSlider(self, value):
-        setting = self.convertTooltipThumbnailLimitSliderToSetting(value)
+        setting = self.convertTooltipThumbnailLimitValueToString(value)
         self.panelTooltipThumbnailLimitValue.setText(setting)
         self.writeSetting("viewTooltipThumbnailLimit", setting)
         if value != 0:
@@ -144,7 +163,7 @@ class OpenDocumentsViewSettings:
                 self.panelTooltipThumbnailSizeSlider.setEnabled(False)
     
     def changedPanelTooltipThumbnailSizeSlider(self, value):
-        setting = self.convertTooltipThumbnailSizeSliderToSetting(value)
+        setting = self.convertTooltipThumbnailSizeValueToString(value)
         self.panelTooltipThumbnailSizeValue.setText(setting)
         self.writeSetting("viewTooltipThumbnailSize", setting)
     
@@ -262,43 +281,31 @@ class OpenDocumentsViewSettings:
             delay.stop()
         delay.start()
     
-    def convertThumbnailsRefreshPeriodicallyChecksSettingToSlider(self, value):
-        if value in self.ThumbnailsRefreshPeriodicallyChecksStrings:
-            return self.ThumbnailsRefreshPeriodicallyChecksStrings.index(value)
-        else:
-            return self.ThumbnailsRefreshPeriodicallyChecksStrings.index(self.Defaults["viewRefreshPeriodicallyChecks"])
+    def convertThumbnailsRefreshPeriodicallyChecksStringToValue(self, string):
+        return self.convertSettingStringToValue("viewRefreshPeriodicallyChecks", string)
     
-    def convertThumbnailsRefreshPeriodicallyChecksSliderToSetting(self, value):
-        if value < len(self.ThumbnailsRefreshPeriodicallyChecksStrings):
-            return self.ThumbnailsRefreshPeriodicallyChecksStrings[value] 
-        else:
-            return self.Defaults["viewRefreshPeriodicallyChecks"]
+    def convertThumbnailsRefreshPeriodicallyChecksValueToString(self, value):
+        return self.convertSettingValueToString("viewRefreshPeriodicallyChecks", value)
     
-    def convertThumbnailsRefreshPeriodicallyDelaySettingToSlider(self, value):
-        if value in self.ThumbnailsRefreshPeriodicallyDelayStrings:
-            return self.ThumbnailsRefreshPeriodicallyDelayStrings.index(value)
-        else:
-            return self.ThumbnailsRefreshPeriodicallyDelayStrings.index(self.Defaults["viewRefreshPeriodicallyDelay"])
+    def convertThumbnailsRefreshPeriodicallyDelayStringToValue(self, string):
+        return self.convertSettingStringToValue("viewRefreshPeriodicallyDelay", string)
     
-    def convertThumbnailsRefreshPeriodicallyDelaySliderToSetting(self, value):
-        if value < len(self.ThumbnailsRefreshPeriodicallyDelayStrings):
-            return self.ThumbnailsRefreshPeriodicallyDelayStrings[value] 
-        else:
-            return self.Defaults["viewRefreshPeriodicallyDelay"]
+    def convertThumbnailsRefreshPeriodicallyDelayValueToString(self, value):
+        return self.convertSettingValueToString("viewRefreshPeriodicallyDelay", value)
     
     def changedPanelThumbnailsRefreshPeriodicallyChecksSlider(self, value):
-        setting = self.convertThumbnailsRefreshPeriodicallyChecksSliderToSetting(value)
+        setting = self.convertThumbnailsRefreshPeriodicallyChecksValueToString(value)
         self.panelThumbnailsRefreshPeriodicallyChecksValue.setText(setting)
         self.odd.imageChangeDetectionTimer.setInterval(
-                self.ThumbnailsRefreshPeriodicallyChecksValues[self.panelThumbnailsRefreshPeriodicallyChecksSlider.value()]
+                self.Settings["viewRefreshPeriodicallyChecks"]["values"][self.panelThumbnailsRefreshPeriodicallyChecksSlider.value()]
         )
         self.writeSetting("viewRefreshPeriodicallyChecks", setting)
     
     def changedPanelThumbnailsRefreshPeriodicallyDelaySlider(self, value):
-        setting = self.convertThumbnailsRefreshPeriodicallyDelaySliderToSetting(value)
+        setting = self.convertThumbnailsRefreshPeriodicallyDelayValueToString(value)
         self.panelThumbnailsRefreshPeriodicallyDelayValue.setText(setting)
         self.odd.refreshTimer.setInterval(
-                self.ThumbnailsRefreshPeriodicallyDelayValues[self.panelThumbnailsRefreshPeriodicallyDelaySlider.value()]
+                self.Settings["viewRefreshPeriodicallyDelay"]["values"][self.panelThumbnailsRefreshPeriodicallyDelaySlider.value()]
         )
         self.writeSetting("viewRefreshPeriodicallyDelay", setting)
         
@@ -352,11 +359,11 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRenderScaleLabel = QLabel("Render scale", self.panel)
         self.panelThumbnailsRenderScaleValue = QLabel(setting, self.panel)
         self.panelThumbnailsRenderScaleSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRenderScaleSlider.setRange(0, len(self.ThumbnailsRenderScaleSliderValues)-1)
+        self.panelThumbnailsRenderScaleSlider.setRange(0, len(self.Settings["viewThumbnailsRenderScale"]["values"])-1)
         self.panelThumbnailsRenderScaleSlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsRenderScaleSlider.setTickInterval(1)
         self.panelThumbnailsRenderScaleSlider.setValue(
-                self.convertThumbnailsRenderScaleSettingToSlider(setting)
+                self.convertThumbnailsRenderScaleStringToValue(setting)
         )
         self.panelThumbnailsRenderScaleSlider.setToolTip(
                 "Thumbnails in the list can be generated at a reduced size then scaled up.\n" +
@@ -374,11 +381,11 @@ class OpenDocumentsViewSettings:
         self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
         self.panelTooltipThumbnailLimitValue = QLabel(setting, self.panel)
         self.panelTooltipThumbnailLimitSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelTooltipThumbnailLimitSlider.setRange(0, len(self.TooltipThumbnailLimitSliderValues)-1)
+        self.panelTooltipThumbnailLimitSlider.setRange(0, len(self.Settings["viewTooltipThumbnailLimit"]["values"])-1)
         self.panelTooltipThumbnailLimitSlider.setTickPosition(QSlider.NoTicks)
         self.panelTooltipThumbnailLimitSlider.setTickInterval(1)
         self.panelTooltipThumbnailLimitSlider.setValue(
-                self.convertTooltipThumbnailLimitSettingToSlider(setting)
+                self.convertTooltipThumbnailLimitStringToValue(setting)
         )
         self.panelTooltipThumbnailLimitSlider.setToolTip("Thumbnails in tooltips will be generated for images up to the chosen size.")
         
@@ -387,11 +394,11 @@ class OpenDocumentsViewSettings:
         self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
         self.panelTooltipThumbnailSizeValue = QLabel(setting, self.panel)
         self.panelTooltipThumbnailSizeSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelTooltipThumbnailSizeSlider.setRange(0, len(self.TooltipThumbnailSizeSliderValues)-1)
+        self.panelTooltipThumbnailSizeSlider.setRange(0, len(self.Settings["viewTooltipThumbnailSize"]["values"])-1)
         self.panelTooltipThumbnailSizeSlider.setTickPosition(QSlider.NoTicks)
         self.panelTooltipThumbnailSizeSlider.setTickInterval(1)
         self.panelTooltipThumbnailSizeSlider.setValue(
-                self.convertTooltipThumbnailSizeSettingToSlider(setting)
+                self.convertTooltipThumbnailSizeStringToValue(setting)
         )
         self.panelTooltipThumbnailSizeSlider.setEnabled(self.panelTooltipThumbnailLimitSlider.value() != 0)
         
@@ -416,11 +423,11 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Checks", self.panel)
         self.panelThumbnailsRefreshPeriodicallyChecksValue = QLabel(setting, self.panel)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setRange(0, len(self.ThumbnailsRefreshPeriodicallyChecksValues)-1)
+        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setRange(0, len(self.Settings["viewRefreshPeriodicallyChecks"]["values"])-1)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickInterval(1)
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setValue(
-                self.convertThumbnailsRefreshPeriodicallyChecksSettingToSlider(setting)
+                self.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
         )
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setToolTip("Number of times each second the image is checked for activity.")
         self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
@@ -430,11 +437,11 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.panel)
         self.panelThumbnailsRefreshPeriodicallyDelayValue = QLabel(setting, self.panel)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setRange(0, len(self.ThumbnailsRefreshPeriodicallyDelayValues)-1)
+        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setRange(0, len(self.Settings["viewRefreshPeriodicallyDelay"]["values"])-1)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickPosition(QSlider.NoTicks)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickInterval(1)
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setValue(
-                self.convertThumbnailsRefreshPeriodicallyDelaySettingToSlider(setting)
+                self.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
         )
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setToolTip("How long after the last detected change to refresh the thumbnail.")
         self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
