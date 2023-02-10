@@ -575,9 +575,9 @@ class OpenDocumentsViewSettings:
         
         pos = QPoint(0, 0)
         
-        if hasattr(self, "screen"):
+        if hasattr(self.odd, "screen"):
             # work out which side of the widget has the most space and put the view panel there.
-            screen = self.screen()
+            screen = self.odd.screen()
             screenTopLeft = screen.availableGeometry().topLeft()
             screenBottomRight = screen.availableGeometry().bottomRight()
             screenCenter = (screenTopLeft+screenBottomRight)/2
