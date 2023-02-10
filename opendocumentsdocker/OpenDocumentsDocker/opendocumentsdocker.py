@@ -494,6 +494,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             else:
                 self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                self.list.horizontalScrollBar().setValue(0)
             self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
     
     def listScrolled(self, value):
