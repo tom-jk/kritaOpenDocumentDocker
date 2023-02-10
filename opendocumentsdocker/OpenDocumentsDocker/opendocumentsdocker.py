@@ -10,6 +10,29 @@ from pathlib import Path
 from .opendocumentsviewsettings import OpenDocumentsViewSettings as ODVS
 
 
+class ODDListWidget(QListWidget):
+    def __init__(self, odd):
+        self.odd = odd
+        self.itemHovered = None
+        super(ODDListWidget, self).__init__()
+    
+    def leaveEvent(self, event):
+        if self.itemHovered:
+            self.itemHovered = None
+            self.odd.listToolTip.hide()
+    
+    def mouseMoveEvent(self, event):
+        oldItemHovered = self.itemHovered
+        self.itemHovered = self.itemAt(event.x(), event.y())
+        if not self.itemHovered:
+            if oldItemHovered:
+                self.odd.listToolTip.hide()
+                pass
+        else:
+            if self.itemHovered != oldItemHovered:
+                self.odd.itemEntered(self.itemHovered)
+
+
 class OpenDocumentsDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
@@ -39,11 +62,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                         return True
         return False
     
-    def activated(self, index):
-        self.clicked(index)
-    
-    def clicked(self, index):
-        item = self.list.item(index.row())
+    def itemClicked(self, item):
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
         if doc:
             self.findAndActivateView(doc)
@@ -56,9 +75,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         tModi = " *" * doc.modified() * showIfModified
         return (fName if fName else "[not saved]") + tModi
     
-    def entered(self, index):        
-        item = self.list.item(index.row())
-        
+    def itemEntered(self, item):
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
         if not doc:
             return
@@ -86,7 +103,6 @@ class OpenDocumentsDocker(krita.DockWidget):
         ttText += "</td>"
         ttText += "</tr></table>"
         
-        self.listToolTip.setWindowFlags(Qt.ToolTip)
         self.listToolTip.setText(ttText)
         
         ttPos = None
@@ -95,7 +111,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         listBottomRight = self.list.mapToGlobal(self.list.frameGeometry().bottomRight())
         listTopRight = self.list.mapToGlobal(self.list.frameGeometry().topRight())
         listCenter = (listTopLeft+listBottomRight)/2
-        itemRect = self.list.visualRect(index)
+        itemRect = self.list.visualItemRect(item)
         
         if hasattr(self, "screen"):
             # work out which side of the widget has the most space and put the tooltip there.
@@ -127,6 +143,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                     ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
         
         self.listToolTip.move(ttPos)
+        self.listToolTip.adjustSize()
         self.listToolTip.show()
     
     def delayedResize(self):
@@ -282,8 +299,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.baseWidget = QWidget()
         self.layout = QBoxLayout(QBoxLayout.TopToBottom)
-        self.list = QListWidget()
+        self.list = ODDListWidget(self)
         self.listToolTip = QLabel()
+        self.listToolTip.setWindowFlags(Qt.ToolTip)
         self.buttonLayout = QBoxLayout(QBoxLayout.LeftToRight)
         self.loadButton = QPushButton()
         self.loadButton.setIcon(Application.icon('view-refresh'))
@@ -294,11 +312,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.list.setMovement(QListView.Free)
         self.list.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.list.activated.connect(self.clicked)
-        self.list.clicked.connect(self.clicked)
+        self.list.itemActivated.connect(self.itemClicked)
+        self.list.itemClicked.connect(self.itemClicked)
         self.list.setMouseTracking(True)
-        self.list.entered.connect(self.entered)
-        self.list.viewportEntered.connect(self.viewportEntered)
         if False:
             self.list.setAcceptDrops(True)
             self.list.setDragEnabled(True)
@@ -519,9 +535,6 @@ class OpenDocumentsDocker(krita.DockWidget):
     def leaveEvent(self, event):
         self.listToolTip.hide()
     
-    def viewportEntered(self):
-        self.listToolTip.hide()
-    
     def dockVisibilityChanged(self, visible):
         print("visibilityChanged: visible =", visible)
         self.dockVisible = visible
@@ -591,7 +604,6 @@ class OpenDocumentsDocker(krita.DockWidget):
             return
         
         app = Application
-        index = self.list.selectedIndexes()[0]
         item = self.list.selectedItems()[0]
         listTopLeft = self.list.mapToGlobal(self.list.frameGeometry().topLeft())
         itemRect = self.list.visualItemRect(item)
@@ -605,14 +617,13 @@ class OpenDocumentsDocker(krita.DockWidget):
             pos = event.globalPos()
         else:
             pos = (itemRect.topLeft() + itemRect.bottomRight()) / 2
-        item = self.list.item(index.row())
         
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
         if not doc:
             print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
-        print("selected:", index, " -", doc.fileName())
+        print("selected:", item, " -", doc.fileName())
         app.activeDocument().waitForDone()
         self.findAndActivateView(doc)
         app.setActiveDocument(doc)
