@@ -86,8 +86,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         ttText += "<table border='0' style='margin:16px; padding:16px'><tr>"
         
         # From answer to "Use a picture or image in a QToolTip": https://stackoverflow.com/a/34300771
-        if doc.width() * doc.height() <= ODVS.Settings["viewTooltipThumbnailLimit"]["values"][self.vs.panelTooltipThumbnailLimitSlider.value()]:
-            size = ODVS.Settings["viewTooltipThumbnailSize"]["values"][self.vs.panelTooltipThumbnailSizeSlider.value()]
+        pxCount = doc.width() * doc.height()
+        if pxCount <= ODVS.SD["viewTooltipThumbnailLimit"]["values"][self.vs.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].value()]:
+            size = ODVS.SD["viewTooltipThumbnailSize"]["values"][self.vs.SD["viewTooltipThumbnailSize"]["ui"]["slider"].value()]
             img = doc.thumbnail(size, size)
             data = QByteArray()
             buffer = QBuffer(data)
@@ -275,7 +276,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 doc = app.documents()[i]
                 break
         print("image saved -", filename, "(doc", str(doc) + ")")
-        if self.vs.panelThumbnailsRefreshOnSaveCheckBox.isChecked():
+        if self.vs.SD["viewRefreshOnSave"]["ui"]["btn"].isChecked():
             if self.imageChangeDetected:
                 self.imageChangeDetected = False
                 self.refreshTimer.stop()
@@ -334,7 +335,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.imageChangeDetectionTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyChecks")
         self.imageChangeDetectionTimer.setInterval(
-            ODVS.Settings["viewRefreshPeriodicallyChecks"]["values"][
+            ODVS.SD["viewRefreshPeriodicallyChecks"]["values"][
                     self.vs.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
             ]
         )
@@ -342,7 +343,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.refreshTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("viewRefreshPeriodicallyDelay")
         self.refreshTimer.setInterval(
-            ODVS.Settings["viewRefreshPeriodicallyDelay"]["values"][
+            ODVS.SD["viewRefreshPeriodicallyDelay"]["values"][
                     self.vs.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
             ]
         )
@@ -544,7 +545,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("visibilityChanged: visible =", visible)
         self.dockVisible = visible
         self.processDeferredDocumentThumbnails()
-        if self.vs.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked():
+        if self.vs.SD["viewRefreshPeriodically"]["ui"]["btn"].isChecked():
             if visible:
                 self.imageChangeDetectionTimer.start()
             else:
@@ -728,7 +729,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         if not doc:
             print("update thumb: no active document.")
             return
-        if self.vs.panelDisplayButtonGroup.checkedButton() == self.vs.panelDisplayTextButton:
+        if self.vs.SD["viewDisplay"]["ui"]["btngrp"].checkedButton() == self.vs.SD["viewDisplay"]["ui"]["btnText"]:
             print("update thumb: docker list is in text-only mode.")
             return
         
@@ -761,7 +762,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def addDocumentToList(self, doc):
         item = None
-        if self.vs.panelDisplayButtonGroup.checkedButton() == self.vs.panelDisplayThumbnailsButton:
+        if self.vs.SD["viewDisplay"]["ui"]["btngrp"].checkedButton() == self.vs.SD["viewDisplay"]["ui"]["btnThumbnails"]:
             thumbnail = self.generateThumbnailForDocument(doc)
             item = QListWidgetItem("", self.list)
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
@@ -838,7 +839,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         width = min(width, 256)
         return width
     
-    def generateThumbnailForDocument(self, doc):        
+    def generateThumbnailForDocument(self, doc):
         # ensure the thumbnail will be complete
         doc.waitForDone()
         
@@ -849,7 +850,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         settingUseProj = self.vs.readSetting("thumbnailUseProjectionMethod") == "true"
         
         scaleFactor = (
-                ODVS.Settings["viewThumbnailsRenderScale"]["values"][self.vs.panelThumbnailsRenderScaleSlider.value()]
+                ODVS.SD["viewThumbnailsRenderScale"]["values"][self.vs.SD["viewThumbnailsRenderScale"]["ui"]["slider"].value()]
                 if not settingUseProj else 1
         )
         

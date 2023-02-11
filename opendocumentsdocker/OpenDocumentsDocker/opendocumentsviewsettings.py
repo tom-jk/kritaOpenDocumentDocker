@@ -4,65 +4,114 @@ from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton
 from krita import *
 
 class OpenDocumentsViewSettings:
-    Settings = {
+    # Settings Data
+    SD = {
             "viewDirection": {
                     "default":"auto",
+                    "ui": {
+                            "btngrp":None,
+                            "btnHorizontal":None,
+                            "btnVertical":None,
+                            "btnAuto":None,
+                    },
             },
             "viewDisplay": {
                     "default":"thumbnails",
+                    "ui": {
+                            "btngrp":None,
+                            "btnThumbnails":None,
+                            "btnText":None,
+                    },
             },
             "viewRefreshOnSave": {
                     "default":"true",
+                    "ui": {
+                            "btn":None,
+                    },
             },
             "viewRefreshPeriodically": {
                     "default":"false",
+                    "ui": {
+                            "btn":None,
+                    },
             },
             "viewRefreshPeriodicallyChecks": {
                     "default":"15/sec",
                     "strings":["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"],
                     "values" :[1000, 500, 333, 250, 200, 125, 100, 67, 50, 33],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "viewRefreshPeriodicallyDelay": {
                     "default":"2sec",
                     "strings":["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"],
                     "values" :[500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "viewThumbnailsDisplayScale": {
                     "default":"1.00",
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "viewThumbnailsRenderScale": {
                     "default":"1",
                     "strings":["1/16", "1/8", "1/4", "1/2", "1"],
                     "values" :[1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0/2.0, 1],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "viewTooltipThumbnailLimit": {
                     "default":"≤4096px²",
                     "strings":["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"],
                     "values" :[0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "viewTooltipThumbnailSize": {
                     "default":"128px",
                     "strings":["64px", "96px", "128px", "160px", "192px", "256px", "384px", "512px"],
                     "values" :[64, 96, 128, 160, 192, 256, 384, 512],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
             },
             "idAutoDisambiguateCopies": {
                     "default":"false",
+                    "ui": {
+                            "btn":None,
+                    },
             },
             "thumbnailUseProjectionMethod": {
                     "default":"true",
+                    "ui": {
+                            "btn":None,
+                    },
             },
     }
     
     def __init__(self, odd):
         self.odd = odd
+        print(self.SD["viewDirection"])
     
     def readSetting(self, setting):
-        if not setting in self.Settings:
+        if not setting in self.SD:
             return
-        return Application.readSetting("OpenDocumentsDocker", setting, self.Settings[setting]["default"])
+        return Application.readSetting("OpenDocumentsDocker", setting, self.SD[setting]["default"])
     
     def writeSetting(self, setting, value):
-        if not setting in self.Settings:
+        if not setting in self.SD:
             return
         Application.writeSetting("OpenDocumentsDocker", setting, value)
     
@@ -98,14 +147,14 @@ class OpenDocumentsViewSettings:
         self.odd.setDockerDirection("auto")
     
     def convertSettingStringToValue(self, settingName, string):
-        setting = self.Settings[settingName]
+        setting = self.SD[settingName]
         if string in setting["strings"]:
             return setting["strings"].index(string)
         else:
             return setting["strings"].index(setting["default"])
     
     def convertSettingValueToString(self, settingName, value):
-        setting = self.Settings[settingName]
+        setting = self.SD[settingName]
         if value >= 0 and value < len(setting["strings"]):
             return setting["strings"][value]
         else:
@@ -131,7 +180,7 @@ class OpenDocumentsViewSettings:
     
     def changedPanelThumbnailsDisplayScaleSlider(self, value):
         setting = "{:4.2f}".format(value * 0.05)
-        self.panelThumbnailsDisplayScaleValue.setText(setting)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["value"].setText(setting)
         self.writeSetting("viewThumbnailsDisplayScale", setting)
         # quick resize thumbs for visual feedback
         l = self.odd.list
@@ -146,25 +195,24 @@ class OpenDocumentsViewSettings:
     
     def changedPanelThumbnailsRenderScaleSlider(self, value):
         setting = self.convertThumbnailsRenderScaleValueToString(value)
-        self.panelThumbnailsRenderScaleValue.setText(setting)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["value"].setText(setting)
         self.writeSetting("viewThumbnailsRenderScale", setting)
         
         self.startRefreshAllDelayTimer()
     
     def changedPanelTooltipThumbnailLimitSlider(self, value):
         setting = self.convertTooltipThumbnailLimitValueToString(value)
-        self.panelTooltipThumbnailLimitValue.setText(setting)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["value"].setText(setting)
         self.writeSetting("viewTooltipThumbnailLimit", setting)
-        if value != 0:
-            if hasattr(self, "panelTooltipThumbnailSizeSlider"):
-                self.panelTooltipThumbnailSizeSlider.setEnabled(True)
-        else:
-            if hasattr(self, "panelTooltipThumbnailSizeSlider"):
-                self.panelTooltipThumbnailSizeSlider.setEnabled(False)
+        if self.SD["viewTooltipThumbnailSize"]["ui"]["slider"]:
+            if value != 0:
+                self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setEnabled(True)
+            else:
+                self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setEnabled(False)
     
     def changedPanelTooltipThumbnailSizeSlider(self, value):
         setting = self.convertTooltipThumbnailSizeValueToString(value)
-        self.panelTooltipThumbnailSizeValue.setText(setting)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["value"].setText(setting)
         self.writeSetting("viewTooltipThumbnailSize", setting)
     
     def changedThumbnailsRefreshOnSave(self, state):
@@ -177,14 +225,14 @@ class OpenDocumentsViewSettings:
         print("changedThumbnailsRefreshPeriodically to", setting)
         self.writeSetting("viewRefreshPeriodically", setting)
         if state == 2:
-            if hasattr(self, "panelThumbnailsRefreshPeriodicallyChecksSlider"):
-                self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(True)
-                self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(True)
+            if self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"]:
+                self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setEnabled(True)
+                self.SD["viewRefreshPeriodicallyDelay" ]["ui"]["slider"].setEnabled(True)
             self.odd.imageChangeDetectionTimer.start()
         else:
-            if hasattr(self, "panelThumbnailsRefreshPeriodicallyChecksSlider"):
-                self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(False)
-                self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(False)
+            if self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"]:
+                self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setEnabled(False)
+                self.SD["viewRefreshPeriodicallyDelay" ]["ui"]["slider"].setEnabled(False)
             self.odd.imageChangeDetectionTimer.stop()
             self.odd.refreshTimer.stop()
     
@@ -264,12 +312,11 @@ class OpenDocumentsViewSettings:
         setting = str(state==2).lower()
         print("changedThumbnailUseProjectionMethod to", setting)
         self.writeSetting("thumbnailUseProjectionMethod", setting)
-        if state == 2:
-            if hasattr(self, "panelThumbnailsRenderScaleSlider"):
-                self.panelThumbnailsRenderScaleSlider.setEnabled(False)
-        else:
-            if hasattr(self, "panelThumbnailsRenderScaleSlider"):
-                self.panelThumbnailsRenderScaleSlider.setEnabled(True)
+        if self.SD["viewThumbnailsRenderScale"]["ui"]["slider"]:
+            if state == 2:
+                self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setEnabled(False)
+            else:
+                self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setEnabled(True)
         
         self.startRefreshAllDelayTimer()
         
@@ -295,17 +342,17 @@ class OpenDocumentsViewSettings:
     
     def changedPanelThumbnailsRefreshPeriodicallyChecksSlider(self, value):
         setting = self.convertThumbnailsRefreshPeriodicallyChecksValueToString(value)
-        self.panelThumbnailsRefreshPeriodicallyChecksValue.setText(setting)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["value"].setText(setting)
         self.odd.imageChangeDetectionTimer.setInterval(
-                self.Settings["viewRefreshPeriodicallyChecks"]["values"][self.panelThumbnailsRefreshPeriodicallyChecksSlider.value()]
+                self.SD["viewRefreshPeriodicallyChecks"]["values"][self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].value()]
         )
         self.writeSetting("viewRefreshPeriodicallyChecks", setting)
     
     def changedPanelThumbnailsRefreshPeriodicallyDelaySlider(self, value):
         setting = self.convertThumbnailsRefreshPeriodicallyDelayValueToString(value)
-        self.panelThumbnailsRefreshPeriodicallyDelayValue.setText(setting)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["value"].setText(setting)
         self.odd.refreshTimer.setInterval(
-                self.Settings["viewRefreshPeriodicallyDelay"]["values"][self.panelThumbnailsRefreshPeriodicallyDelaySlider.value()]
+                self.SD["viewRefreshPeriodicallyDelay"]["values"][self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].value()]
         )
         self.writeSetting("viewRefreshPeriodicallyDelay", setting)
         
@@ -315,8 +362,8 @@ class OpenDocumentsViewSettings:
         self.panel = QWidget(self.odd, Qt.Popup)
         self.panelLayout = QVBoxLayout()
         
-        self.panelDisplayButtonGroup = QButtonGroup(self.panel)
-        self.panelDirectionButtonGroup = QButtonGroup(self.panel)
+        self.SD["viewDisplay"]["ui"]["btngrp"] = QButtonGroup(self.panel)
+        self.SD["viewDirection"]["ui"]["btngrp"] = QButtonGroup(self.panel)
         
         self.panelListHeading = QHBoxLayout()
         self.panelListHeadingLabel = QLabel("List", self.panel)
@@ -324,21 +371,21 @@ class OpenDocumentsViewSettings:
         self.panelListHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         self.panelDisplayLabel = QLabel("Display", self.panel)
-        self.panelDisplayThumbnailsButton = QRadioButton("Thumbnails", self.panel)
-        self.panelDisplayTextButton = QRadioButton("Text", self.panel)
+        self.SD["viewDisplay"]["ui"]["btnThumbnails"] = QRadioButton("Thumbnails", self.panel)
+        self.SD["viewDisplay"]["ui"]["btnText"      ] = QRadioButton("Text", self.panel)
         
         self.panelDirectionLabel = QLabel("Direction", self.panel)
-        self.panelDirectionHorizontalButton = QRadioButton("Horizontal", self.panel)
-        self.panelDirectionVerticalButton = QRadioButton("Vertical", self.panel)
-        self.panelDirectionAutoButton = QRadioButton("Auto", self.panel)
-        self.panelDirectionAutoButton.setToolTip("The list will be arranged on its longest side.")
+        self.SD["viewDirection"]["ui"]["btnHorizontal"] = QRadioButton("Horizontal", self.panel)
+        self.SD["viewDirection"]["ui"]["btnVertical"  ] = QRadioButton("Vertical", self.panel)
+        self.SD["viewDirection"]["ui"]["btnAuto"      ] = QRadioButton("Auto", self.panel)
+        self.SD["viewDirection"]["ui"]["btnAuto"      ].setToolTip("The list will be arranged on its longest side.")
         
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         
-        self.panelThumbnailUseProjectionMethodCheckBox = QCheckBox("Use projection method")
-        self.panelThumbnailUseProjectionMethodCheckBox.stateChanged.connect(self.changedThumbnailUseProjectionMethod)
-        self.panelThumbnailUseProjectionMethodCheckBox.setChecked(self.readSetting("thumbnailUseProjectionMethod") == "true")
-        self.panelThumbnailUseProjectionMethodCheckBox.setToolTip(
+        self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"] = QCheckBox("Use projection method")
+        self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"].stateChanged.connect(self.changedThumbnailUseProjectionMethod)
+        self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"].setChecked(self.readSetting("thumbnailUseProjectionMethod") == "true")
+        self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"].setToolTip(
                 "If enabled, ODD will generate thumbnails with the projection method.\n" +
                 "If disabled, ODD will use the thumbnail method.\n" +
                 "Projection should be faster. If there are no issues, leave this enabled."
@@ -347,29 +394,29 @@ class OpenDocumentsViewSettings:
         setting = self.readSetting("viewThumbnailsDisplayScale")
         self.panelThumbnailsDisplayScaleLayout = QHBoxLayout()
         self.panelThumbnailsDisplayScaleLabel = QLabel("Display scale", self.panel)
-        self.panelThumbnailsDisplayScaleValue = QLabel(setting, self.panel)
-        self.panelThumbnailsDisplayScaleSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsDisplayScaleSlider.setRange(1, 20)
-        self.panelThumbnailsDisplayScaleSlider.setTickPosition(QSlider.NoTicks)
-        self.panelThumbnailsDisplayScaleSlider.setTickInterval(1)
-        self.panelThumbnailsDisplayScaleSlider.setValue(round(float(setting)*20))
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"].setRange(1, 20)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"].setValue(round(float(setting)*20))
         
         setting = self.readSetting("viewThumbnailsRenderScale")
         self.panelThumbnailsRenderScaleLayout = QHBoxLayout()
         self.panelThumbnailsRenderScaleLabel = QLabel("Render scale", self.panel)
-        self.panelThumbnailsRenderScaleValue = QLabel(setting, self.panel)
-        self.panelThumbnailsRenderScaleSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRenderScaleSlider.setRange(0, len(self.Settings["viewThumbnailsRenderScale"]["values"])-1)
-        self.panelThumbnailsRenderScaleSlider.setTickPosition(QSlider.NoTicks)
-        self.panelThumbnailsRenderScaleSlider.setTickInterval(1)
-        self.panelThumbnailsRenderScaleSlider.setValue(
+        self.SD["viewThumbnailsRenderScale"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setRange(0, len(self.SD["viewThumbnailsRenderScale"]["values"])-1)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setValue(
                 self.convertThumbnailsRenderScaleStringToValue(setting)
         )
-        self.panelThumbnailsRenderScaleSlider.setToolTip(
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setToolTip(
                 "Thumbnails in the list can be generated at a reduced size then scaled up.\n" +
                 "This can improve performance when using the thumbnail method."
         )
-        self.panelThumbnailsRenderScaleSlider.setEnabled(not self.panelThumbnailUseProjectionMethodCheckBox.isChecked())
+        self.SD["viewThumbnailsRenderScale"]["ui"]["slider"].setEnabled(not self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"].isChecked())
         
         self.panelTooltipsHeading = QHBoxLayout()
         self.panelTooltipsHeadingLabel = QLabel("Tooltips", self.panel)
@@ -379,38 +426,40 @@ class OpenDocumentsViewSettings:
         setting = self.readSetting("viewTooltipThumbnailLimit")
         self.panelTooltipThumbnailLimitLayout = QHBoxLayout()
         self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
-        self.panelTooltipThumbnailLimitValue = QLabel(setting, self.panel)
-        self.panelTooltipThumbnailLimitSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelTooltipThumbnailLimitSlider.setRange(0, len(self.Settings["viewTooltipThumbnailLimit"]["values"])-1)
-        self.panelTooltipThumbnailLimitSlider.setTickPosition(QSlider.NoTicks)
-        self.panelTooltipThumbnailLimitSlider.setTickInterval(1)
-        self.panelTooltipThumbnailLimitSlider.setValue(
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].setRange(0, len(self.SD["viewTooltipThumbnailLimit"]["values"])-1)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].setValue(
                 self.convertTooltipThumbnailLimitStringToValue(setting)
         )
-        self.panelTooltipThumbnailLimitSlider.setToolTip("Thumbnails in tooltips will be generated for images up to the chosen size.")
+        self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].setToolTip(
+                "Thumbnails in tooltips will be generated for images up to the chosen size."
+        )
         
         setting = self.readSetting("viewTooltipThumbnailSize")
         self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
         self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
-        self.panelTooltipThumbnailSizeValue = QLabel(setting, self.panel)
-        self.panelTooltipThumbnailSizeSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelTooltipThumbnailSizeSlider.setRange(0, len(self.Settings["viewTooltipThumbnailSize"]["values"])-1)
-        self.panelTooltipThumbnailSizeSlider.setTickPosition(QSlider.NoTicks)
-        self.panelTooltipThumbnailSizeSlider.setTickInterval(1)
-        self.panelTooltipThumbnailSizeSlider.setValue(
+        self.SD["viewTooltipThumbnailSize"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setRange(0, len(self.SD["viewTooltipThumbnailSize"]["values"])-1)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setValue(
                 self.convertTooltipThumbnailSizeStringToValue(setting)
         )
-        self.panelTooltipThumbnailSizeSlider.setEnabled(self.panelTooltipThumbnailLimitSlider.value() != 0)
+        self.SD["viewTooltipThumbnailSize"]["ui"]["slider"].setEnabled(self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"].value() != 0)
         
-        self.panelThumbnailsRefreshOnSaveCheckBox = QCheckBox("Refresh on save")
-        self.panelThumbnailsRefreshOnSaveCheckBox.stateChanged.connect(self.changedThumbnailsRefreshOnSave)
-        self.panelThumbnailsRefreshOnSaveCheckBox.setChecked(self.readSetting("viewRefreshOnSave") == "true")
-        self.panelThumbnailsRefreshOnSaveCheckBox.setToolTip("When you save an image, refresh its thumbnail automatically.")
+        self.SD["viewRefreshOnSave"]["ui"]["btn"] = QCheckBox("Refresh on save")
+        self.SD["viewRefreshOnSave"]["ui"]["btn"].stateChanged.connect(self.changedThumbnailsRefreshOnSave)
+        self.SD["viewRefreshOnSave"]["ui"]["btn"].setChecked(self.readSetting("viewRefreshOnSave") == "true")
+        self.SD["viewRefreshOnSave"]["ui"]["btn"].setToolTip("When you save an image, refresh its thumbnail automatically.")
         
-        self.panelThumbnailsRefreshPeriodicallyCheckBox = QCheckBox("Refresh periodically (experimental)")
-        self.panelThumbnailsRefreshPeriodicallyCheckBox.stateChanged.connect(self.changedThumbnailsRefreshPeriodically)
-        self.panelThumbnailsRefreshPeriodicallyCheckBox.setChecked(self.readSetting("viewRefreshPeriodically") == "true")
-        self.panelThumbnailsRefreshPeriodicallyCheckBox.setToolTip(
+        self.SD["viewRefreshPeriodically"]["ui"]["btn"] = QCheckBox("Refresh periodically (experimental)")
+        self.SD["viewRefreshPeriodically"]["ui"]["btn"].stateChanged.connect(self.changedThumbnailsRefreshPeriodically)
+        self.SD["viewRefreshPeriodically"]["ui"]["btn"].setChecked(self.readSetting("viewRefreshPeriodically") == "true")
+        self.SD["viewRefreshPeriodically"]["ui"]["btn"].setToolTip(
                 "Automatically refresh the thumbnail for the active image if a change is detected.\n" + 
                 "Checks for changes to the image so-many times each second.\n" +
                 "Then tries to refresh the thumbnail every so-many seconds.\n" +
@@ -421,40 +470,40 @@ class OpenDocumentsViewSettings:
         setting = self.readSetting("viewRefreshPeriodicallyChecks")
         self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Checks", self.panel)
-        self.panelThumbnailsRefreshPeriodicallyChecksValue = QLabel(setting, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setRange(0, len(self.Settings["viewRefreshPeriodicallyChecks"]["values"])-1)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickPosition(QSlider.NoTicks)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setTickInterval(1)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setValue(
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["value"]  = QLabel(setting, self.panel)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setRange(0, len(self.SD["viewRefreshPeriodicallyChecks"]["values"])-1)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setValue(
                 self.convertThumbnailsRefreshPeriodicallyChecksStringToValue(setting)
         )
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setToolTip("Number of times each second the image is checked for activity.")
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setToolTip("Number of times each second the image is checked for activity.")
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].setEnabled(self.SD["viewRefreshPeriodically"]["ui"]["btn"].isChecked())
         
         setting = self.readSetting("viewRefreshPeriodicallyDelay")
         self.panelThumbnailsRefreshPeriodicallyDelayLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.panel)
-        self.panelThumbnailsRefreshPeriodicallyDelayValue = QLabel(setting, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider = QSlider(Qt.Horizontal, self.panel)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setRange(0, len(self.Settings["viewRefreshPeriodicallyDelay"]["values"])-1)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickPosition(QSlider.NoTicks)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setTickInterval(1)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setValue(
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setRange(0, len(self.SD["viewRefreshPeriodicallyDelay"]["values"])-1)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setTickInterval(1)
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setValue(
                 self.convertThumbnailsRefreshPeriodicallyDelayStringToValue(setting)
         )
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setToolTip("How long after the last detected change to refresh the thumbnail.")
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.setEnabled(self.panelThumbnailsRefreshPeriodicallyCheckBox.isChecked())
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setToolTip("How long after the last detected change to refresh the thumbnail.")
+        self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"].setEnabled(self.SD["viewRefreshPeriodically"]["ui"]["btn"].isChecked())
         
         self.panelMiscHeading = QHBoxLayout()
         self.panelMiscHeadingLabel = QLabel("Miscellaneous", self.panel)
         self.panelMiscHeadingLine = QLabel("", self.panel)
         self.panelMiscHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
-        self.panelIdAutoDisambiguateCopiesCheckBox = QCheckBox("Auto disambiguate document ID's (modifies file)")
-        self.panelIdAutoDisambiguateCopiesCheckBox.stateChanged.connect(self.changedIdAutoDisambiguateCopies)
-        self.panelIdAutoDisambiguateCopiesCheckBox.setChecked(self.readSetting("idAutoDisambiguateCopies") == "true")
-        self.panelIdAutoDisambiguateCopiesCheckBox.setToolTip(
+        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"] = QCheckBox("Auto disambiguate document ID's (modifies file)")
+        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].stateChanged.connect(self.changedIdAutoDisambiguateCopies)
+        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].setChecked(self.readSetting("idAutoDisambiguateCopies") == "true")
+        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].setToolTip(
                 "ODD uses a unique ID supplied by Krita to identify documents.\n" +
                 "When you 'create copy from current image', This copy does not receive a new ID.\n" +
                 "This means ODD can't distinguish the original from the copy.\n" +
@@ -464,23 +513,23 @@ class OpenDocumentsViewSettings:
                 "and ODD will remove the redudant annotation. You can then save the image again to remove it from the file."
         )
         
-        self.panelDisplayButtonGroup.addButton(self.panelDisplayThumbnailsButton)
-        self.panelDisplayButtonGroup.addButton(self.panelDisplayTextButton)
         settingDisplay = self.readSetting("viewDisplay")
-        self.panelDisplayThumbnailsButton.setChecked(settingDisplay=="thumbnails")
-        self.panelDisplayTextButton.setChecked(settingDisplay=="text")
-        self.panelDisplayThumbnailsButton.clicked.connect(self.setDisplayToThumbnails)
-        self.panelDisplayTextButton.clicked.connect(self.setDisplayToText)
+        self.SD["viewDisplay"]["ui"]["btngrp"       ].addButton(self.SD["viewDisplay"]["ui"]["btnThumbnails"])
+        self.SD["viewDisplay"]["ui"]["btngrp"       ].addButton(self.SD["viewDisplay"]["ui"]["btnText"      ])
+        self.SD["viewDisplay"]["ui"]["btnThumbnails"].setChecked(settingDisplay=="thumbnails")
+        self.SD["viewDisplay"]["ui"]["btnText"      ].setChecked(settingDisplay=="text")
+        self.SD["viewDisplay"]["ui"]["btnThumbnails"].clicked.connect(self.setDisplayToThumbnails)
+        self.SD["viewDisplay"]["ui"]["btnText"      ].clicked.connect(self.setDisplayToText)
         settingDirection = self.readSetting("viewDirection")
-        self.panelDirectionButtonGroup.addButton(self.panelDirectionHorizontalButton)
-        self.panelDirectionButtonGroup.addButton(self.panelDirectionVerticalButton)
-        self.panelDirectionButtonGroup.addButton(self.panelDirectionAutoButton)
-        self.panelDirectionHorizontalButton.setChecked(settingDirection=="horizontal")
-        self.panelDirectionVerticalButton.setChecked(settingDirection=="vertical")
-        self.panelDirectionAutoButton.setChecked(settingDirection=="auto")
-        self.panelDirectionHorizontalButton.clicked.connect(self.setDirectionToHorizontal)
-        self.panelDirectionVerticalButton.clicked.connect(self.setDirectionToVertical)
-        self.panelDirectionAutoButton.clicked.connect(self.setDirectionToAuto)
+        self.SD["viewDirection"]["ui"]["btngrp"       ].addButton(self.SD["viewDirection"]["ui"]["btnHorizontal"])
+        self.SD["viewDirection"]["ui"]["btngrp"       ].addButton(self.SD["viewDirection"]["ui"]["btnVertical"  ])
+        self.SD["viewDirection"]["ui"]["btngrp"       ].addButton(self.SD["viewDirection"]["ui"]["btnAuto"      ])
+        self.SD["viewDirection"]["ui"]["btnHorizontal"].setChecked(settingDirection=="horizontal")
+        self.SD["viewDirection"]["ui"]["btnVertical"  ].setChecked(settingDirection=="vertical")
+        self.SD["viewDirection"]["ui"]["btnAuto"      ].setChecked(settingDirection=="auto")
+        self.SD["viewDirection"]["ui"]["btnHorizontal"].clicked.connect(self.setDirectionToHorizontal)
+        self.SD["viewDirection"]["ui"]["btnVertical"  ].clicked.connect(self.setDirectionToVertical)
+        self.SD["viewDirection"]["ui"]["btnAuto"      ].clicked.connect(self.setDirectionToAuto)
         
         self.panelListHeading.addWidget(self.panelListHeadingLabel)
         self.panelListHeading.addWidget(self.panelListHeadingLine)
@@ -488,40 +537,40 @@ class OpenDocumentsViewSettings:
         self.panelListHeading.setStretch(1, 99)
         self.panelLayout.addLayout(self.panelListHeading)
         self.panelLayout.addWidget(self.panelDisplayLabel)
-        self.panelLayout.addWidget(self.panelDisplayThumbnailsButton)
-        self.panelLayout.addWidget(self.panelDisplayTextButton)
+        self.panelLayout.addWidget(self.SD["viewDisplay"]["ui"]["btnThumbnails"])
+        self.panelLayout.addWidget(self.SD["viewDisplay"]["ui"]["btnText"])
         self.panelLayout.addWidget(self.panelDirectionLabel)
-        self.panelLayout.addWidget(self.panelDirectionHorizontalButton)
-        self.panelLayout.addWidget(self.panelDirectionVerticalButton)
-        self.panelLayout.addWidget(self.panelDirectionAutoButton)
+        self.panelLayout.addWidget(self.SD["viewDirection"]["ui"]["btnHorizontal"])
+        self.panelLayout.addWidget(self.SD["viewDirection"]["ui"]["btnVertical"])
+        self.panelLayout.addWidget(self.SD["viewDirection"]["ui"]["btnAuto"])
         self.panelLayout.addWidget(self.panelThumbnailsLabel)
-        self.panelLayout.addWidget(self.panelThumbnailUseProjectionMethodCheckBox)
+        self.panelLayout.addWidget(self.SD["thumbnailUseProjectionMethod"]["ui"]["btn"])
         self.panelThumbnailsDisplayScaleLayout.addWidget(self.panelThumbnailsDisplayScaleLabel)
-        self.panelThumbnailsDisplayScaleLayout.addWidget(self.panelThumbnailsDisplayScaleValue)
-        self.panelThumbnailsDisplayScaleLayout.addWidget(self.panelThumbnailsDisplayScaleSlider)
+        self.panelThumbnailsDisplayScaleLayout.addWidget(self.SD["viewThumbnailsDisplayScale"]["ui"]["value"])
+        self.panelThumbnailsDisplayScaleLayout.addWidget(self.SD["viewThumbnailsDisplayScale"]["ui"]["slider"])
         self.panelThumbnailsDisplayScaleLayout.setStretch(0, 2)
         self.panelThumbnailsDisplayScaleLayout.setStretch(1, 2)
         self.panelThumbnailsDisplayScaleLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsDisplayScaleLayout)
         self.panelThumbnailsRenderScaleLayout.addWidget(self.panelThumbnailsRenderScaleLabel)
-        self.panelThumbnailsRenderScaleLayout.addWidget(self.panelThumbnailsRenderScaleValue)
-        self.panelThumbnailsRenderScaleLayout.addWidget(self.panelThumbnailsRenderScaleSlider)
+        self.panelThumbnailsRenderScaleLayout.addWidget(self.SD["viewThumbnailsRenderScale"]["ui"]["value"])
+        self.panelThumbnailsRenderScaleLayout.addWidget(self.SD["viewThumbnailsRenderScale"]["ui"]["slider"])
         self.panelThumbnailsRenderScaleLayout.setStretch(0, 2)
         self.panelThumbnailsRenderScaleLayout.setStretch(1, 2)
         self.panelThumbnailsRenderScaleLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsRenderScaleLayout)
-        self.panelLayout.addWidget(self.panelThumbnailsRefreshOnSaveCheckBox)
-        self.panelLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyCheckBox)
+        self.panelLayout.addWidget(self.SD["viewRefreshOnSave"]["ui"]["btn"])
+        self.panelLayout.addWidget(self.SD["viewRefreshPeriodically"]["ui"]["btn"])
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksLabel)
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksValue)
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksSlider)
+        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.SD["viewRefreshPeriodicallyChecks"]["ui"]["value"])
+        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"])
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(0, 2)
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(1, 2)
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsRefreshPeriodicallyChecksLayout)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyDelayLabel)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyDelayValue)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyDelaySlider)
+        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.SD["viewRefreshPeriodicallyDelay"]["ui"]["value"])
+        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.SD["viewRefreshPeriodicallyDelay"]["ui"]["slider"])
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(0, 2)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(1, 2)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(2, 5)
@@ -532,15 +581,15 @@ class OpenDocumentsViewSettings:
         self.panelTooltipsHeading.setStretch(1, 99)
         self.panelLayout.addLayout(self.panelTooltipsHeading)
         self.panelTooltipThumbnailLimitLayout.addWidget(self.panelTooltipThumbnailLimitLabel)
-        self.panelTooltipThumbnailLimitLayout.addWidget(self.panelTooltipThumbnailLimitValue)
-        self.panelTooltipThumbnailLimitLayout.addWidget(self.panelTooltipThumbnailLimitSlider)
+        self.panelTooltipThumbnailLimitLayout.addWidget(self.SD["viewTooltipThumbnailLimit"]["ui"]["value"])
+        self.panelTooltipThumbnailLimitLayout.addWidget(self.SD["viewTooltipThumbnailLimit"]["ui"]["slider"])
         self.panelTooltipThumbnailLimitLayout.setStretch(0, 2)
         self.panelTooltipThumbnailLimitLayout.setStretch(1, 2)
         self.panelTooltipThumbnailLimitLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelTooltipThumbnailLimitLayout)
         self.panelTooltipThumbnailSizeLayout.addWidget(self.panelTooltipThumbnailSizeLabel)
-        self.panelTooltipThumbnailSizeLayout.addWidget(self.panelTooltipThumbnailSizeValue)
-        self.panelTooltipThumbnailSizeLayout.addWidget(self.panelTooltipThumbnailSizeSlider)
+        self.panelTooltipThumbnailSizeLayout.addWidget(self.SD["viewTooltipThumbnailSize"]["ui"]["value"])
+        self.panelTooltipThumbnailSizeLayout.addWidget(self.SD["viewTooltipThumbnailSize"]["ui"]["slider"])
         self.panelTooltipThumbnailSizeLayout.setStretch(0, 2)
         self.panelTooltipThumbnailSizeLayout.setStretch(1, 2)
         self.panelTooltipThumbnailSizeLayout.setStretch(2, 5)
@@ -550,16 +599,16 @@ class OpenDocumentsViewSettings:
         self.panelMiscHeading.setStretch(0, 1)
         self.panelMiscHeading.setStretch(1, 99)
         self.panelLayout.addLayout(self.panelMiscHeading)
-        self.panelLayout.addWidget(self.panelIdAutoDisambiguateCopiesCheckBox)
+        self.panelLayout.addWidget(self.SD["idAutoDisambiguateCopies"]["ui"]["btn"])
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(384)
         
-        self.panelThumbnailsDisplayScaleSlider.valueChanged.connect(self.changedPanelThumbnailsDisplayScaleSlider)
-        self.panelThumbnailsRenderScaleSlider.valueChanged.connect(self.changedPanelThumbnailsRenderScaleSlider)
-        self.panelTooltipThumbnailLimitSlider.valueChanged.connect(self.changedPanelTooltipThumbnailLimitSlider)
-        self.panelTooltipThumbnailSizeSlider.valueChanged.connect(self.changedPanelTooltipThumbnailSizeSlider)
-        self.panelThumbnailsRefreshPeriodicallyChecksSlider.valueChanged.connect(self.changedPanelThumbnailsRefreshPeriodicallyChecksSlider)
-        self.panelThumbnailsRefreshPeriodicallyDelaySlider.valueChanged.connect(self.changedPanelThumbnailsRefreshPeriodicallyDelaySlider)
+        self.SD["viewThumbnailsDisplayScale"   ]["ui"]["slider"].valueChanged.connect(self.changedPanelThumbnailsDisplayScaleSlider)
+        self.SD["viewThumbnailsRenderScale"    ]["ui"]["slider"].valueChanged.connect(self.changedPanelThumbnailsRenderScaleSlider)
+        self.SD["viewTooltipThumbnailLimit"    ]["ui"]["slider"].valueChanged.connect(self.changedPanelTooltipThumbnailLimitSlider)
+        self.SD["viewTooltipThumbnailSize"     ]["ui"]["slider"].valueChanged.connect(self.changedPanelTooltipThumbnailSizeSlider)
+        self.SD["viewRefreshPeriodicallyChecks"]["ui"]["slider"].valueChanged.connect(self.changedPanelThumbnailsRefreshPeriodicallyChecksSlider)
+        self.SD["viewRefreshPeriodicallyDelay" ]["ui"]["slider"].valueChanged.connect(self.changedPanelThumbnailsRefreshPeriodicallyDelaySlider)
 
     def clickedViewButton(self):
         btnTopLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().topLeft())
