@@ -365,7 +365,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.refreshAllDelay.timeout.connect(self.refreshAllDelayTimeout)
         
         self.itemTextUpdateTimer = QTimer(self.baseWidget)
-        self.itemTextUpdateTimer.setInterval(1000)
+        self.itemTextUpdateTimer.setInterval(500)
         self.itemTextUpdateTimer.timeout.connect(self.itemTextUpdateTimerTimeout)
         if self.vs.readSetting("display") == "text":
             self.itemTextUpdateTimer.start()
@@ -388,12 +388,31 @@ class OpenDocumentsDocker(krita.DockWidget):
     def refreshAllDelayTimeout(self):
         self.refreshOpenDocuments(soft=True)
     
+    ituttCallsUntilNextMassUpdate = 0
     def itemTextUpdateTimerTimeout(self):
+        if not self.dockVisible:
+            return
+        
+        if self.ituttCallsUntilNextMassUpdate > 0:
+            self.ituttCallsUntilNextMassUpdate -= 1
+            doc = Application.activeDocument()
+            item = self.findItemWithDocument(doc)
+            item.setText(self.documentDisplayName(doc))
+            return
+        
         count = self.list.count()
+        openDocs = Application.documents()
         for i in range(count):
             item = self.list.item(i)
-            doc = self.findDocumentWithItem(item)
+            doc = None
+            for i in openDocs:
+                if item.data(self.ItemDocumentRole) == self.documentUniqueId(i):
+                    doc = i
+                    break
+            if not doc:
+                continue
             item.setText(self.documentDisplayName(doc))
+        self.ituttCallsUntilNextMassUpdate = 10
     
     tavg = 0
     def imageChangeDetectionTimerTimeout(self):
