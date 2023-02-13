@@ -30,6 +30,50 @@ class ODDListWidget(QListWidget):
         else:
             if self.itemHovered != oldItemHovered:
                 self.odd.itemEntered(self.itemHovered)
+    
+    def paintEvent(self, event):
+        activeDoc = Application.activeDocument()
+        activeUid = self.odd.documentUniqueId(activeDoc) if activeDoc else None
+        #print("paintEvent:", event.rect())
+        if self.odd.vs.readSetting("display") == "thumbnails":
+            option = self.viewOptions()
+            painter = QPainter(self.viewport())
+            y = -self.verticalScrollBar().value()
+            count = self.count()
+            for i in range(count):
+                # TODO: we're using visualItemRect while also manually setting y-pos - make your mind up.
+                item = self.item(i)
+                isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
+                option.rect = self.visualItemRect(item)
+                option.showDecorationSelected = (item in self.selectedItems())
+                idel = self.itemDelegate(self.indexFromItem(item))
+                size = idel.sizeHint(option, self.indexFromItem(item))
+                if not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height()):
+                    #idel.paint(painter, option, self.indexFromItem(item))
+                    pm = item.data(Qt.DecorationRole)
+                    painter.drawPixmap(QPoint(0, y), pm)
+                    if isItemActiveDoc:
+                        painter.setPen(QColor(255,255,255,127))
+                        painter.drawRect(0, y, pm.width(), pm.height())
+                        painter.setPen(QColor(0,0,0,127))
+                        painter.drawRect(1, y+1, pm.width()-2, pm.height()-2)
+                    # TODO: How do we get doc modified status without incurring Application.documents() memory leak?
+                    if False:#self.odd.findDocumentWithItem(item).modified():
+                        rect = QRect(0, y, pm.width()-2, pm.height()-2)
+                        font = painter.font()
+                        font.setPointSize(16)
+                        painter.setFont(font)
+                        painter.setPen(QColor(0,0,0))
+                        painter.drawText(rect.translated(-1,-1), Qt.AlignRight | Qt.AlignTop, "*")
+                        painter.drawText(rect.translated(1,-1), Qt.AlignRight | Qt.AlignTop, "*")
+                        painter.drawText(rect.translated(-1,1), Qt.AlignRight | Qt.AlignTop, "*")
+                        painter.drawText(rect.translated(1,1), Qt.AlignRight | Qt.AlignTop, "*")
+                        painter.setPen(QColor(255,255,255))
+                        painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, "*")
+                y += size.height()
+            painter.end()
+        else:
+            super().paintEvent(event)
 
 
 class OpenDocumentsDocker(krita.DockWidget):
