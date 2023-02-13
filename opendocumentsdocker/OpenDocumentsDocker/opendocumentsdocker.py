@@ -468,10 +468,12 @@ class OpenDocumentsDocker(krita.DockWidget):
             return
         
         if self.ituttCallsUntilNextMassUpdate > 0:
-            self.ituttCallsUntilNextMassUpdate -= 1
             doc = Application.activeDocument()
+            if not doc:
+                return
             item = self.findItemWithDocument(doc)
             item.setText(self.documentDisplayName(doc))
+            self.ituttCallsUntilNextMassUpdate -= 1
             return
         
         count = self.list.count()
