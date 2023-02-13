@@ -12,13 +12,20 @@ from .opendocumentsviewsettings import OpenDocumentsViewSettings as ODVS, conver
 class ODDListWidget(QListWidget):
     def __init__(self, odd):
         self.odd = odd
+        self.mouseEntered = False
         self.itemHovered = None
         super(ODDListWidget, self).__init__()
+    
+    def enterEvent(self, event):
+        self.mouseEntered = True
+        self.viewport().update()
     
     def leaveEvent(self, event):
         if self.itemHovered:
             self.itemHovered = None
             self.odd.listToolTip.hide()
+        self.mouseEntered = False
+        self.viewport().update()
     
     def mouseMoveEvent(self, event):
         oldItemHovered = self.itemHovered
@@ -26,10 +33,11 @@ class ODDListWidget(QListWidget):
         if not self.itemHovered:
             if oldItemHovered:
                 self.odd.listToolTip.hide()
-                pass
+                self.viewport().update()
         else:
             if self.itemHovered != oldItemHovered:
                 self.odd.itemEntered(self.itemHovered)
+                self.viewport().update()
     
     def paintEvent(self, event):
         activeDoc = Application.activeDocument()
@@ -40,12 +48,34 @@ class ODDListWidget(QListWidget):
             painter = QPainter(self.viewport())
             y = -self.verticalScrollBar().value()
             count = self.count()
+            setting = self.odd.vs.settingValue("thumbFadeAmount")
+            baseOpacity = 1.0 - setting
+            opacityNotHoveredNotActive  = 0.05 + 0.95 * baseOpacity
+            opacityNotHoveredActive     = 0.10 + 0.90 * baseOpacity
+            opacityListHoveredNotActive = 0.70 + 0.30 * baseOpacity
+            opacityListHoveredActive    = 0.75 + 0.25 * baseOpacity
+            opacityItemHoveredNotActive = 0.95 + 0.05 * baseOpacity
+            opacityItemHoveredActive    = 1.00
+            if not self.odd.vs.settingValue("thumbFadeUnfade"):
+                opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
+                opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
             for i in range(count):
                 # TODO: we're using visualItemRect while also manually setting y-pos - make your mind up.
                 item = self.item(i)
                 isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
                 option.rect = self.visualItemRect(item)
                 option.showDecorationSelected = (item in self.selectedItems())
+                painter.setOpacity(
+                        opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
+                                opacityItemHoveredNotActive if (item == self.itemHovered) else (
+                                        opacityListHoveredActive if (self.mouseEntered and isItemActiveDoc) else (
+                                                opacityListHoveredNotActive if (self.mouseEntered) else (
+                                                        opacityNotHoveredActive if isItemActiveDoc else opacityNotHoveredNotActive
+                                                )
+                                        )
+                                )
+                        )
+                )
                 idel = self.itemDelegate(self.indexFromItem(item))
                 size = idel.sizeHint(option, self.indexFromItem(item))
                 if not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height()):

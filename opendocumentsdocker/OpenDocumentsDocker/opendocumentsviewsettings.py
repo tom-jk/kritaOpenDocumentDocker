@@ -69,6 +69,8 @@ class OpenDocumentsViewSettings:
             },
             "thumbDisplayScale": {
                     "default":"1.00",
+                    "min":0.05,
+                    "max":1.00,
                     "ui": {
                             "value":None,
                             "slider":None,
@@ -81,6 +83,21 @@ class OpenDocumentsViewSettings:
                     "ui": {
                             "value":None,
                             "slider":None,
+                    },
+            },
+            "thumbFadeAmount": {
+                    "default":"0.00",
+                    "min":0.00,
+                    "max":1.00,
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
+            },
+            "thumbFadeUnfade": {
+                    "default":"false",
+                    "ui": {
+                            "btn":None,
                     },
             },
             "tooltipThumbLimit": {
@@ -182,7 +199,7 @@ class OpenDocumentsViewSettings:
         self.odd.setDockerDirection("auto")
     
     def changedThumbDisplayScaleSlider(self, value):
-        setting = "{:4.2f}".format(value * 0.05)
+        setting = "{:4.2f}".format(self.settingValue("thumbDisplayScale"))
         self.SD["thumbDisplayScale"]["ui"]["value"].setText(setting)
         self.writeSetting("thumbDisplayScale", setting)
         # quick resize thumbs for visual feedback
@@ -202,6 +219,18 @@ class OpenDocumentsViewSettings:
         self.writeSetting("thumbRenderScale", setting)
         
         self.startRefreshAllDelayTimer()
+    
+    def changedThumbFadeAmountSlider(self, value):
+        setting = "{:4.2f}".format(self.settingValue("thumbFadeAmount"))
+        self.SD["thumbFadeAmount"]["ui"]["value"].setText(setting)
+        self.writeSetting("thumbFadeAmount", setting)
+        l = self.odd.list
+        l.viewport().update()
+    
+    def changedThumbFadeUnfade(self, state):
+        setting = str(state==2).lower()
+        print("changedThumbFadeUnfade to", setting)
+        self.writeSetting("thumbFadeUnfade", setting)
     
     def changedTooltipThumbLimitSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbLimit", value)
@@ -387,7 +416,7 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsDisplayScaleLabel = QLabel("Display scale", self.panel)
         self.SD["thumbDisplayScale"]["ui"]["value" ] = QLabel(setting, self.panel)
         self.SD["thumbDisplayScale"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.SD["thumbDisplayScale"]["ui"]["slider"].setRange(1, 20)
+        self.SD["thumbDisplayScale"]["ui"]["slider"].setRange(0, 19)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setTickInterval(1)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setValue(round(float(setting)*20))
@@ -408,6 +437,22 @@ class OpenDocumentsViewSettings:
                 "This can improve performance when using the thumbnail method."
         )
         self.SD["thumbRenderScale"]["ui"]["slider"].setEnabled(not self.settingValue("thumbUseProjectionMethod"))
+        
+        setting = self.readSetting("thumbFadeAmount")
+        self.panelThumbnailsFadeAmountLayout = QHBoxLayout()
+        self.panelThumbnailsFadeAmountLabel = QLabel("Fade amount", self.panel)
+        self.SD["thumbFadeAmount"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["thumbFadeAmount"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["thumbFadeAmount"]["ui"]["slider"].setRange(0, 100)
+        self.SD["thumbFadeAmount"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["thumbFadeAmount"]["ui"]["slider"].setTickInterval(1)
+        self.SD["thumbFadeAmount"]["ui"]["slider"].setValue(round(float(setting)*100))
+        
+        self.panelThumbnailsFadeAmountControlsLayout = QHBoxLayout()
+        self.SD["thumbFadeUnfade"]["ui"]["btn"] = QCheckBox(self.panel)
+        self.SD["thumbFadeUnfade"]["ui"]["btn"].stateChanged.connect(self.changedThumbFadeUnfade)
+        self.SD["thumbFadeUnfade"]["ui"]["btn"].setChecked(self.readSetting("thumbFadeUnfade") == "true")
+        self.SD["thumbFadeUnfade"]["ui"]["btn"].setToolTip("Un-fade on mouse hover.")
         
         self.panelTooltipsHeading = QHBoxLayout()
         self.panelTooltipsHeadingLabel = QLabel("Tooltips", self.panel)
@@ -550,6 +595,17 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRenderScaleLayout.setStretch(1, 2)
         self.panelThumbnailsRenderScaleLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsRenderScaleLayout)
+        self.panelThumbnailsFadeAmountLayout.addWidget(self.panelThumbnailsFadeAmountLabel)
+        self.panelThumbnailsFadeAmountLayout.addWidget(self.SD["thumbFadeAmount"]["ui"]["value"])
+        self.panelThumbnailsFadeAmountControlsLayout.addWidget(self.SD["thumbFadeAmount"]["ui"]["slider"])
+        self.panelThumbnailsFadeAmountControlsLayout.addWidget(self.SD["thumbFadeUnfade"]["ui"]["btn"])
+        self.panelThumbnailsFadeAmountControlsLayout.setStretch(0, 19)
+        self.panelThumbnailsFadeAmountControlsLayout.setStretch(1, 1)
+        self.panelThumbnailsFadeAmountLayout.addLayout(self.panelThumbnailsFadeAmountControlsLayout)
+        self.panelThumbnailsFadeAmountLayout.setStretch(0, 2)
+        self.panelThumbnailsFadeAmountLayout.setStretch(1, 2)
+        self.panelThumbnailsFadeAmountLayout.setStretch(2, 5)
+        self.panelLayout.addLayout(self.panelThumbnailsFadeAmountLayout)
         self.panelLayout.addWidget(self.SD["refreshOnSave"]["ui"]["btn"])
         self.panelLayout.addWidget(self.SD["refreshPeriodically"]["ui"]["btn"])
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksLabel)
@@ -596,6 +652,7 @@ class OpenDocumentsViewSettings:
         
         self.SD["thumbDisplayScale"        ]["ui"]["slider"].valueChanged.connect(self.changedThumbDisplayScaleSlider)
         self.SD["thumbRenderScale"         ]["ui"]["slider"].valueChanged.connect(self.changedThumbRenderScaleSlider)
+        self.SD["thumbFadeAmount"          ]["ui"]["slider"].valueChanged.connect(self.changedThumbFadeAmountSlider)
         self.SD["tooltipThumbLimit"        ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbLimitSlider)
         self.SD["tooltipThumbSize"         ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbSizeSlider)
         self.SD["refreshPeriodicallyChecks"]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyChecksSlider)
