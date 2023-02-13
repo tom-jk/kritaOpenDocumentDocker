@@ -131,7 +131,19 @@ class OpenDocumentsViewSettings:
     def settingValue(self, setting):
         ui = self.SD[setting]["ui"]
         if "slider" in ui:
-            return self.SD[setting]["values"][ui["slider"].value()]
+            if "values" in self.SD[setting]:
+                return self.SD[setting]["values"][ui["slider"].value()]
+            elif "max" in self.SD[setting]:
+                # map slider value into setting min/max range
+                sliderMin = ui["slider"].minimum()
+                sliderMax = ui["slider"].maximum()
+                sliderRange = sliderMax - sliderMin
+                sliderValue = ui["slider"].value()
+                sliderNormValue = 1.0 / sliderRange * (sliderValue - sliderMin)
+                valueRange = self.SD[setting]["max"] - self.SD[setting]["min"]
+                v = self.SD[setting]["min"] + valueRange * sliderNormValue
+                #print("settingValue:", sliderMin, sliderMax, sliderRange, sliderValue, sliderNormValue, valueRange, v)
+                return v
         elif "btngrp" in ui:
             return ui["btngrp"].checkedButton()
         elif "btn" in ui:
