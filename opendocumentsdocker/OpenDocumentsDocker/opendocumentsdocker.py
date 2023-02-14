@@ -15,6 +15,16 @@ class ODDListWidget(QListWidget):
         self.mouseEntered = False
         self.itemHovered = None
         super(ODDListWidget, self).__init__()
+        self.horizontalScrollBar().installEventFilter(self)
+        self.verticalScrollBar().installEventFilter(self)
+    
+    def eventFilter(self, obj, event):
+        if obj in (self.horizontalScrollBar(), self.verticalScrollBar()):
+            if event.type() == QEvent.Enter:
+                self.itemHovered = None
+                self.odd.listToolTip.hide()
+                self.viewport().update()
+        return False
     
     def enterEvent(self, event):
         self.mouseEntered = True
