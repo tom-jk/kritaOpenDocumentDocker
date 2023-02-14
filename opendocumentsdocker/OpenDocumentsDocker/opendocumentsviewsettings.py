@@ -100,6 +100,12 @@ class OpenDocumentsViewSettings:
                             "btn":None,
                     },
             },
+            "tooltipShow": {
+                    "default":"true",
+                    "ui": {
+                            "btn":None,
+                    },
+            },
             "tooltipThumbLimit": {
                     "default":"≤4096px²",
                     "strings":["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"],
@@ -231,6 +237,18 @@ class OpenDocumentsViewSettings:
         setting = str(state==2).lower()
         print("changedThumbFadeUnfade to", setting)
         self.writeSetting("thumbFadeUnfade", setting)
+    
+    def changedTooltipShow(self, state):
+        setting = str(state==2).lower()
+        print("changedTooltipShow to", setting)
+        self.writeSetting("tooltipShow", setting)
+        if self.SD["tooltipThumbLimit"]["ui"]["slider"]:
+            if state == 2:
+                self.SD["tooltipThumbLimit"]["ui"]["slider"].setEnabled(True)
+                self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(self.SD["tooltipThumbLimit"]["ui"]["slider"].value != 0)
+            else:
+                self.SD["tooltipThumbLimit"]["ui"]["slider"].setEnabled(False)
+                self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(False)
     
     def changedTooltipThumbLimitSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbLimit", value)
@@ -455,7 +473,9 @@ class OpenDocumentsViewSettings:
         self.SD["thumbFadeUnfade"]["ui"]["btn"].setToolTip("Un-fade on mouse hover.")
         
         self.panelTooltipsHeading = QHBoxLayout()
-        self.panelTooltipsHeadingLabel = QLabel("Tooltips", self.panel)
+        self.SD["tooltipShow"]["ui"]["btn"] = QCheckBox("Tooltips", self.panel)
+        self.SD["tooltipShow"]["ui"]["btn"].stateChanged.connect(self.changedTooltipShow)
+        self.SD["tooltipShow"]["ui"]["btn"].setChecked(self.readSetting("tooltipShow") == "true")
         self.panelTooltipsHeadingLine = QLabel("", self.panel)
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
@@ -473,6 +493,7 @@ class OpenDocumentsViewSettings:
         self.SD["tooltipThumbLimit"]["ui"]["slider"].setToolTip(
                 "Thumbnails in tooltips will be generated for images up to the chosen size."
         )
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow"))
         
         setting = self.readSetting("tooltipThumbSize")
         self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
@@ -485,7 +506,7 @@ class OpenDocumentsViewSettings:
         self.SD["tooltipThumbSize"]["ui"]["slider"].setValue(
                 convertSettingStringToValue("tooltipThumbSize", setting)
         )
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(self.settingValue("tooltipThumbLimit") != 0)
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0)
         
         self.SD["refreshOnSave"]["ui"]["btn"] = QCheckBox("Refresh on save")
         self.SD["refreshOnSave"]["ui"]["btn"].stateChanged.connect(self.changedRefreshOnSave)
@@ -622,7 +643,7 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(1, 2)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsRefreshPeriodicallyDelayLayout)
-        self.panelTooltipsHeading.addWidget(self.panelTooltipsHeadingLabel)
+        self.panelTooltipsHeading.addWidget(self.SD["tooltipShow"]["ui"]["btn"])
         self.panelTooltipsHeading.addWidget(self.panelTooltipsHeadingLine)
         self.panelTooltipsHeading.setStretch(0, 1)
         self.panelTooltipsHeading.setStretch(1, 99)
@@ -657,7 +678,7 @@ class OpenDocumentsViewSettings:
         self.SD["tooltipThumbSize"         ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbSizeSlider)
         self.SD["refreshPeriodicallyChecks"]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyChecksSlider)
         self.SD["refreshPeriodicallyDelay" ]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
-
+    
     def clickedViewButton(self):
         btnTopLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().topLeft())
         btnBottomLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().bottomLeft())

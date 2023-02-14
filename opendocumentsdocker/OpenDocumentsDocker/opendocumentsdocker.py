@@ -159,6 +159,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         return (fName if fName else "[not saved]") + tModi
     
     def itemEntered(self, item):
+        if not self.vs.settingValue("tooltipShow"):
+            return
+        
         doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
         if not doc:
             return
