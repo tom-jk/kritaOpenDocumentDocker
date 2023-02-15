@@ -49,6 +49,47 @@ class ODDListWidget(QListWidget):
                 self.odd.itemEntered(self.itemHovered)
                 self.viewport().update()
     
+    def itemPositions(self):
+        # TODO: remake item pos cache only if dirty
+        self._itemPositions = []
+        if self.odd.vs.readSetting("display") == "thumbnails":
+            scrollSize = 0
+            if self.flow() == QListView.TopToBottom:
+                x = 0
+                y = -self.verticalScrollBar().value()
+                xExt = 0
+                yExt = 2
+            else:
+                x = -self.horizontalScrollBar().value()
+                y = 0
+                xExt = 2
+                yExt = 0
+            count = self.count()
+            for i in range(count):
+                item = self.item(i)
+                size = item.data(Qt.DecorationRole).size()
+                self._itemPositions.append(QRect(x, y, size.width() + xExt, size.height() + yExt))
+                if self.flow() == QListView.TopToBottom:
+                    y += size.height() + yExt
+                    scrollSize += size.height() + yExt
+                else:
+                    x += size.width() + xExt
+                    scrollSize += size.width() + xExt
+            if self.flow() == QListView.TopToBottom:
+                self.verticalScrollBar().setRange(0, scrollSize - self.viewport().height())
+            else:
+                self.horizontalScrollBar().setRange(0, scrollSize - self.viewport().width())
+    
+    def indexAt(self, point):
+        print("indexAt:", point)
+        self.itemPositions()
+        count = self.count()
+        for i in range(0, count):
+            if self._itemPositions[i].contains(point):
+                print(" ->", i)
+                return self.indexFromItem(self.item(i))
+        return self.indexFromItem(None)
+    
     def paintEvent(self, event):
         activeDoc = Application.activeDocument()
         activeUid = self.odd.documentUniqueId(activeDoc) if activeDoc else None
@@ -56,7 +97,7 @@ class ODDListWidget(QListWidget):
         if self.odd.vs.readSetting("display") == "thumbnails":
             option = self.viewOptions()
             painter = QPainter(self.viewport())
-            y = -self.verticalScrollBar().value()
+            self.itemPositions()
             count = self.count()
             setting = self.odd.vs.settingValue("thumbFadeAmount")
             baseOpacity = 1.0 - setting
@@ -70,10 +111,9 @@ class ODDListWidget(QListWidget):
                 opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
                 opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
             for i in range(count):
-                # TODO: we're using visualItemRect while also manually setting y-pos - make your mind up.
                 item = self.item(i)
                 isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
-                option.rect = self.visualItemRect(item)
+                option.rect = self._itemPositions[i]
                 option.showDecorationSelected = (item in self.selectedItems())
                 painter.setOpacity(
                         opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
@@ -87,19 +127,24 @@ class ODDListWidget(QListWidget):
                         )
                 )
                 idel = self.itemDelegate(self.indexFromItem(item))
-                size = idel.sizeHint(option, self.indexFromItem(item))
-                if not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height()):
+                #size = idel.sizeHint(option, self.indexFromItem(item))
+                size = option.rect.size()
+                inView = (not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
+                        else (not (option.rect.right() < 0 or option.rect.x() > self.viewport().width()))
+                if inView:
                     #idel.paint(painter, option, self.indexFromItem(item))
                     pm = item.data(Qt.DecorationRole)
-                    painter.drawPixmap(QPoint(0, y), pm)
+                    x = option.rect.x()
+                    y = option.rect.y()
+                    painter.drawPixmap(QPoint(x, y), pm)
                     if isItemActiveDoc:
                         painter.setPen(QColor(255,255,255,127))
-                        painter.drawRect(0, y, pm.width(), pm.height())
+                        painter.drawRect(x, y, pm.width(), pm.height())
                         painter.setPen(QColor(0,0,0,127))
-                        painter.drawRect(1, y+1, pm.width()-2, pm.height()-2)
+                        painter.drawRect(x+1, y+1, pm.width()-2, pm.height()-2)
                     # TODO: How do we get doc modified status without incurring Application.documents() memory leak?
                     if False:#self.odd.findDocumentWithItem(item).modified():
-                        rect = QRect(0, y, pm.width()-2, pm.height()-2)
+                        rect = QRect(x, y, pm.width()-2, pm.height()-2)
                         font = painter.font()
                         font.setPointSize(16)
                         painter.setFont(font)
@@ -110,7 +155,6 @@ class ODDListWidget(QListWidget):
                         painter.drawText(rect.translated(1,1), Qt.AlignRight | Qt.AlignTop, "*")
                         painter.setPen(QColor(255,255,255))
                         painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, "*")
-                y += size.height()
             painter.end()
         else:
             super().paintEvent(event)
