@@ -2,7 +2,7 @@
 
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
 from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
-from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidget, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy, QScroller
 from krita import *
 from time import *
 import uuid
@@ -17,6 +17,48 @@ class ODDListWidget(QListWidget):
         super(ODDListWidget, self).__init__()
         self.horizontalScrollBar().installEventFilter(self)
         self.verticalScrollBar().installEventFilter(self)
+        
+        QScroller.grabGesture(self, QScroller.MiddleMouseButtonGesture)
+        self.setupScroller(QScroller.scroller(self))
+    
+    def setupScroller(scroller):
+        """
+        basically a direct copy of Krita's
+        KisKineticScroller::createPreconfiguredScroller.
+        """
+        scrProp = scroller.scrollerProperties()
+        
+        sensitivity                   =     int(Application.readSetting("", "KineticScrollingSensitivity", "75"))
+        enabled                       = True if Application.readSetting("", "KineticScrollingEnabled", "true") == "true" else False
+        hideScrollBars                = True if Application.readSetting("", "KineticScrollingHideScrollbar", "false") == "true" else False
+        resistanceCoefficient         =   float(Application.readSetting("", "KineticScrollingResistanceCoefficient", "10.0"))
+        dragVelocitySmoothFactor      =   float(Application.readSetting("", "KineticScrollingDragVelocitySmoothingFactor", "1.0"))
+        minimumVelocity               =   float(Application.readSetting("", "KineticScrollingMinimumVelocity", "0.0"))
+        axisLockThresh                =   float(Application.readSetting("", "KineticScrollingAxisLockThreshold", "1.0"))
+        maximumClickThroughVelocity   =   float(Application.readSetting("", "KineticScrollingMaxClickThroughVelocity", "0.0"))
+        flickAccelerationFactor       =   float(Application.readSetting("", "KineticScrollingFlickAccelerationFactor", "1.5"))
+        overshootDragResistanceFactor =   float(Application.readSetting("", "KineticScrollingOvershotDragResistanceFactor", "0.1"))
+        overshootDragDistanceFactor   =   float(Application.readSetting("", "KineticScrollingOvershootDragDistanceFactor", "0.3"))
+        overshootScrollDistanceFactor =   float(Application.readSetting("", "KineticScrollingOvershootScrollDistanceFactor", "0.1"))
+        overshootScrollTime           =   float(Application.readSetting("", "KineticScrollingOvershootScrollTime", "0.4"))
+        
+        mm = 0.001
+        resistance = 1.0 - (sensitivity / 100.0)
+        mousePressEventDelay = float(Application.readSetting("", "KineticScrollingMousePressDelay", str(1.0 - 0.75 * resistance)))
+        
+        scrProp.setScrollMetric(QScrollerProperties.DragStartDistance, resistance * resistanceCoefficient * mm)
+        scrProp.setScrollMetric(QScrollerProperties.DragVelocitySmoothingFactor, dragVelocitySmoothFactor)
+        scrProp.setScrollMetric(QScrollerProperties.MinimumVelocity, minimumVelocity)
+        scrProp.setScrollMetric(QScrollerProperties.AxisLockThreshold, axisLockThresh)
+        scrProp.setScrollMetric(QScrollerProperties.MaximumClickThroughVelocity, maximumClickThroughVelocity)
+        scrProp.setScrollMetric(QScrollerProperties.MousePressEventDelay, mousePressEventDelay)
+        scrProp.setScrollMetric(QScrollerProperties.AcceleratingFlickSpeedupFactor, flickAccelerationFactor)
+        scrProp.setScrollMetric(QScrollerProperties.OvershootDragResistanceFactor, overshootDragResistanceFactor)
+        scrProp.setScrollMetric(QScrollerProperties.OvershootDragDistanceFactor, overshootDragDistanceFactor)
+        scrProp.setScrollMetric(QScrollerProperties.OvershootScrollDistanceFactor, overshootScrollDistanceFactor)
+        scrProp.setScrollMetric(QScrollerProperties.OvershootScrollTime, overshootScrollTime)
+                
+        scroller.setScrollerProperties(scrProp)
     
     def eventFilter(self, obj, event):
         if obj in (self.horizontalScrollBar(), self.verticalScrollBar()):
