@@ -305,10 +305,10 @@ class OpenDocumentsDocker(krita.DockWidget):
             d = Application.documents()[i]
             print("#"+str(i)+":", d, "-", d.rootNode().uniqueId())
         
-        #self.setDocumentExtraUid(image, Application.documents()[docCount-1])
-        self.setDocumentExtraUid(Application.documents()[docCount-1])
-        
-        self.addDocumentToList(image)
+        # assume new image will always doc at end of documents list.
+        doc = Application.documents()[docCount-1]
+        self.setDocumentExtraUid(doc)
+        self.addDocumentToList(doc)
     
     def isDocumentUniquelyIdentified(self, doc):
         uid = doc.rootNode().uniqueId()
