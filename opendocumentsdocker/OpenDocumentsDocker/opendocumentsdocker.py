@@ -893,8 +893,16 @@ class OpenDocumentsDocker(krita.DockWidget):
             print("update thumb: no list item associated with document.")
             return
         
+        t = item.data(Qt.DecorationRole)
+        tOldSize = QSize(t.width(), t.height())
+        
         if not force:
             if not self.isItemOnScreen(item):
+                # quickly resize thumbnail to keep list rects correct.
+                size = self.calculateSizeForThumbnail(doc)
+                if size != tOldSize:
+                    item.setData(Qt.DecorationRole, t.scaled(size))
+                
                 self.markDocumentThumbnailAsDeferred(None, item)
                 print("update thumb: item not currently visible, update later.")
                 return
@@ -974,31 +982,41 @@ class OpenDocumentsDocker(krita.DockWidget):
                     return doc
         return None
     
-    def calculateWidthForThumbnail(self):
-        kludgePixels=6
-        width = 0
+    def calculateSizeForThumbnail(self, doc):
+        kludgePixels=3
+        docSize = QSize(doc.width(), doc.height())
+        docRatio = float(docSize.height()) / float(docSize.width())
+        size = None
+        scale = float(self.vs.readSetting("thumbDisplayScale"))
+
+        # keep size from getting too big and slowing things down
+        # (but don't kick in too soon, or many users might wonder why
+        # thumb refuses to fill area, even after setting scale to 1.00).
+        maxSize = 512
+        
         if self.list.flow() == QListView.TopToBottom:
             scrollBarWidth = self.list.verticalScrollBar().sizeHint().width()
             width = self.list.width() - kludgePixels - scrollBarWidth
+            width *= scale
+            width = min(width, maxSize)
+            height = round(width * docRatio)
+            size = QSize(int(width), int(height))
         else:
             scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height()
-            width = self.list.height() - kludgePixels - scrollBarHeight
-        #print("gtfd: calculated width:", width)
+            height = self.list.height() - kludgePixels - scrollBarHeight
+            height *= scale
+            height = min(height, maxSize)
+            width = round(height / docRatio)
+            size = QSize(int(width), int(height))
+        print("cwft: calculated size:", size)
         
-        print("width: ", width)
-        print("setting: ", self.vs.readSetting("thumbDisplayScale"))
-        width = int(width * float(self.vs.readSetting("thumbDisplayScale")))
-        print("width: ", width)
-        
-        # keep size from getting too big and slowing things down
-        width = min(width, 256)
-        return width
+        return size
     
     def generateThumbnailForDocument(self, doc):
         # ensure the thumbnail will be complete
         doc.waitForDone()
         
-        width = self.calculateWidthForThumbnail()
+        size = self.calculateSizeForThumbnail(doc)
         
         thumbnail = None
         
@@ -1008,45 +1026,37 @@ class OpenDocumentsDocker(krita.DockWidget):
                 self.vs.settingValue("thumbRenderScale") if not settingUseProj else 1
         )
         
-        def generator(doc, width):
+        def generator(doc, size):
             # new document may briefly exist as qobject type before becoming document,
             # during which projection isn't available but thumbnail is.
             # projection is much faster so prefer it when available.
             if type(doc) == Document and settingUseProj:
-                return doc.projection(0, 0, doc.width(), doc.height())
+                i = doc.projection(0, 0, doc.width(), doc.height())
+                if i:
+                    if size.width() < doc.width():
+                        return i.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    else:
+                        return i.scaled(size, Qt.IgnoreAspectRatio, Qt.FastTransformation)
+                return i
             else:
-                return doc.thumbnail(width, width)
+                return doc.thumbnail(size.width(), size.height())
         
         if scaleFactor == 1:
-            thumbnail = generator(doc, width)
+            thumbnail = generator(doc, size)
         
             if thumbnail.isNull():
                 return None
         else:
-            scaledWidth = int(width * scaleFactor)
-            thumbnail = doc.thumbnail(scaledWidth, scaledWidth)
+            scaledSize = QSize(int(size.width() * scaleFactor), int(size.height() * scaleFactor))
+            thumbnail = doc.thumbnail(scaledSize.width(), scaledSize.height())
         
             if thumbnail.isNull():
                 return None
             
-            thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*0.75*self.devicePixelRatioF()))
-            thumbnail = thumbnail.scaled(thumbSize, Qt.KeepAspectRatio, Qt.FastTransformation)
+            thumbnail = thumbnail.scaled(size)
         
-        thumbSize = QSize(int(width*self.devicePixelRatioF()), int(width*self.devicePixelRatioF()))
-        #print("desired thumbSize:", thumbSize.width(), "x", thumbSize.height())
-        
-        if self.list.flow() == QListView.TopToBottom:
-            if thumbnail.width() < thumbSize.width():
-                thumbnail = thumbnail.scaledToWidth(thumbSize.width(), Qt.FastTransformation)
-            else:
-                thumbnail = thumbnail.scaledToWidth(thumbSize.width(), Qt.SmoothTransformation)
-        else:
-            if thumbnail.height() < thumbSize.height():
-                thumbnail = thumbnail.scaledToHeight(thumbSize.height(), Qt.FastTransformation)
-            else:
-                thumbnail = thumbnail.scaledToHeight(thumbSize.height(), Qt.SmoothTransformation)
         thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
-        #print("final size:", thumbnail.width(), "x", thumbnail.height())
+        print("final size:", thumbnail.width(), "x", thumbnail.height())
         
         return thumbnail
 

@@ -210,12 +210,12 @@ class OpenDocumentsViewSettings:
         self.writeSetting("thumbDisplayScale", setting)
         # quick resize thumbs for visual feedback
         l = self.odd.list
-        w = self.odd.calculateWidthForThumbnail()
         itemCount = l.count()
         for i in range(itemCount):
             item = l.item(i)
+            size = self.odd.calculateSizeForThumbnail(self.odd.findDocumentWithItem(item)) # TODO: no, bad, leaks.
             t = item.data(Qt.DecorationRole)
-            item.setData(Qt.DecorationRole, t.scaledToWidth(w))
+            item.setData(Qt.DecorationRole, t.scaled(size))
         
         self.startRefreshAllDelayTimer()
     
