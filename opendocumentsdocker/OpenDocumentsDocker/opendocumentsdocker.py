@@ -607,6 +607,14 @@ class OpenDocumentsDocker(krita.DockWidget):
     def setDockerDirection(self, direction):
         if direction == "auto":
             direction = self.longestDockerSide()
+        
+        oldDirection = self.list.flow()
+        if (
+                (direction == "horizontal" and oldDirection == QListView.LeftToRight) or
+                (direction == "vertical"   and oldDirection == QListView.TopToBottom)
+            ):
+            return
+                
         if direction == "horizontal":
             self.layout.setDirection(QBoxLayout.LeftToRight)
             self.list.setFlow(QListView.LeftToRight)
