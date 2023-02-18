@@ -649,7 +649,10 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def setDockerDirection(self, direction):
         if direction == "auto":
-            direction = self.longestDockerSide()
+            if self.vs.readSetting("display") != "thumbnails":
+                direction == "vertical"
+            else:
+                direction = self.longestDockerSide()
         
         oldDirection = self.list.flow()
         if (
