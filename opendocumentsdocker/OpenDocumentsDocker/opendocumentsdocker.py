@@ -133,73 +133,74 @@ class ODDListWidget(QListWidget):
         return self.indexFromItem(None)
     
     def paintEvent(self, event):
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            super().paintEvent(event)
+            return
+    
         activeDoc = Application.activeDocument()
         activeUid = self.odd.documentUniqueId(activeDoc) if activeDoc else None
         #print("paintEvent:", event.rect())
-        if self.odd.vs.readSetting("display") == "thumbnails":
-            option = self.viewOptions()
-            painter = QPainter(self.viewport())
-            self.itemPositions()
-            count = self.count()
-            setting = self.odd.vs.settingValue("thumbFadeAmount")
-            baseOpacity = 1.0 - setting
-            opacityNotHoveredNotActive  = 0.05 + 0.95 * baseOpacity
-            opacityNotHoveredActive     = 0.10 + 0.90 * baseOpacity
-            opacityListHoveredNotActive = 0.70 + 0.30 * baseOpacity
-            opacityListHoveredActive    = 0.75 + 0.25 * baseOpacity
-            opacityItemHoveredNotActive = 0.95 + 0.05 * baseOpacity
-            opacityItemHoveredActive    = 1.00
-            if not self.odd.vs.settingValue("thumbFadeUnfade"):
-                opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
-                opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
-            for i in range(count):
-                item = self.item(i)
-                isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
-                option.rect = self._itemPositions[i]
-                option.showDecorationSelected = (item in self.selectedItems())
-                painter.setOpacity(
-                        opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
-                                opacityItemHoveredNotActive if (item == self.itemHovered) else (
-                                        opacityListHoveredActive if (self.mouseEntered and isItemActiveDoc) else (
-                                                opacityListHoveredNotActive if (self.mouseEntered) else (
-                                                        opacityNotHoveredActive if isItemActiveDoc else opacityNotHoveredNotActive
-                                                )
-                                        )
-                                )
-                        )
-                )
-                idel = self.itemDelegate(self.indexFromItem(item))
-                #size = idel.sizeHint(option, self.indexFromItem(item))
-                size = option.rect.size()
-                inView = (not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
-                        else (not (option.rect.right() < 0 or option.rect.x() > self.viewport().width()))
-                if inView:
-                    #idel.paint(painter, option, self.indexFromItem(item))
-                    pm = item.data(Qt.DecorationRole)
-                    x = option.rect.x()
-                    y = option.rect.y()
-                    painter.drawPixmap(QPoint(x, y), pm)
-                    if isItemActiveDoc:
-                        painter.setPen(QColor(255,255,255,127))
-                        painter.drawRect(x, y, pm.width(), pm.height())
-                        painter.setPen(QColor(0,0,0,127))
-                        painter.drawRect(x+1, y+1, pm.width()-2, pm.height()-2)
-                    # TODO: How do we get doc modified status without incurring Application.documents() memory leak?
-                    if False:#self.odd.findDocumentWithItem(item).modified():
-                        rect = QRect(x, y, pm.width()-2, pm.height()-2)
-                        font = painter.font()
-                        font.setPointSize(16)
-                        painter.setFont(font)
-                        painter.setPen(QColor(0,0,0))
-                        painter.drawText(rect.translated(-1,-1), Qt.AlignRight | Qt.AlignTop, "*")
-                        painter.drawText(rect.translated(1,-1), Qt.AlignRight | Qt.AlignTop, "*")
-                        painter.drawText(rect.translated(-1,1), Qt.AlignRight | Qt.AlignTop, "*")
-                        painter.drawText(rect.translated(1,1), Qt.AlignRight | Qt.AlignTop, "*")
-                        painter.setPen(QColor(255,255,255))
-                        painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, "*")
-            painter.end()
-        else:
-            super().paintEvent(event)
+        option = self.viewOptions()
+        painter = QPainter(self.viewport())
+        self.itemPositions()
+        count = self.count()
+        setting = self.odd.vs.settingValue("thumbFadeAmount")
+        baseOpacity = 1.0 - setting
+        opacityNotHoveredNotActive  = 0.05 + 0.95 * baseOpacity
+        opacityNotHoveredActive     = 0.10 + 0.90 * baseOpacity
+        opacityListHoveredNotActive = 0.70 + 0.30 * baseOpacity
+        opacityListHoveredActive    = 0.75 + 0.25 * baseOpacity
+        opacityItemHoveredNotActive = 0.95 + 0.05 * baseOpacity
+        opacityItemHoveredActive    = 1.00
+        if not self.odd.vs.settingValue("thumbFadeUnfade"):
+            opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
+            opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
+        for i in range(count):
+            item = self.item(i)
+            isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
+            option.rect = self._itemPositions[i]
+            option.showDecorationSelected = (item in self.selectedItems())
+            painter.setOpacity(
+                    opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
+                            opacityItemHoveredNotActive if (item == self.itemHovered) else (
+                                    opacityListHoveredActive if (self.mouseEntered and isItemActiveDoc) else (
+                                            opacityListHoveredNotActive if (self.mouseEntered) else (
+                                                    opacityNotHoveredActive if isItemActiveDoc else opacityNotHoveredNotActive
+                                            )
+                                    )
+                            )
+                    )
+            )
+            idel = self.itemDelegate(self.indexFromItem(item))
+            #size = idel.sizeHint(option, self.indexFromItem(item))
+            size = option.rect.size()
+            inView = (not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
+                    else (not (option.rect.right() < 0 or option.rect.x() > self.viewport().width()))
+            if inView:
+                #idel.paint(painter, option, self.indexFromItem(item))
+                pm = item.data(Qt.DecorationRole)
+                x = option.rect.x()
+                y = option.rect.y()
+                painter.drawPixmap(QPoint(x, y), pm)
+                if isItemActiveDoc:
+                    painter.setPen(QColor(255,255,255,127))
+                    painter.drawRect(x, y, pm.width(), pm.height())
+                    painter.setPen(QColor(0,0,0,127))
+                    painter.drawRect(x+1, y+1, pm.width()-2, pm.height()-2)
+                # TODO: How do we get doc modified status without incurring Application.documents() memory leak?
+                if False:#self.odd.findDocumentWithItem(item).modified():
+                    rect = QRect(x, y, pm.width()-2, pm.height()-2)
+                    font = painter.font()
+                    font.setPointSize(16)
+                    painter.setFont(font)
+                    painter.setPen(QColor(0,0,0))
+                    painter.drawText(rect.translated(-1,-1), Qt.AlignRight | Qt.AlignTop, "*")
+                    painter.drawText(rect.translated(1,-1), Qt.AlignRight | Qt.AlignTop, "*")
+                    painter.drawText(rect.translated(-1,1), Qt.AlignRight | Qt.AlignTop, "*")
+                    painter.drawText(rect.translated(1,1), Qt.AlignRight | Qt.AlignTop, "*")
+                    painter.setPen(QColor(255,255,255))
+                    painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, "*")
+        painter.end()
 
 
 class OpenDocumentsDocker(krita.DockWidget):
