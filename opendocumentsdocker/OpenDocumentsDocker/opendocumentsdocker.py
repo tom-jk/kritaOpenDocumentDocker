@@ -23,8 +23,29 @@ class ODDListWidget(QListWidget):
         self.horizontalScrollBar().installEventFilter(self)
         self.verticalScrollBar().installEventFilter(self)
         
-        QScroller.grabGesture(self, QScroller.MiddleMouseButtonGesture)
-        self.setupScroller(QScroller.scroller(self))
+        if Application.readSetting("", "KineticScrollingEnabled", "true") == "true":
+            self.setupScroller(QScroller.scroller(self))
+            gestureType = self.getConfiguredGestureType()
+            QScroller.grabGesture(self, gestureType)
+    
+    def getConfiguredGestureType(self):
+        """
+        basically a direct copy (but no different default for android)
+        of Krita's KisKineticScroller::getConfiguredGestureType.
+        """
+        gesture = int(Application.readSetting("", "KineticScrollingGesture", "0"))
+        
+        match gesture:
+            case 0:
+                return QScroller.TouchGesture
+            case 1:
+                return QScroller.LeftMouseButtonGesture
+            case 2:
+                return QScroller.MiddleMouseButtonGesture
+            case 3:
+                return QScroller.RightMouseButtonGesture
+            case _:
+                return QScroller.MiddleMouseButtonGesture
     
     def setupScroller(self, scroller):
         """
@@ -34,7 +55,6 @@ class ODDListWidget(QListWidget):
         scrProp = scroller.scrollerProperties()
         
         sensitivity                   =     int(Application.readSetting("", "KineticScrollingSensitivity", "75"))
-        enabled                       = True if Application.readSetting("", "KineticScrollingEnabled", "true") == "true" else False
         hideScrollBars                = True if Application.readSetting("", "KineticScrollingHideScrollbar", "false") == "true" else False
         resistanceCoefficient         =   float(Application.readSetting("", "KineticScrollingResistanceCoefficient", "10.0"))
         dragVelocitySmoothFactor      =   float(Application.readSetting("", "KineticScrollingDragVelocitySmoothingFactor", "1.0"))
