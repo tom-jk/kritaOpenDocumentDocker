@@ -176,6 +176,7 @@ class OpenDocumentsViewSettings:
     def setDisplayToThumbnails(self):
         print("setDisplayToThumbnails")
         self.writeSetting("display", "thumbnails")
+        self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
         if self.odd.itemTextUpdateTimer.isActive():
@@ -184,8 +185,10 @@ class OpenDocumentsViewSettings:
     def setDisplayToText(self):
         print("setDisplayToText")
         self.writeSetting("display", "text")
+        self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
+        self.odd.deferredItemThumbnailCount = 0
         if not self.odd.itemTextUpdateTimer.isActive():
             self.odd.itemTextUpdateTimer.start()
 
@@ -208,6 +211,11 @@ class OpenDocumentsViewSettings:
         setting = "{:4.2f}".format(self.settingValue("thumbDisplayScale"))
         self.SD["thumbDisplayScale"]["ui"]["value"].setText(setting)
         self.writeSetting("thumbDisplayScale", setting)
+        print("changedThumbDisplayScaleSlider to ", setting)
+        
+        if self.readSetting("display") != "thumbnails":
+            return
+        
         # quick resize thumbs for visual feedback
         l = self.odd.list
         itemCount = l.count()
@@ -218,6 +226,7 @@ class OpenDocumentsViewSettings:
             item.setData(Qt.DecorationRole, t.scaled(size))
         
         self.startRefreshAllDelayTimer()
+        self.odd.list.invalidateItemRectsCache()
     
     def changedThumbRenderScaleSlider(self, value):
         setting = convertSettingValueToString("thumbRenderScale", value)

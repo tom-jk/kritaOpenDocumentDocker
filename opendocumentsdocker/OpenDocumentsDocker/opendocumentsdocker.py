@@ -14,6 +14,11 @@ class ODDListWidget(QListWidget):
         self.odd = odd
         self.mouseEntered = False
         self.itemHovered = None
+        self._itemRects = None
+        self._itemRectsValid = False
+        self._itemRectsRecaching = False
+        self._doNotRecacheItemRects = False
+        self._childrenRect = QRect(0, 0, 0, 0)
         super(ODDListWidget, self).__init__()
         self.horizontalScrollBar().installEventFilter(self)
         self.verticalScrollBar().installEventFilter(self)
@@ -68,6 +73,10 @@ class ODDListWidget(QListWidget):
                 self.viewport().update()
         return False
     
+    def resizeEvent(self, event):
+        print("ODDListWidget:resizeEvent:", event.size().width(), event.size().height())
+        self.odd.restartResizeDelayTimer()
+    
     def enterEvent(self, event):
         self.mouseEntered = True
         self.viewport().update()
@@ -91,58 +100,150 @@ class ODDListWidget(QListWidget):
                 self.odd.itemEntered(self.itemHovered)
                 self.viewport().update()
     
-    def itemPositions(self):
-        # TODO: remake item pos cache only if dirty
-        self._itemPositions = []
-        if self.odd.vs.readSetting("display") == "thumbnails":
-            scrollSize = 0
-            if self.flow() == QListView.TopToBottom:
-                x = 0
-                y = -self.verticalScrollBar().value()
-                xExt = 0
-                yExt = 2
+    def invalidateItemRectsCache(self):
+        #print("itemRects cache invalidated")
+        self._itemRectsValid = False
+    
+    def itemRects(self):
+        if self._itemRectsValid:
+            if len(self._itemRects) == self.count():
+                return self._itemRects
             else:
-                x = -self.horizontalScrollBar().value()
-                y = 0
-                xExt = 2
-                yExt = 0
-            count = self.count()
-            for i in range(count):
-                item = self.item(i)
-                size = item.data(Qt.DecorationRole).size()
-                self._itemPositions.append(QRect(x, y, size.width() + xExt, size.height() + yExt))
-                if self.flow() == QListView.TopToBottom:
-                    y += size.height() + yExt
-                    scrollSize += size.height() + yExt
-                else:
-                    x += size.width() + xExt
-                    scrollSize += size.width() + xExt
+                print("itemRectsValid but wrong count!")
+        
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            return None
+        
+        if self._doNotRecacheItemRects:
+            #print("ODDListWidget.itemRects: tried to recache, but was told doNotRecache, aborting...")
+            return self._itemRects
+        
+        assert not self._itemRectsRecaching, "ODDListWidget.itemRects: started recaching while already recaching!"
+        
+        count = self.count()
+        if count == 0:
+            return None
+        
+        isNotReady = False
+        for i in range(count):
+            if not self.item(i).data(Qt.DecorationRole):
+                isNotReady = True
+                break
+        if isNotReady:
+            print("ODDListWidget.itemRects: in thumbnails mode, but items lack thumbnails - abort.")
+            return None
+        
+        print("regenerate itemRects cache")
+        self._itemRectsRecaching = True
+        itemRects = []
+        
+        if self.flow() == QListView.TopToBottom:
+            x = y = xExt = 0
+            yExt = 2
+        else:
+            x = y = yExt = 0
+            xExt = 2
+        #print("count:", count)
+        for i in range(count):
+            item = self.item(i)
+            size = item.data(Qt.DecorationRole).size()
+            itemRects.append(QRect(x, y, size.width() + xExt, size.height() + yExt))
+            #print("appended ", itemRects[i])
             if self.flow() == QListView.TopToBottom:
-                self.verticalScrollBar().setRange(0, scrollSize - self.viewport().height())
+                y += size.height() + yExt
             else:
-                self.horizontalScrollBar().setRange(0, scrollSize - self.viewport().width())
+                x += size.width() + xExt
+        self._itemRects = itemRects
+        self._itemRectsValid = True
+        self._itemRectsRecaching = False
+        return self._itemRects
+    
+    def updateScrollBarRange(self):
+        itemRects = self.itemRects()
+        if not itemRects:
+            return
+        if self.flow() == QListView.TopToBottom:
+            #print("vscroll max =", itemRects[-1].bottom(), "-", self.viewport().height(), "=", itemRects[-1].bottom()-self.viewport().height())
+            self.verticalScrollBar().setRange(0, itemRects[-1].bottom() - self.viewport().height())
+            self._childrenRect = QRect(0, 0, self.viewport().width(), itemRects[-1].bottom())
+            self.horizontalScrollBar().setRange(0, 0)
+        else:
+            #print("hscroll max =", itemRects[-1].right(), "-", self.viewport().width(), "=", itemRects[-1].right()-self.viewport().width())
+            self.horizontalScrollBar().setRange(0, itemRects[-1].right() - self.viewport().width())
+            self._childrenRect = QRect(0, 0, itemRects[-1].right(), self.viewport().height())
+            self.verticalScrollBar().setRange(0, 0)
     
     def indexAt(self, point):
-        print("indexAt:", point)
-        self.itemPositions()
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            return super().indexAt(point)
+        
+        itemRects = self.itemRects()
         count = self.count()
+        point += QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
         for i in range(0, count):
-            if self._itemPositions[i].contains(point):
-                print(" ->", i)
+            if itemRects[i].contains(point):
                 return self.indexFromItem(self.item(i))
         return self.indexFromItem(None)
+    
+    def visualItemRect(self, item):
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            return super().visualItemRect(item)
+        
+        itemRects = self.itemRects()
+        count = self.count()
+        for i in range(0, count):
+            if self.item(i) == item:
+                return itemRects[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
+    
+    def childrenRect(self):
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            return super().childrenRect()
+        
+        self.itemRects()
+        return self._childrenRect
+    
+    def scrollTo(self, index, hint=QAbstractItemView.EnsureVisible):
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            super().scrollTo(index, hint)
+            return
+        
+        #print("scrollTo: ", index, index.row(), index.column(), index.data(), self.itemFromIndex(index))
+        item = self.itemFromIndex(index)
+        if not item:
+            return
+        viewRect = self.viewport().rect()
+        itemRect = self.visualItemRect(item)
+        
+        if itemRect.left() < 0:
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()+itemRect.left())
+        elif itemRect.right() > viewRect.width():
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()+itemRect.right()-viewRect.width())
+        if itemRect.top() < 0:
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value()+itemRect.top())
+        elif itemRect.bottom() > viewRect.height():
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value()+itemRect.bottom()-viewRect.height())
+        self.viewport().update()
+    
+    def updateGeometries(self):
+        if not self.odd.vs.readSetting("display") == "thumbnails":
+            return super().updateGeometries()
+        #print("ODDListWidget: updateGeometries")
+        self.updateScrollBarRange()
+        self.horizontalScrollBar().setSingleStep(32)
+        self.verticalScrollBar().setSingleStep(32)
+        self.horizontalScrollBar().setPageStep(128)
+        self.verticalScrollBar().setPageStep(128)
     
     def paintEvent(self, event):
         if not self.odd.vs.readSetting("display") == "thumbnails":
             super().paintEvent(event)
             return
-    
+        
         activeDoc = Application.activeDocument()
         activeUid = self.odd.documentUniqueId(activeDoc) if activeDoc else None
         #print("paintEvent:", event.rect())
         option = self.viewOptions()
         painter = QPainter(self.viewport())
-        self.itemPositions()
         count = self.count()
         setting = self.odd.vs.settingValue("thumbFadeAmount")
         baseOpacity = 1.0 - setting
@@ -158,7 +259,9 @@ class ODDListWidget(QListWidget):
         for i in range(count):
             item = self.item(i)
             isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
-            option.rect = self._itemPositions[i]
+            #print("paintEvent: getting itemRect for #"+str(i))
+            itemRect = self.itemRects()[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
+            option.rect = itemRect
             option.showDecorationSelected = (item in self.selectedItems())
             painter.setOpacity(
                     opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
@@ -173,14 +276,14 @@ class ODDListWidget(QListWidget):
             )
             idel = self.itemDelegate(self.indexFromItem(item))
             #size = idel.sizeHint(option, self.indexFromItem(item))
-            size = option.rect.size()
-            inView = (not (option.rect.bottom() < 0 or option.rect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
-                    else (not (option.rect.right() < 0 or option.rect.x() > self.viewport().width()))
+            size = itemRect.size()
+            inView = (not (itemRect.bottom() < 0 or itemRect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
+                    else (not (itemRect.right() < 0 or itemRect.x() > self.viewport().width()))
             if inView:
                 #idel.paint(painter, option, self.indexFromItem(item))
                 pm = item.data(Qt.DecorationRole)
-                x = option.rect.x()
-                y = option.rect.y()
+                x = itemRect.x()
+                y = itemRect.y()
                 painter.drawPixmap(QPoint(x, y), pm)
                 if isItemActiveDoc:
                     painter.setPen(QColor(255,255,255,127))
@@ -300,7 +403,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                     ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
             else:
                 if listCenter.y() < screenCenter.y():
-                    ttPos = listTopLeft + itemRect.bottomLeft()
+                    ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
                 else:
                     ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
         else:
@@ -312,7 +415,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                     ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
             else:
                 if self.dockLocation == Qt.LeftDockWidgetArea or self.dockLocation == Qt.TopDockWidgetArea:
-                    ttPos = listTopLeft + itemRect.bottomLeft()
+                    ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
                 else:
                     ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
         
@@ -321,21 +424,67 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.listToolTip.show()
     
     def delayedResize(self):
+        itemsWithBadThumbs = []
+        def checkThumbSizes():
+            itemRects = self.list.itemRects()
+            if not itemRects:
+                return True
+            count = len(itemRects)
+            if count == 0:
+                return True
+            compareSize = self.calculateSizeForThumbnail()
+            if self.list.flow() == QListView.TopToBottom:
+                for i in range(0, count):
+                    if itemRects[i].size().width() != compareSize.width():
+                        itemsWithBadThumbs.append(i)
+            else:
+                for i in range(0, count):
+                    if itemRects[i].size().height() != compareSize.height():
+                        itemsWithBadThumbs.append(i)
+            if itemsWithBadThumbs:
+                return False
+            return True
+        
         self.resizeDelay.stop()
         print("delayedResize: lastSize:", self.lastSize)
         print("               new size:", self.baseWidget.size())
+        doRefresh = False
         lastFlow = self.list.flow()
         self.setDockerDirection(self.vs.readSetting("direction"))
-        if self.lastSize == self.baseWidget.size():
-            print("delayedResize: size did not change - no refresh.")
-        elif self.list.flow() == lastFlow and (
-                (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or
-                (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height())
-        ):
-            print("delayedResize: list is longer/shorter, but not narrower/wider - no refresh.")
-        else:
+        if self.vs.readSetting("display") != "thumbnails":
+            print("delayedResize: not in thumbnails mode, nothing to refresh.")
+        elif self.lastSize != self.baseWidget.size():
             print("delayedResize: size changed - refresh.")
-            self.refreshOpenDocuments(soft=True)
+            doRefresh = True
+        elif self.list.flow() != lastFlow:
+            print("delayedResize: direction changed - refresh.")
+            doRefresh = True
+        elif not checkThumbSizes():
+            print("delayedResize: some items are improperly sized - refresh.")
+            doRefresh = True
+        elif (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or \
+                (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height()):
+            print("delayedResize: list is longer/shorter, but not narrower/wider - no refresh.")
+            self.list.updateScrollBarRange()
+        else:
+            print("delayedResize: size did not change - no refresh.")
+            
+        if doRefresh:
+            self.list.invalidateItemRectsCache()
+            self.list.itemRects()
+            self.list._doNotRecacheItemRects = True
+            print(bool(itemsWithBadThumbs), itemsWithBadThumbs)
+            if itemsWithBadThumbs:
+                print(" refresh", len(itemsWithBadThumbs), "items")
+                for i in itemsWithBadThumbs:
+                    item = self.list.item(i)
+                    self.updateDocumentThumbnail(self.findDocumentWithItem(item))
+            else:
+                print(" refresh all items")
+                self.refreshOpenDocuments(soft=True, force=False)
+            self.list._doNotRecacheItemRects = False
+            self.list.itemRects()
+        
         self.lastSize = self.baseWidget.size()
     
     def imageCreated(self, image):
@@ -655,12 +804,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 direction = self.longestDockerSide()
         
         oldDirection = self.list.flow()
-        if (
-                (direction == "horizontal" and oldDirection == QListView.LeftToRight) or
-                (direction == "vertical"   and oldDirection == QListView.TopToBottom)
-            ):
-            return
-                
+        
         if direction == "horizontal":
             self.layout.setDirection(QBoxLayout.LeftToRight)
             self.list.setFlow(QListView.LeftToRight)
@@ -686,6 +830,15 @@ class OpenDocumentsDocker(krita.DockWidget):
                 pass
             self.list.verticalScrollBar().valueChanged.connect(self.listScrolled)
         self.updateScrollBarPolicy()
+        
+        if (
+                (direction == "horizontal" and oldDirection == QListView.LeftToRight) or
+                (direction == "vertical"   and oldDirection == QListView.TopToBottom)
+            ):
+            return
+        
+        self.list.update()
+        self.list.invalidateItemRectsCache()
     
     def updateScrollBarPolicy(self):
         if self.list.flow() == QListView.LeftToRight:
@@ -733,6 +886,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         pass
     
     def resizeEvent(self, event):
+        self.restartResizeDelayTimer()
+    
+    def restartResizeDelayTimer(self):
         if self.resizeDelay.isActive():
             self.resizeDelay.stop()
         self.resizeDelay.setSingleShot(True)
@@ -862,16 +1018,17 @@ class OpenDocumentsDocker(krita.DockWidget):
     def dropEvent(self, event):
         print("dropEvent: ", event)
     
-    def refreshOpenDocuments(self, soft=False):
+    def refreshOpenDocuments(self, soft=False, force=False):
         if soft:
             count = self.list.count()
             for i in range(count):
                 item = self.list.item(i)
-                self.updateDocumentThumbnail(self.findDocumentWithItem(item))
+                self.updateDocumentThumbnail(self.findDocumentWithItem(item), force)
         else:
             self.list.clear()
             for i in Application.documents():
                 self.addDocumentToList(i)
+        self.list.invalidateItemRectsCache()
     
     def debugDump(self):
         count = len(Application.documents())
@@ -948,6 +1105,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 size = self.calculateSizeForThumbnail(doc)
                 if size != tOldSize:
                     item.setData(Qt.DecorationRole, t.scaled(size))
+                    self.list.invalidateItemRectsCache()
                 
                 self.markDocumentThumbnailAsDeferred(None, item)
                 print("update thumb: item not currently visible, update later.")
@@ -956,6 +1114,11 @@ class OpenDocumentsDocker(krita.DockWidget):
         print("update thumb for", doc, " -", doc.fileName())
         thumbnail = self.generateThumbnailForDocument(doc)
         item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
+        
+        t = item.data(Qt.DecorationRole)
+        tSize = QSize(t.width(), t.height())
+        if tSize != tOldSize:
+            self.list.invalidateItemRectsCache()
     
     def findItemWithDocument(self, doc):
         uid = self.documentUniqueId(doc)
@@ -980,6 +1143,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         uid = self.documentUniqueId(doc)
         item.setData(self.ItemDocumentRole, uid)
         
+        self.list.invalidateItemRectsCache()
+        self.list.update()
         self.ensureListSelectionIsActiveDocument()
     
     def removeDocumentFromList(self, uid):
@@ -994,6 +1159,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             print("deleting item")
             del item
             self.ensureListSelectionIsActiveDocument()
+            self.list.invalidateItemRectsCache()
         else:
             print("did not find item to delete!")
     
@@ -1028,9 +1194,12 @@ class OpenDocumentsDocker(krita.DockWidget):
                     return doc
         return None
     
-    def calculateSizeForThumbnail(self, doc):
+    def calculateSizeForThumbnail(self, doc=None):
         kludgePixels=3
-        docSize = QSize(doc.width(), doc.height())
+        if doc:
+            docSize = QSize(doc.width(), doc.height())
+        else:
+            docSize = QSize(512, 512)
         docRatio = float(docSize.height()) / float(docSize.width())
         size = None
         scale = float(self.vs.readSetting("thumbDisplayScale"))
