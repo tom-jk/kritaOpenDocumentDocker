@@ -21,7 +21,7 @@ class ODDListWidget(QListWidget):
         QScroller.grabGesture(self, QScroller.MiddleMouseButtonGesture)
         self.setupScroller(QScroller.scroller(self))
     
-    def setupScroller(scroller):
+    def setupScroller(self, scroller):
         """
         basically a direct copy of Krita's
         KisKineticScroller::createPreconfiguredScroller.
