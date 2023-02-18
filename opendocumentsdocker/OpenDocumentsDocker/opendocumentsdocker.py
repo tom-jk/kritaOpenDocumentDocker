@@ -786,13 +786,13 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         assert self.deferredItemThumbnailCount >= 0, "ODD: deferredItemThumbnailCount is negative."
         
-        listRect = self.list.childrenRect()
+        viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
         itemCount = self.list.count()
         for i in range(itemCount):
             item = self.list.item(i)
             if item.data(self.ItemUpdateDeferredRole):
                 visRect = self.list.visualItemRect(item)
-                if not listRect.intersected(visRect).isEmpty():
+                if not viewRect.intersected(visRect).isEmpty():
                     item.setData(self.ItemUpdateDeferredRole, False)
                     self.deferredItemThumbnailCount -= 1
                     print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
@@ -913,10 +913,10 @@ class OpenDocumentsDocker(krita.DockWidget):
     def isItemOnScreen(self, item):
         if not self.dockVisible:
             return False
-
-        listRect = self.list.childrenRect()
+        
+        viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
         visRect = self.list.visualItemRect(item)
-        return listRect.intersected(visRect).isValid()
+        return viewRect.intersected(visRect).isValid()
     
     def updateDocumentThumbnailForced(self):
         self.updateDocumentThumbnail(doc=None, force=True)
