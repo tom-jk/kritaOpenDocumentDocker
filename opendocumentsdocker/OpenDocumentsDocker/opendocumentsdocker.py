@@ -368,6 +368,14 @@ class OpenDocumentsDocker(krita.DockWidget):
         tModi = " *" * doc.modified() * showIfModified
         return (fName if fName else "[not saved]") + tModi
     
+    def getScreen(self):
+        if hasattr(self, "screen"):
+            return self.screen()
+        if self.windowHandle():
+            return self.windowHandle().screen()
+        if self.parent() and self.parent().windowHandle():
+            return self.parent().windowHandle().screen()
+    
     def itemEntered(self, item):
         if not self.vs.settingValue("tooltipShow"):
             return
@@ -410,37 +418,35 @@ class OpenDocumentsDocker(krita.DockWidget):
         listCenter = (listTopLeft+listBottomRight)/2
         itemRect = self.list.visualItemRect(item)
         
-        if hasattr(self, "screen"):
-            # work out which side of the widget has the most space and put the tooltip there.
-            screen = self.screen()            
-            screenTopLeft = screen.availableGeometry().topLeft()
-            screenBottomRight = screen.availableGeometry().bottomRight()
-            screenCenter = (screenTopLeft+screenBottomRight)/2
-            if self.list.flow() == QListView.TopToBottom:
-                if listCenter.x() < screenCenter.x():
-                    ttPos = listTopRight + itemRect.topLeft()
-                else:
-                    ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
-            else:
-                if listCenter.y() < screenCenter.y():
-                    ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
-                else:
-                    ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
-        else:
-            # fallback to using dock area
-            if self.list.flow() == QListView.TopToBottom:
-                if self.dockLocation == Qt.LeftDockWidgetArea or self.dockLocation == Qt.TopDockWidgetArea:
-                    ttPos = listTopRight + itemRect.topLeft()
-                else:
-                    ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
-            else:
-                if self.dockLocation == Qt.LeftDockWidgetArea or self.dockLocation == Qt.TopDockWidgetArea:
-                    ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
-                else:
-                    ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
+        screen = self.getScreen().availableGeometry()
+        screenTopLeft = screen.topLeft()
+        screenBottomRight = screen.bottomRight()
         
-        self.listToolTip.move(ttPos)
+        # work out which side of the widget has the most space and put the tooltip there.
+        screenCenter = (screenTopLeft+screenBottomRight)/2
+        if self.list.flow() == QListView.TopToBottom:
+            if listCenter.x() < screenCenter.x():
+                ttPos = listTopRight + itemRect.topLeft()
+            else:
+                ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
+        else:
+            if listCenter.y() < screenCenter.y():
+                ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
+            else:
+                ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
+        
         self.listToolTip.adjustSize()
+        ttRect = QRect(ttPos, self.listToolTip.size())
+        
+        # keep tooltip top-left from going outside list extents, and bottom-right from going outside the screen.
+        if self.list.flow() == QListView.TopToBottom:
+            ttRect.moveTop(max(listTopLeft.y(), min(ttRect.top(), listBottomRight.y())))
+        else:
+            ttRect.moveLeft(max(listTopLeft.x(), min(ttRect.left(), listBottomRight.x())))
+        ttRect.moveBottom(min(ttRect.bottom(), screenBottomRight.y()))
+        ttRect.moveRight(min(ttRect.right(), screenBottomRight.x()))
+        
+        self.listToolTip.move(ttRect.topLeft())
         self.listToolTip.show()
     
     def delayedResize(self):
