@@ -35,17 +35,16 @@ class ODDListWidget(QListWidget):
         """
         gesture = int(Application.readSetting("", "KineticScrollingGesture", "0"))
         
-        match gesture:
-            case 0:
-                return QScroller.TouchGesture
-            case 1:
-                return QScroller.LeftMouseButtonGesture
-            case 2:
-                return QScroller.MiddleMouseButtonGesture
-            case 3:
-                return QScroller.RightMouseButtonGesture
-            case _:
-                return QScroller.MiddleMouseButtonGesture
+        if gesture == 0:
+            return QScroller.TouchGesture
+        elif gesture == 1:
+            return QScroller.LeftMouseButtonGesture
+        elif gesture == 2:
+            return QScroller.MiddleMouseButtonGesture
+        elif gesture == 3:
+            return QScroller.RightMouseButtonGesture
+        else:
+            return QScroller.MiddleMouseButtonGesture
     
     def setupScroller(self, scroller):
         """
