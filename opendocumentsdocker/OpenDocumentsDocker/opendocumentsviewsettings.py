@@ -12,12 +12,14 @@ def convertSettingStringToValue(settingName, string):
 
 def convertSettingValueToString(settingName, value):
     setting = OpenDocumentsViewSettings.SD[settingName]
-    if value >= 0 and value < len(setting["strings"]):
+    if type(value) is not str and value >= 0 and value < len(setting["strings"]):
         return setting["strings"][value]
+    elif type(value) is str and value in setting["values"]:
+        return setting["strings"][setting["values"].index(value)]
     else:
         return setting["default"]
 
-class OpenDocumentsViewSettings:
+class OpenDocumentsViewSettings(QObject):
     # Settings Data
     SD = {
             "direction": {
@@ -100,6 +102,14 @@ class OpenDocumentsViewSettings:
                             "btn":None,
                     },
             },
+            "thumbShowModified": {
+                    "default":"none",
+                    "strings":["Don't show", "Corner", "Square", "Circle", "Asterisk", "Big Corner", "Big Square", "Big Circle", "Big Asterisk"],
+                    "values" :["none", "corner", "square", "circle", "asterisk", "cornerBig", "squareBig", "circleBig", "asteriskBig"],
+                    "ui": {
+                            "btn":None,
+                    },
+            },
             "tooltipShow": {
                     "default":"true",
                     "ui": {
@@ -139,6 +149,7 @@ class OpenDocumentsViewSettings:
     }
     
     def __init__(self, odd):
+        super(OpenDocumentsViewSettings, self).__init__()
         self.odd = odd
     
     def readSetting(self, setting):
@@ -170,7 +181,10 @@ class OpenDocumentsViewSettings:
         elif "btngrp" in ui:
             return ui["btngrp"].checkedButton()
         elif "btn" in ui:
-            return ui["btn"].isChecked()
+            if "values" in self.SD[setting]:
+                return self.SD[setting]["values"][ui["btn"].currentIndex()]
+            else:
+                return ui["btn"].isChecked()
         return None
     
     def setDisplayToThumbnails(self):
@@ -179,9 +193,7 @@ class OpenDocumentsViewSettings:
         self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
-        if self.odd.itemTextUpdateTimer.isActive():
-            self.odd.itemTextUpdateTimer.stop()
-
+    
     def setDisplayToText(self):
         print("setDisplayToText")
         self.writeSetting("display", "text")
@@ -189,19 +201,17 @@ class OpenDocumentsViewSettings:
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
         self.odd.deferredItemThumbnailCount = 0
-        if not self.odd.itemTextUpdateTimer.isActive():
-            self.odd.itemTextUpdateTimer.start()
-
+    
     def setDirectionToHorizontal(self):
         print("setDirectionToHorizontal")
         self.writeSetting("direction", "horizontal")
         self.odd.setDockerDirection("horizontal")
-
+    
     def setDirectionToVertical(self):
         print("setDirectionToVertical")
         self.writeSetting("direction", "vertical")
         self.odd.setDockerDirection("vertical")
-
+    
     def setDirectionToAuto(self):
         print("setDirectionToAuto")
         self.writeSetting("direction", "auto")
@@ -239,13 +249,29 @@ class OpenDocumentsViewSettings:
         setting = "{:4.2f}".format(self.settingValue("thumbFadeAmount"))
         self.SD["thumbFadeAmount"]["ui"]["value"].setText(setting)
         self.writeSetting("thumbFadeAmount", setting)
-        l = self.odd.list
-        l.viewport().update()
+        self.odd.list.viewport().update()
     
     def changedThumbFadeUnfade(self, state):
         setting = str(state==2).lower()
         print("changedThumbFadeUnfade to", setting)
         self.writeSetting("thumbFadeUnfade", setting)
+    
+    def changedThumbShowModified(self, index):
+        setting = self.settingValue("thumbShowModified")
+        print("changedThumbShowModified to", setting)
+        self.writeSetting("thumbShowModified", setting)
+        self.odd.list.viewport().update()
+    
+    def highlightedThumbShowModified(self, index):
+        setting = self.SD["thumbShowModified"]["values"][index]
+        print("highlighted", setting)
+        self.previewThumbnailsShowModified = setting
+        self.odd.list.viewport().update()
+    
+    def unhighlightedThumbShowModified(self):
+        print("unhighlighted")
+        self.previewThumbnailsShowModified = ""
+        self.odd.list.viewport().update()
     
     def changedTooltipShow(self, state):
         setting = str(state==2).lower()
@@ -481,6 +507,18 @@ class OpenDocumentsViewSettings:
         self.SD["thumbFadeUnfade"]["ui"]["btn"].setChecked(self.readSetting("thumbFadeUnfade") == "true")
         self.SD["thumbFadeUnfade"]["ui"]["btn"].setToolTip("Un-fade on mouse hover.")
         
+        setting = self.readSetting("thumbShowModified")
+        self.panelThumbnailsShowModifiedLayout = QHBoxLayout()
+        self.panelThumbnailsShowModifiedLabel = QLabel("Modified indicator", self.panel)
+        self.SD["thumbShowModified"]["ui"]["btn"] = QComboBox(self.panel)
+        self.SD["thumbShowModified"]["ui"]["btn"].addItems(self.SD["thumbShowModified"]["strings"])
+        self.SD["thumbShowModified"]["ui"]["btn"].setCurrentText(convertSettingValueToString("thumbShowModified", setting))
+        self.SD["thumbShowModified"]["ui"]["btn"].setToolTip(
+                "An icon to show on modified document thumbnails.\n" +
+                "A preview will be shown as you highlight options (if there are visible thumbnails)."
+        )
+        self.previewThumbnailsShowModified = ""
+        
         self.panelTooltipsHeading = QHBoxLayout()
         self.SD["tooltipShow"]["ui"]["btn"] = QCheckBox("Tooltips", self.panel)
         self.SD["tooltipShow"]["ui"]["btn"].stateChanged.connect(self.changedTooltipShow)
@@ -636,6 +674,11 @@ class OpenDocumentsViewSettings:
         self.panelThumbnailsFadeAmountLayout.setStretch(1, 2)
         self.panelThumbnailsFadeAmountLayout.setStretch(2, 5)
         self.panelLayout.addLayout(self.panelThumbnailsFadeAmountLayout)
+        self.panelThumbnailsShowModifiedLayout.addWidget(self.panelThumbnailsShowModifiedLabel)
+        self.panelThumbnailsShowModifiedLayout.addWidget(self.SD["thumbShowModified"]["ui"]["btn"])
+        self.panelThumbnailsShowModifiedLayout.setStretch(0, 4)
+        self.panelThumbnailsShowModifiedLayout.setStretch(1, 5)
+        self.panelLayout.addLayout(self.panelThumbnailsShowModifiedLayout)
         self.panelLayout.addWidget(self.SD["refreshOnSave"]["ui"]["btn"])
         self.panelLayout.addWidget(self.SD["refreshPeriodically"]["ui"]["btn"])
         self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksLabel)
@@ -683,10 +726,18 @@ class OpenDocumentsViewSettings:
         self.SD["thumbDisplayScale"        ]["ui"]["slider"].valueChanged.connect(self.changedThumbDisplayScaleSlider)
         self.SD["thumbRenderScale"         ]["ui"]["slider"].valueChanged.connect(self.changedThumbRenderScaleSlider)
         self.SD["thumbFadeAmount"          ]["ui"]["slider"].valueChanged.connect(self.changedThumbFadeAmountSlider)
+        self.SD["thumbShowModified"        ]["ui"]["btn"   ].activated.connect(self.changedThumbShowModified)
+        self.SD["thumbShowModified"        ]["ui"]["btn"   ].highlighted.connect(self.highlightedThumbShowModified)
+        self.SD["thumbShowModified"        ]["ui"]["btn"   ].installEventFilter(self)
         self.SD["tooltipThumbLimit"        ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbLimitSlider)
         self.SD["tooltipThumbSize"         ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbSizeSlider)
         self.SD["refreshPeriodicallyChecks"]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyChecksSlider)
         self.SD["refreshPeriodicallyDelay" ]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
+    
+    def eventFilter(self, obj, event):
+        if event.type() in [QEvent.FocusIn, QEvent.Hide]:
+            self.unhighlightedThumbShowModified()
+        return False
     
     def clickedViewButton(self):
         btnTopLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().topLeft())

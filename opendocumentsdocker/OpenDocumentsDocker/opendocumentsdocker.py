@@ -264,8 +264,39 @@ class ODDListWidget(QListWidget):
         option = self.viewOptions()
         painter = QPainter(self.viewport())
         count = self.count()
-        setting = self.odd.vs.settingValue("thumbFadeAmount")
-        baseOpacity = 1.0 - setting
+        fadeAmount = self.odd.vs.settingValue("thumbFadeAmount")
+        
+        modIconPreview = self.odd.vs.previewThumbnailsShowModified
+        modIconTypeSetting = self.odd.vs.readSetting("thumbShowModified")
+        modIconType = modIconTypeSetting if modIconPreview == "" else modIconPreview
+        canShowModIcon = modIconType != "none"
+        if canShowModIcon:
+            padding = 3
+            isModIconTypeText = modIconType in ["asterisk", "asteriskBig"]
+            isModIconTypeBig = modIconType in ["cornerBig", "squareBig", "circleBig", "asteriskBig"]
+            if isModIconTypeText:
+                modIconSize = 24 if isModIconTypeBig else 16
+                o = 2 if isModIconTypeBig else 1
+                font = painter.font()
+                font.setPointSize(modIconSize)
+                painter.setFont(font)
+                fm = QFontMetrics(font)
+                chRect = fm.boundingRectChar("*")
+                dropShadowOffset = QPoint(o, o)
+                posOffset = QPoint(0 - padding - chRect.x() - chRect.width(), padding - chRect.y())
+            else:
+                isModIconTypeCorner = modIconType in ["corner", "cornerBig"]
+                isModIconTypeSquare = modIconType in ["square", "squareBig"]
+                isModIconTypeCircle = modIconType in ["circle", "circleBig"]
+                modIconSize = 14 if isModIconTypeBig else 8
+                if isModIconTypeCorner:
+                    cornerPoly = QPolygon([
+                            0 - modIconSize, 0,
+                            0,               0,
+                            0,               0 + modIconSize
+                    ])
+        
+        baseOpacity = 1.0 - fadeAmount
         opacityNotHoveredNotActive  = 0.05 + 0.95 * baseOpacity
         opacityNotHoveredActive     = 0.10 + 0.90 * baseOpacity
         opacityListHoveredNotActive = 0.70 + 0.30 * baseOpacity
@@ -293,41 +324,54 @@ class ODDListWidget(QListWidget):
                             )
                     )
             )
-            idel = self.itemDelegate(self.indexFromItem(item))
-            #size = idel.sizeHint(option, self.indexFromItem(item))
-            size = itemRect.size()
             inView = (not (itemRect.bottom() < 0 or itemRect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
                     else (not (itemRect.right() < 0 or itemRect.x() > self.viewport().width()))
+            
             if inView:
-                #idel.paint(painter, option, self.indexFromItem(item))
                 pm = item.data(Qt.DecorationRole)
                 x = itemRect.x()
                 y = itemRect.y()
+                w = pm.width()
+                h = pm.height()
                 painter.drawPixmap(QPoint(x, y), pm)
                 if isItemActiveDoc:
+                    painter.setBrush(Qt.NoBrush)
                     painter.setPen(QColor(255,255,255,127))
-                    painter.drawRect(x, y, pm.width(), pm.height())
+                    painter.drawRect(x, y, w, h)
                     painter.setPen(QColor(0,0,0,127))
-                    painter.drawRect(x+1, y+1, pm.width()-2, pm.height()-2)
-                # TODO: How do we get doc modified status without incurring Application.documents() memory leak?
-                if False:#self.odd.findDocumentWithItem(item).modified():
-                    rect = QRect(x, y, pm.width()-2, pm.height()-2)
-                    font = painter.font()
-                    font.setPointSize(16)
-                    painter.setFont(font)
-                    painter.setPen(QColor(0,0,0))
-                    painter.drawText(rect.translated(-1,-1), Qt.AlignRight | Qt.AlignTop, "*")
-                    painter.drawText(rect.translated(1,-1), Qt.AlignRight | Qt.AlignTop, "*")
-                    painter.drawText(rect.translated(-1,1), Qt.AlignRight | Qt.AlignTop, "*")
-                    painter.drawText(rect.translated(1,1), Qt.AlignRight | Qt.AlignTop, "*")
-                    painter.setPen(QColor(255,255,255))
-                    painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, "*")
+                    painter.drawRect(x+1, y+1, w-2, h-2)
+                if (item.data(self.odd.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
+                    topRight = QPoint(x + w, y)
+                    if isModIconTypeText:
+                        font = painter.font()
+                        font.setWeight(QFont.ExtraBold)
+                        painter.setFont(font)
+                        pos = topRight + posOffset
+                        painter.setPen(QColor(16,16,16))
+                        painter.drawText(pos + dropShadowOffset, "*")
+                        font.setWeight(QFont.Normal)
+                        painter.setFont(font)
+                        painter.setPen(QColor(239,239,239))
+                        painter.drawText(pos, "*")
+                    else:
+                        brush = painter.brush()
+                        brush.setStyle(Qt.SolidPattern)
+                        brush.setColor(QColor(255,180,150))
+                        painter.setBrush(brush)
+                        painter.setPen(QColor(16,16,16))
+                        if isModIconTypeCorner:
+                            painter.drawConvexPolygon(cornerPoly.translated(topRight))
+                        elif isModIconTypeSquare:
+                            painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+                        elif isModIconTypeCircle:
+                            painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
         painter.end()
 
 
 class OpenDocumentsDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
+    ItemModifiedStatusRole = Qt.UserRole+2
     
     imageChangeDetected = False
     
@@ -712,11 +756,10 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.refreshAllDelay.setSingleShot(True)
         self.refreshAllDelay.timeout.connect(self.refreshAllDelayTimeout)
         
-        self.itemTextUpdateTimer = QTimer(self.baseWidget)
-        self.itemTextUpdateTimer.setInterval(500)
-        self.itemTextUpdateTimer.timeout.connect(self.itemTextUpdateTimerTimeout)
-        if self.vs.readSetting("display") == "text":
-            self.itemTextUpdateTimer.start()
+        self.itemUpdateTimer = QTimer(self.baseWidget)
+        self.itemUpdateTimer.setInterval(500)
+        self.itemUpdateTimer.timeout.connect(self.itemUpdateTimerTimeout)
+        self.itemUpdateTimer.start()
         
         self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
         self.setWindowTitle(i18n("Open Documents Docker"))
@@ -726,6 +769,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         appNotifier = Application.notifier()
         appNotifier.setActive(True)
+        
         appNotifier.viewClosed.connect(self.viewClosed)
         appNotifier.imageCreated.connect(self.imageCreated)
         appNotifier.imageClosed.connect(self.imageClosed)
@@ -736,33 +780,25 @@ class OpenDocumentsDocker(krita.DockWidget):
     def refreshAllDelayTimeout(self):
         self.refreshOpenDocuments(soft=True)
     
-    ituttCallsUntilNextMassUpdate = 0
-    def itemTextUpdateTimerTimeout(self):
+    def itemUpdateTimerTimeout(self):
         if not self.dockVisible:
             return
         
-        if self.ituttCallsUntilNextMassUpdate > 0:
-            doc = Application.activeDocument()
-            if not doc:
-                return
-            item = self.findItemWithDocument(doc)
-            item.setText(self.documentDisplayName(doc))
-            self.ituttCallsUntilNextMassUpdate -= 1
+        doc = Application.activeDocument()
+        if not doc:
             return
         
-        count = self.list.count()
-        openDocs = Application.documents()
-        for i in range(count):
-            item = self.list.item(i)
-            doc = None
-            for i in openDocs:
-                if item.data(self.ItemDocumentRole) == self.documentUniqueId(i):
-                    doc = i
-                    break
-            if not doc:
-                continue
+        item = self.findItemWithDocument(doc)
+        
+        if self.vs.readSetting("display") == "thumbnails":
+            oldModified = item.data(self.ItemModifiedStatusRole)
+            modified = doc.modified()
+            if oldModified != modified:
+                item.setData(self.ItemModifiedStatusRole, doc.modified())
+                if self.vs.readSetting("thumbShowModified") != "none":
+                    self.list.update()
+        else:
             item.setText(self.documentDisplayName(doc))
-        self.ituttCallsUntilNextMassUpdate = 10
     
     tavg = 0
     def imageChangeDetectionTimerTimeout(self):
@@ -1163,6 +1199,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             thumbnail = self.generateThumbnailForDocument(doc)
             item = QListWidgetItem("", self.list)
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
+            item.setData(self.ItemModifiedStatusRole, doc.modified())
         else:
             item = QListWidgetItem(self.documentDisplayName(doc), self.list)
         uid = self.documentUniqueId(doc)
