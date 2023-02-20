@@ -789,6 +789,8 @@ class OpenDocumentsDocker(krita.DockWidget):
             return
         
         item = self.findItemWithDocument(doc)
+        if not item:
+            return
         
         if self.vs.readSetting("display") == "thumbnails":
             oldModified = item.data(self.ItemModifiedStatusRole)
@@ -1219,6 +1221,10 @@ class OpenDocumentsDocker(krita.DockWidget):
                 break
         if item:
             print("deleting item")
+            if item.data(self.ItemUpdateDeferredRole):
+                item.setData(self.ItemUpdateDeferredRole, False) # too paranoid?
+                self.deferredItemThumbnailCount -= 1
+                print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
             del item
             self.ensureListSelectionIsActiveDocument()
             self.list.invalidateItemRectsCache()
