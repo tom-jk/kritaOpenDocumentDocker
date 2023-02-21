@@ -443,12 +443,6 @@ class OpenDocumentsViewSettings(QObject):
         self.panelListHeadingLine = QLabel("", self.panel)
         self.panelListHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
-        self.panelDisplayAndDirectionLayout = QHBoxLayout()
-        self.panelDisplayLayout = QVBoxLayout()
-        self.panelDisplayLabel = QLabel("Display", self.panel)
-        self.SD["display"]["ui"]["btnThumbnails"] = QRadioButton("Thumbnails", self.panel)
-        self.SD["display"]["ui"]["btnText"      ] = QRadioButton("Text", self.panel)
-        
         self.panelDirectionLayout = QVBoxLayout()
         self.panelDirectionLabel = QLabel("Direction", self.panel)
         self.SD["direction"]["ui"]["btnHorizontal"] = QRadioButton("Horizontal", self.panel)
@@ -456,9 +450,15 @@ class OpenDocumentsViewSettings(QObject):
         self.SD["direction"]["ui"]["btnAuto"      ] = QRadioButton("Auto", self.panel)
         self.SD["direction"]["ui"]["btnAuto"      ].setToolTip("The list will be arranged on its longest side.")
         
+        self.panelDisplayAndDirectionLayout = QHBoxLayout()
+        self.panelDisplayLayout = QVBoxLayout()
+        self.panelDisplayLabel = QLabel("Display", self.panel)
+        self.SD["display"]["ui"]["btnThumbnails"] = QRadioButton("Thumbnails", self.panel)
+        self.SD["display"]["ui"]["btnText"      ] = QRadioButton("Text", self.panel)
+        
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         
-        self.SD["thumbUseProjectionMethod"]["ui"]["btn"] = QCheckBox("Use projection method")
+        self.SD["thumbUseProjectionMethod"]["ui"]["btn"] = QCheckBox("Use projection method", self.panel)
         self.SD["thumbUseProjectionMethod"]["ui"]["btn"].stateChanged.connect(self.changedThumbnailUseProjectionMethod)
         self.SD["thumbUseProjectionMethod"]["ui"]["btn"].setChecked(self.readSetting("thumbUseProjectionMethod") == "true")
         self.SD["thumbUseProjectionMethod"]["ui"]["btn"].setToolTip(
@@ -522,48 +522,12 @@ class OpenDocumentsViewSettings(QObject):
         )
         self.previewThumbnailsShowModified = ""
         
-        self.panelTooltipsHeading = QHBoxLayout()
-        self.SD["tooltipShow"]["ui"]["btn"] = QCheckBox("Tooltips", self.panel)
-        self.SD["tooltipShow"]["ui"]["btn"].stateChanged.connect(self.changedTooltipShow)
-        self.SD["tooltipShow"]["ui"]["btn"].setChecked(self.readSetting("tooltipShow") == "true")
-        self.panelTooltipsHeadingLine = QLabel("", self.panel)
-        self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
-        
-        setting = self.readSetting("tooltipThumbLimit")
-        self.panelTooltipThumbnailLimitLayout = QHBoxLayout()
-        self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
-        self.SD["tooltipThumbLimit"]["ui"]["value" ] = QLabel(setting, self.panel)
-        self.SD["tooltipThumbLimit"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setRange(0, len(self.SD["tooltipThumbLimit"]["values"])-1)
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setTickInterval(1)
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setValue(
-                convertSettingStringToValue("tooltipThumbLimit", setting)
-        )
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setToolTip(
-                "Thumbnails in tooltips will be generated for images up to the chosen size."
-        )
-        self.SD["tooltipThumbLimit"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow"))
-        
-        setting = self.readSetting("tooltipThumbSize")
-        self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
-        self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
-        self.SD["tooltipThumbSize"]["ui"]["value" ] = QLabel(setting, self.panel)
-        self.SD["tooltipThumbSize"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setRange(0, len(self.SD["tooltipThumbSize"]["values"])-1)
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setTickInterval(1)
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setValue(
-                convertSettingStringToValue("tooltipThumbSize", setting)
-        )
-        self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0)
-        
-        self.SD["refreshOnSave"]["ui"]["btn"] = QCheckBox("Refresh on save")
+        self.SD["refreshOnSave"]["ui"]["btn"] = QCheckBox("Refresh on save", self.panel)
         self.SD["refreshOnSave"]["ui"]["btn"].stateChanged.connect(self.changedRefreshOnSave)
         self.SD["refreshOnSave"]["ui"]["btn"].setChecked(self.readSetting("refreshOnSave") == "true")
         self.SD["refreshOnSave"]["ui"]["btn"].setToolTip("When you save an image, refresh its thumbnail automatically.")
         
-        self.SD["refreshPeriodically"]["ui"]["btn"] = QCheckBox("Refresh periodically (experimental)")
+        self.SD["refreshPeriodically"]["ui"]["btn"] = QCheckBox("Refresh periodically (experimental)", self.panel)
         self.SD["refreshPeriodically"]["ui"]["btn"].stateChanged.connect(self.changedRefreshPeriodically)
         self.SD["refreshPeriodically"]["ui"]["btn"].setChecked(self.readSetting("refreshPeriodically") == "true")
         self.SD["refreshPeriodically"]["ui"]["btn"].setToolTip(
@@ -602,12 +566,48 @@ class OpenDocumentsViewSettings(QObject):
         self.SD["refreshPeriodicallyDelay"]["ui"]["slider"].setToolTip("How long after the last detected change to refresh the thumbnail.")
         self.SD["refreshPeriodicallyDelay"]["ui"]["slider"].setEnabled(self.settingValue("refreshPeriodically"))
         
+        self.panelTooltipsHeading = QHBoxLayout()
+        self.SD["tooltipShow"]["ui"]["btn"] = QCheckBox("Tooltips", self.panel)
+        self.SD["tooltipShow"]["ui"]["btn"].stateChanged.connect(self.changedTooltipShow)
+        self.SD["tooltipShow"]["ui"]["btn"].setChecked(self.readSetting("tooltipShow") == "true")
+        self.panelTooltipsHeadingLine = QLabel("", self.panel)
+        self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
+        
+        setting = self.readSetting("tooltipThumbLimit")
+        self.panelTooltipThumbnailLimitLayout = QHBoxLayout()
+        self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
+        self.SD["tooltipThumbLimit"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["tooltipThumbLimit"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setRange(0, len(self.SD["tooltipThumbLimit"]["values"])-1)
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setTickInterval(1)
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setValue(
+                convertSettingStringToValue("tooltipThumbLimit", setting)
+        )
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setToolTip(
+                "Thumbnails in tooltips will be generated for images up to the chosen size."
+        )
+        self.SD["tooltipThumbLimit"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow"))
+        
+        setting = self.readSetting("tooltipThumbSize")
+        self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
+        self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
+        self.SD["tooltipThumbSize"]["ui"]["value" ] = QLabel(setting, self.panel)
+        self.SD["tooltipThumbSize"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setRange(0, len(self.SD["tooltipThumbSize"]["values"])-1)
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setTickInterval(1)
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setValue(
+                convertSettingStringToValue("tooltipThumbSize", setting)
+        )
+        self.SD["tooltipThumbSize"]["ui"]["slider"].setEnabled(self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0)
+        
         self.panelMiscHeading = QHBoxLayout()
         self.panelMiscHeadingLabel = QLabel("Miscellaneous", self.panel)
         self.panelMiscHeadingLine = QLabel("", self.panel)
         self.panelMiscHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
-        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"] = QCheckBox("Auto disambiguate document ID's (modifies file)")
+        self.SD["idAutoDisambiguateCopies"]["ui"]["btn"] = QCheckBox("Auto disambiguate document ID's (modifies file)", self.panel)
         self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].stateChanged.connect(self.changedIdAutoDisambiguateCopies)
         self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].setChecked(self.readSetting("idAutoDisambiguateCopies") == "true")
         self.SD["idAutoDisambiguateCopies"]["ui"]["btn"].setToolTip(
