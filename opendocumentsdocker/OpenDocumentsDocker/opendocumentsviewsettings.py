@@ -257,12 +257,10 @@ class OpenDocumentsViewSettings(QObject):
     
     def highlightedThumbShowModified(self, index):
         setting = self.SD["thumbShowModified"]["values"][index]
-        print("highlighted", setting)
         self.previewThumbnailsShowModified = setting
         self.odd.list.viewport().update()
     
     def unhighlightedThumbShowModified(self):
-        print("unhighlighted")
         self.previewThumbnailsShowModified = ""
         self.odd.list.viewport().update()
     

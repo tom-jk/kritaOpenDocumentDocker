@@ -202,17 +202,16 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.lastSize = self.baseWidget.size()
     
     def imageCreated(self, image):
-        print("image created -", image, end=" ")
+        print("image created -", image)
         fName = image.fileName()
-        print("name:", (fName if fName else "[not saved]"))
+        print(" name:", (fName if fName else "[not saved]"))
         
         docCount = len(Application.documents())
-        for i in range(docCount):
-            d = Application.documents()[i]
-            print("#"+str(i)+":", d, "-", d.rootNode().uniqueId())
         
         # assume new image will always doc at end of documents list.
         doc = Application.documents()[docCount-1]
+        print(" #"+str(docCount-1)+", id:", doc.rootNode().uniqueId())
+        
         self.setDocumentExtraUid(doc)
         self.addDocumentToList(doc)
     
