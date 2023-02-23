@@ -546,16 +546,22 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.list.invalidateItemRectsCache()
     
     def updateScrollBarPolicy(self):
-        if self.list.flow() == QListView.LeftToRight:
-            self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        if self.list.hideScrollBars:
+            self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        else:
-            if self.vs.readSetting("display") == "text":
-                self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            else:
-                self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            if self.list.flow() == QListView.TopToBottom and self.vs.readSetting("display") == "thumbnails":
                 self.list.horizontalScrollBar().setValue(0)
-            self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        else:
+            if self.list.flow() == QListView.LeftToRight:
+                self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+                self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            else:
+                if self.vs.readSetting("display") == "text":
+                    self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                else:
+                    self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    self.list.horizontalScrollBar().setValue(0)
+                self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
     
     def listScrolled(self, value):
         self.processDeferredDocumentThumbnails()
@@ -920,14 +926,14 @@ class OpenDocumentsDocker(krita.DockWidget):
         maxSize = 512
         
         if self.list.flow() == QListView.TopToBottom:
-            scrollBarWidth = self.list.verticalScrollBar().sizeHint().width()
+            scrollBarWidth = self.list.verticalScrollBar().sizeHint().width() if self.list.verticalScrollBar().isVisible() else 0
             width = self.list.width() - kludgePixels - scrollBarWidth
             width *= scale
             width = min(width, maxSize)
             height = round(width * docRatio)
             size = QSize(int(width), int(height))
         else:
-            scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height()
+            scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height() if self.list.horizontalScrollBar().isVisible() else 0
             height = self.list.height() - kludgePixels - scrollBarHeight
             height *= scale
             height = min(height, maxSize)

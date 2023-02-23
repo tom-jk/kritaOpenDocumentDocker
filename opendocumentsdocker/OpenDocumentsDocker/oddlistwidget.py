@@ -47,8 +47,8 @@ class ODDListWidget(QListWidget):
         """
         scrProp = scroller.scrollerProperties()
         
+        self.hideScrollBars           = True if Application.readSetting("", "KineticScrollingHideScrollbar", "false") == "true" else False
         sensitivity                   =     int(Application.readSetting("", "KineticScrollingSensitivity", "75"))
-        hideScrollBars                = True if Application.readSetting("", "KineticScrollingHideScrollbar", "false") == "true" else False
         resistanceCoefficient         =   float(Application.readSetting("", "KineticScrollingResistanceCoefficient", "10.0"))
         dragVelocitySmoothFactor      =   float(Application.readSetting("", "KineticScrollingDragVelocitySmoothingFactor", "1.0"))
         minimumVelocity               =   float(Application.readSetting("", "KineticScrollingMinimumVelocity", "0.0"))
@@ -77,8 +77,6 @@ class ODDListWidget(QListWidget):
         scrProp.setScrollMetric(QScrollerProperties.OvershootScrollTime, overshootScrollTime)
                 
         scroller.setScrollerProperties(scrProp)
-        
-        self.hideScrollBars = hideScrollBars
     
     def eventFilter(self, obj, event):
         if obj in (self.horizontalScrollBar(), self.verticalScrollBar()):
