@@ -645,11 +645,27 @@ class OpenDocumentsDocker(krita.DockWidget):
         if item.data(self.ItemUpdateDeferredRole):
             print("mark deferred: already marked.")
             return
-            
+        
+        if not doc:
+            doc = self.findDocumentWithItem(item)
+        
         self.deferredItemThumbnailCount += 1
         print("DEFERRED ITEM COUNT +1, =", self.deferredItemThumbnailCount)
         item.setData(self.ItemUpdateDeferredRole, True)
-        print("mark deferred: " + self.documentDisplayName(self.findDocumentWithItem(item)) + " thumbnail update has been deferred.")
+        print("mark deferred: " + self.documentDisplayName(doc) + " thumbnail update has been deferred.")
+    
+    def unmarkDocumentThumbnailAsDeferred(self, doc=None, item=None):
+        if not item.data(self.ItemUpdateDeferredRole):
+            #print("unmark deferred: already not marked.")
+            return
+        
+        if not doc:
+            doc = self.findDocumentWithItem(item)
+        
+        item.setData(self.ItemUpdateDeferredRole, False)
+        self.deferredItemThumbnailCount -= 1
+        print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
+        print("unmark deferred: " + self.documentDisplayName(doc) + " thumbnail update is no longer deferred.")
     
     def processDeferredDocumentThumbnails(self):
         if not self.dockVisible:
@@ -667,10 +683,8 @@ class OpenDocumentsDocker(krita.DockWidget):
             if item.data(self.ItemUpdateDeferredRole):
                 visRect = self.list.visualItemRect(item)
                 if not viewRect.intersected(visRect).isEmpty():
-                    item.setData(self.ItemUpdateDeferredRole, False)
-                    self.deferredItemThumbnailCount -= 1
-                    print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
-                    self.updateDocumentThumbnail(self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole)))
+                    doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
+                    self.updateDocumentThumbnail(doc)
                 else:
                     pass
     
@@ -740,6 +754,8 @@ class OpenDocumentsDocker(krita.DockWidget):
                 item = self.list.item(i)
                 self.updateDocumentThumbnail(self.findDocumentWithItem(item), force)
         else:
+            self.deferredItemThumbnailCount = 0
+            print("DEFERRED ITEM COUNT = 0")
             self.list.clear()
             for i in Application.documents():
                 self.addDocumentToList(i)
@@ -802,9 +818,6 @@ class OpenDocumentsDocker(krita.DockWidget):
         if not doc:
             print("update thumb: no active document.")
             return
-        if self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnText"]:
-            print("update thumb: docker list is in text-only mode.")
-            return
         
         item = self.findItemWithDocument(doc)
         if not item:
@@ -816,11 +829,17 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         
+        settingDisplayThumbs = self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnThumbnails"]
+        if not settingDisplayThumbs:
+            force = False
+        
         if not force:
-            if not self.isItemOnScreen(item):
+            if not (settingDisplayThumbs and self.isItemOnScreen(item)):
                 self.markDocumentThumbnailAsDeferred(None, item)
-                print("update thumb: item not currently visible, update later.")
+                print("update thumb: item not currently visible or docker in text mode, update later.")
                 return
+        
+        self.unmarkDocumentThumbnailAsDeferred(doc, item)
         
         print("update thumb for", doc.fileName())#, end=" - ")
         thumbnail = self.generateThumbnailForItem(item, doc)
@@ -865,10 +884,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 break
         if item:
             print("deleting item")
-            if item.data(self.ItemUpdateDeferredRole):
-                item.setData(self.ItemUpdateDeferredRole, False) # too paranoid?
-                self.deferredItemThumbnailCount -= 1
-                print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
+            self.unmarkDocumentThumbnailAsDeferred(self.findDocumentWithItem(item), item)
             del item
             self.ensureListSelectionIsActiveDocument()
             self.list.invalidateItemRectsCache()

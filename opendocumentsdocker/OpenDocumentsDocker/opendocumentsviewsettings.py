@@ -200,7 +200,6 @@ class OpenDocumentsViewSettings(QObject):
         self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
-        self.odd.deferredItemThumbnailCount = 0
     
     def setDirectionToHorizontal(self):
         print("setDirectionToHorizontal")
