@@ -137,15 +137,6 @@ class ODDListWidget(QListWidget):
         if count == 0:
             return None
         
-        isNotReady = False
-        for i in range(count):
-            if not self.item(i).data(Qt.DecorationRole):
-                isNotReady = True
-                break
-        if isNotReady:
-            print("ODDListWidget.itemRects: in thumbnails mode, but items lack thumbnails - abort.")
-            return None
-        
         print("regenerate itemRects cache")
         self._itemRectsRecaching = True
         itemRects = []
@@ -159,8 +150,8 @@ class ODDListWidget(QListWidget):
         #print("count:", count)
         for i in range(count):
             item = self.item(i)
-            size = item.data(Qt.DecorationRole).size()
-            itemRects.append(QRect(x, y, size.width() + xExt, size.height() + yExt))
+            size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole))
+            itemRects.append(QRect(x, y, size.width(), size.height()))
             #print("appended ", itemRects[i])
             if self.flow() == QListView.TopToBottom:
                 y += size.height() + yExt
@@ -175,15 +166,18 @@ class ODDListWidget(QListWidget):
         itemRects = self.itemRects()
         if not itemRects:
             return
+        rect = itemRects[-1]
+        right  = rect.x() + rect.width()
+        bottom = rect.y() + rect.height()
         if self.flow() == QListView.TopToBottom:
-            #print("vscroll max =", itemRects[-1].bottom(), "-", self.viewport().height(), "=", itemRects[-1].bottom()-self.viewport().height())
-            self.verticalScrollBar().setRange(0, itemRects[-1].bottom() - self.viewport().height())
-            self._childrenRect = QRect(0, 0, self.viewport().width(), itemRects[-1].bottom())
+            #print("vscroll max =", bottom, "-", self.viewport().height(), "=", bottom-self.viewport().height())
+            self.verticalScrollBar().setRange(0, bottom - self.viewport().height())
+            self._childrenRect = QRect(0, 0, self.viewport().width(), bottom)
             self.horizontalScrollBar().setRange(0, 0)
         else:
-            #print("hscroll max =", itemRects[-1].right(), "-", self.viewport().width(), "=", itemRects[-1].right()-self.viewport().width())
-            self.horizontalScrollBar().setRange(0, itemRects[-1].right() - self.viewport().width())
-            self._childrenRect = QRect(0, 0, itemRects[-1].right(), self.viewport().height())
+            #print("hscroll max =", right, "-", self.viewport().width(), "=", right-self.viewport().width())
+            self.horizontalScrollBar().setRange(0, right - self.viewport().width())
+            self._childrenRect = QRect(0, 0, right, self.viewport().height())
             self.verticalScrollBar().setRange(0, 0)
     
     def indexAt(self, point):
@@ -226,15 +220,17 @@ class ODDListWidget(QListWidget):
             return
         viewRect = self.viewport().rect()
         itemRect = self.visualItemRect(item)
+        right  = itemRect.x() + itemRect.width()
+        bottom = itemRect.y() + itemRect.height()
         
         if itemRect.left() < 0:
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()+itemRect.left())
-        elif itemRect.right() > viewRect.width():
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()+itemRect.right()-viewRect.width())
+        elif right > viewRect.width():
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()+right-viewRect.width())
         if itemRect.top() < 0:
             self.verticalScrollBar().setValue(self.verticalScrollBar().value()+itemRect.top())
-        elif itemRect.bottom() > viewRect.height():
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value()+itemRect.bottom()-viewRect.height())
+        elif bottom > viewRect.height():
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value()+bottom-viewRect.height())
         self.viewport().update()
     
     def updateGeometries(self):
@@ -325,17 +321,17 @@ class ODDListWidget(QListWidget):
                 pm = item.data(Qt.DecorationRole)
                 x = itemRect.x()
                 y = itemRect.y()
-                w = pm.width()
-                h = pm.height()
-                painter.drawPixmap(QPoint(x, y), pm)
+                w = itemRect.width()
+                h = itemRect.height()
+                painter.drawPixmap(itemRect, pm)
                 if isItemActiveDoc:
                     painter.setBrush(Qt.NoBrush)
                     painter.setPen(QColor(255,255,255,127))
-                    painter.drawRect(x, y, w, h)
+                    painter.drawRect(x, y, w-1, h-1)
                     painter.setPen(QColor(0,0,0,127))
-                    painter.drawRect(x+1, y+1, w-2, h-2)
+                    painter.drawRect(x+1, y+1, w-3, h-3)
                 if (item.data(self.odd.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
-                    topRight = QPoint(x + w, y)
+                    topRight = QPoint(x + w-1, y)
                     if isModIconTypeText:
                         font = painter.font()
                         font.setWeight(QFont.ExtraBold)

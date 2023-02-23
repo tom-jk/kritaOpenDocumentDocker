@@ -14,6 +14,7 @@ class OpenDocumentsDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
     ItemModifiedStatusRole = Qt.UserRole+2
+    ItemDocumentSizeRole   = Qt.UserRole+3
     
     imageChangeDetected = False
     
@@ -143,14 +144,14 @@ class OpenDocumentsDocker(krita.DockWidget):
             count = len(itemRects)
             if count == 0:
                 return True
-            compareSize = self.calculateSizeForThumbnail()
+            compareSize = self.calculateRenderSizeForThumbnail()
             if self.list.flow() == QListView.TopToBottom:
                 for i in range(0, count):
-                    if itemRects[i].size().width() != compareSize.width():
+                    if self.list.item(i).data(Qt.DecorationRole).size().width() != compareSize.width():
                         itemsWithBadThumbs.append(i)
             else:
                 for i in range(0, count):
-                    if itemRects[i].size().height() != compareSize.height():
+                    if self.list.item(i).data(Qt.DecorationRole).size().height() != compareSize.width():
                         itemsWithBadThumbs.append(i)
             if itemsWithBadThumbs:
                 return False
@@ -165,18 +166,20 @@ class OpenDocumentsDocker(krita.DockWidget):
         if self.vs.readSetting("display") != "thumbnails":
             print("delayedResize: not in thumbnails mode, nothing to refresh.")
         elif self.lastSize != self.baseWidget.size():
-            print("delayedResize: size changed - refresh.")
-            doRefresh = True
+            if (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or \
+                    (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height()):
+                print("delayedResize: list is longer/shorter, but not narrower/wider - refresh only deferred.")
+                self.list.updateScrollBarRange()
+                self.processDeferredDocumentThumbnails()
+            else:
+                print("delayedResize: size changed - refresh.")
+                doRefresh = True
         elif self.list.flow() != lastFlow:
             print("delayedResize: direction changed - refresh.")
             doRefresh = True
         elif not checkThumbSizes():
             print("delayedResize: some items are improperly sized - refresh.")
             doRefresh = True
-        elif (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or \
-                (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height()):
-            print("delayedResize: list is longer/shorter, but not narrower/wider - no refresh.")
-            self.list.updateScrollBarRange()
         else:
             print("delayedResize: size did not change - no refresh.")
             
@@ -385,8 +388,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.layout.addLayout(self.buttonLayout)
         
         self.baseWidget.setLayout(self.layout)
-        self.baseWidget.setMinimumWidth(56)
-        self.baseWidget.setMinimumHeight(56)
+        self.baseWidget.setMinimumWidth(32)
+        self.baseWidget.setMinimumHeight(32)
         self.setWidget(self.baseWidget)
         
         self.lastSize = self.baseWidget.size()
@@ -441,6 +444,13 @@ class OpenDocumentsDocker(krita.DockWidget):
                 item.setData(self.ItemModifiedStatusRole, doc.modified())
                 if self.vs.readSetting("thumbShowModified") != "none":
                     self.list.update()
+            oldDocSize = item.data(self.ItemDocumentSizeRole)
+            docSize = QSize(doc.width(), doc.height())
+            if oldDocSize != docSize:
+                item.setData(self.ItemDocumentSizeRole, docSize)
+                self.list.invalidateItemRectsCache()
+                self.updateDocumentThumbnail(doc)
+                self.list.update()
         else:
             item.setText(self.documentDisplayName(doc))
     
@@ -466,9 +476,6 @@ class OpenDocumentsDocker(krita.DockWidget):
             changed = False
             if doc.tryBarrierLock():
                 doc.unlock()
-                if self.imageOldSize != doc.bounds().size():
-                    #print("imageChangeDetectionTimerTimeout - size changed")
-                    changed = True
             else:
                 #print("imageChangeDetectionTimerTimeout - barrier lock failed")
                 changed = True
@@ -492,8 +499,6 @@ class OpenDocumentsDocker(krita.DockWidget):
                 print("refreshTimerTimeout - imageChangeDetected:true, lock:success - refresh")
                 doc.unlock()
                 self.updateDocumentThumbnail()
-                self.imageChangeDetected = False
-                self.refreshTimer.stop()
             else:
                 print("refreshTimerTimeout - imageChangeDetected:true, lock:failed - document busy, wait")
 
@@ -807,29 +812,21 @@ class OpenDocumentsDocker(krita.DockWidget):
             print("update thumb: no list item associated with document.")
             return
         
-        t = item.data(Qt.DecorationRole)
-        tOldSize = QSize(t.width(), t.height())
+        if doc == Application.activeDocument() and self.imageChangeDetected:
+            print("stop or cancel imageChangeDetected refresh timer.")
+            self.imageChangeDetected = False
+            self.refreshTimer.stop()
         
         if not force:
             if not self.isItemOnScreen(item):
-                # quickly resize thumbnail to keep list rects correct.
-                size = self.calculateSizeForThumbnail(doc)
-                if size != tOldSize:
-                    item.setData(Qt.DecorationRole, t.scaled(size))
-                    self.list.invalidateItemRectsCache()
-                
                 self.markDocumentThumbnailAsDeferred(None, item)
                 print("update thumb: item not currently visible, update later.")
                 return
         
-        print("update thumb for", doc, " -", doc.fileName())
-        thumbnail = self.generateThumbnailForDocument(doc)
+        print("update thumb for", doc.fileName())#, end=" - ")
+        thumbnail = self.generateThumbnailForItem(item, doc)
         item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
         
-        t = item.data(Qt.DecorationRole)
-        tSize = QSize(t.width(), t.height())
-        if tSize != tOldSize:
-            self.list.invalidateItemRectsCache()
     
     def findItemWithDocument(self, doc):
         uid = self.documentUniqueId(doc)
@@ -844,14 +841,14 @@ class OpenDocumentsDocker(krita.DockWidget):
         return self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
     
     def addDocumentToList(self, doc):
-        item = None
+        item = QListWidgetItem("", self.list)
+        item.setData(self.ItemDocumentSizeRole, QSize(doc.width(), doc.height()))
+        item.setData(self.ItemModifiedStatusRole, doc.modified())
         if self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnThumbnails"]:
-            thumbnail = self.generateThumbnailForDocument(doc)
-            item = QListWidgetItem("", self.list)
+            thumbnail = self.generateThumbnailForItem(item, doc)
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
-            item.setData(self.ItemModifiedStatusRole, doc.modified())
         else:
-            item = QListWidgetItem(self.documentDisplayName(doc), self.list)
+            item.setText(self.documentDisplayName(doc))
         uid = self.documentUniqueId(doc)
         item.setData(self.ItemDocumentRole, uid)
         
@@ -910,11 +907,21 @@ class OpenDocumentsDocker(krita.DockWidget):
                     return doc
         return None
     
-    def calculateSizeForThumbnail(self, doc=None):
-        kludgePixels=3
-        if doc:
-            docSize = QSize(doc.width(), doc.height())
+    def calculateRenderSizeForItem(self, item):
+        return calculateRenderSizeForThumbnail(item.data(self.ItemDocumentSizeRole))
+    
+    def calculateRenderSizeForThumbnail(self, docSize=None):
+        if self.vs.readSetting("thumbUseProjectionMethod"):
+            return self.calculateDisplaySizeForThumbnail(docSize)
         else:
+            return self.calculateDisplaySizeForThumbnail(docSize) * self.list.settingValue("thumbRenderScale")
+    
+    def calculateDisplaySizeForItem(self, item):
+        return self.calculateDisplaySizeForThumbnail(item.data(self.ItemDocumentSizeRole))
+    
+    def calculateDisplaySizeForThumbnail(self, docSize=None):
+        gutterPixels=2
+        if not docSize:
             docSize = QSize(512, 512)
         docRatio = float(docSize.height()) / float(docSize.width())
         size = None
@@ -927,27 +934,31 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         if self.list.flow() == QListView.TopToBottom:
             scrollBarWidth = self.list.verticalScrollBar().sizeHint().width() if self.list.verticalScrollBar().isVisible() else 0
-            width = self.list.width() - kludgePixels - scrollBarWidth
+            width = self.list.width() - gutterPixels - scrollBarWidth
             width *= scale
             width = min(width, maxSize)
             height = round(width * docRatio)
             size = QSize(int(width), int(height))
+            print("cdsft: Vert", scrollBarWidth, self.list.width(), docRatio, str(size.width())+"x"+str(size.height()))
         else:
             scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height() if self.list.horizontalScrollBar().isVisible() else 0
-            height = self.list.height() - kludgePixels - scrollBarHeight
+            height = self.list.height() - gutterPixels - scrollBarHeight
             height *= scale
             height = min(height, maxSize)
             width = round(height / docRatio)
             size = QSize(int(width), int(height))
-        print("cwft: calculated size:", size)
+            print("cdsft: Hori", scrollBarHeight, self.list.height(), docRatio, str(size.width())+"x"+str(size.height()))
+        
+        if size.isEmpty():
+            size = QSize(1, 1)
         
         return size
     
-    def generateThumbnailForDocument(self, doc):
-        # ensure the thumbnail will be complete
+    def generateThumbnailForItem(self, item, doc):
+        # ensure the thumbnail will be complete.
         doc.waitForDone()
         
-        size = self.calculateSizeForThumbnail(doc)
+        size = self.calculateDisplaySizeForThumbnail(item.data(self.ItemDocumentSizeRole))
         
         thumbnail = None
         
