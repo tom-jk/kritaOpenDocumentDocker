@@ -807,6 +807,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
         visRect = self.list.visualItemRect(item)
+        print("isItemOnScreen:", viewRect, visRect, bool(viewRect.intersected(visRect).isValid()))
         return viewRect.intersected(visRect).isValid()
     
     def updateDocumentThumbnailForced(self):
@@ -984,9 +985,6 @@ class OpenDocumentsDocker(krita.DockWidget):
         )
         
         def generator(doc, size):
-            # new document may briefly exist as qobject type before becoming document,
-            # during which projection isn't available but thumbnail is.
-            # projection is much faster so prefer it when available.
             if type(doc) == Document and settingUseProj:
                 i = doc.projection(0, 0, doc.width(), doc.height())
                 if i:
@@ -1013,7 +1011,6 @@ class OpenDocumentsDocker(krita.DockWidget):
             thumbnail = thumbnail.scaled(size)
         
         thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
-        print("final size:", thumbnail.width(), "x", thumbnail.height())
         
         return thumbnail
 
