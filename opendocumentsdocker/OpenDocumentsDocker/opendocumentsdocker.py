@@ -244,9 +244,10 @@ class OpenDocumentsDocker(krita.DockWidget):
         #print("doc:      ", doc)
         #print("uid:      ", uid)
         #print("extraUid: ", extraUid)
-        docCount = len(Application.documents())
+        documents = Application.documents()
+        docCount = len(documents)
         for i in range(docCount):
-            d = Application.documents()[i]
+            d = documents[i]
             if d != doc:
                 if uid == d.rootNode().uniqueId():
                     canRemoveExtraUid = False
@@ -255,14 +256,13 @@ class OpenDocumentsDocker(krita.DockWidget):
                         isUnique = False
                         break
         if not isUnique:
-            if True:#not extraUid:
-                if self.vs.readSetting("idAutoDisambiguateCopies") == "true":
-                    print("setting extra uid for document", doc, "with uid", uid)
-                    doc.setAnnotation(
-                            "ODD_extra_uid",
-                            "An extra id used by Open Documents Docker to distinguish copied images from their origin during a krita session.",
-                            QByteArray(str(uuid.uuid4()).encode())
-                    )
+            if self.vs.readSetting("idAutoDisambiguateCopies") == "true":
+                print("setting extra uid for document", doc, "with uid", uid)
+                doc.setAnnotation(
+                        "ODD_extra_uid",
+                        "An extra id used by Open Documents Docker to distinguish copied images from their origin during a krita session.",
+                        QByteArray(str(uuid.uuid4()).encode())
+                )
         else:
             if canRemoveExtraUid:
                 if extraUid:
