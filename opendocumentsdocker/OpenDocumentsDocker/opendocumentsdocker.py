@@ -210,11 +210,12 @@ class OpenDocumentsDocker(krita.DockWidget):
         fName = image.fileName()
         print(" name:", (fName if fName else "[not saved]"))
         
-        docCount = len(Application.documents())
+        self.documents = Application.documents()
+        docIndex = len(self.documents)-1
         
-        # assume new image will always doc at end of documents list.
-        doc = Application.documents()[docCount-1]
-        print(" #"+str(docCount-1)+", id:", doc.rootNode().uniqueId())
+        # assume new image will always be doc at end of documents list.
+        doc = self.documents[docIndex]
+        print(" #"+str(docIndex)+", id:", doc.rootNode().uniqueId())
         
         self.setDocumentExtraUid(doc)
         self.addDocumentToList(doc)
@@ -222,9 +223,9 @@ class OpenDocumentsDocker(krita.DockWidget):
     def isDocumentUniquelyIdentified(self, doc):
         uid = doc.rootNode().uniqueId()
         extraUid = doc.annotation("ODD_extra_uid") or b''
-        docCount = len(Application.documents())
+        docCount = len(self.documents)
         for i in range(docCount):
-            d = Application.documents()[i]
+            d = self.documents[i]
             if d != doc:
                 if uid == d.rootNode().uniqueId():
                     if extraUid == d.annotation("ODD_extra_uid"):
@@ -248,10 +249,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         #print("doc:      ", doc)
         #print("uid:      ", uid)
         #print("extraUid: ", extraUid)
-        documents = Application.documents()
-        docCount = len(documents)
+        docCount = len(self.documents)
         for i in range(docCount):
-            d = documents[i]
+            d = self.documents[i]
             if d != doc:
                 if uid == d.rootNode().uniqueId():
                     canRemoveExtraUid = False
@@ -289,6 +289,8 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.removeDocumentFromList(self.documentUniqueIdFromLastClosedView)
         
+        self.documents = Application.documents()
+        
         print("", self.currentDocumentId)
         print("", self.documentUniqueIdFromLastClosedView)
         if self.currentDocumentId == self.documentUniqueIdFromLastClosedView:
@@ -298,7 +300,7 @@ class OpenDocumentsDocker(krita.DockWidget):
                 self.imageChangeDetected = False
                 self.refreshTimer.stop()
             
-            if len(Application.documents()) == 0:
+            if len(self.documents) == 0:
                 print(" it was the last open document.")
                 self.currentDocumentId = None
         
@@ -308,11 +310,11 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def imageSaved(self, filename):
         # unnecessary? the document just saved should be the active one
-        app = Application
         doc = None
-        for i in range(len(app.documents())):
-            if app.documents()[i].fileName() == filename:
-                doc = app.documents()[i]
+        docCount = len(self.documents)
+        for i in range(docCount):
+            if self.documents[i].fileName() == filename:
+                doc = self.documents[i]
                 break
         print("image saved -", filename, "(doc", str(doc) + ")")
         if self.vs.settingValue("refreshOnSave"):
@@ -328,6 +330,8 @@ class OpenDocumentsDocker(krita.DockWidget):
     def __init__(self):
         print("OpenDocumentsDocker: begin init")
         super(OpenDocumentsDocker, self).__init__()
+        
+        self.documents = []
         
         self.vs = ODVS(self)
         
@@ -432,30 +436,35 @@ class OpenDocumentsDocker(krita.DockWidget):
         if not self.dockVisible:
             return
         
-        doc = Application.activeDocument()
-        if not doc:
-            return
+        isSettingDisplayThumbnails = self.vs.readSetting("display") == "thumbnails"
         
-        item = self.findItemWithDocument(doc)
-        if not item:
-            return
-        
-        if self.vs.readSetting("display") == "thumbnails":
-            oldModified = item.data(self.ItemModifiedStatusRole)
-            modified = doc.modified()
-            if oldModified != modified:
-                item.setData(self.ItemModifiedStatusRole, doc.modified())
-                if self.vs.readSetting("thumbShowModified") != "none":
+        itemCount = self.list.count()
+        for i in range(itemCount):
+            item = self.list.item(i)
+            doc = self.findDocumentWithItem(item)
+            if not doc:
+                assert False, "ODD:itemUpdateTimerTimeout: can't find document for item."
+                continue
+            
+            if isSettingDisplayThumbnails:
+                oldModified = item.data(self.ItemModifiedStatusRole)
+                modified = doc.modified()
+                if oldModified != modified:
+                    item.setData(self.ItemModifiedStatusRole, doc.modified())
+                    if self.vs.readSetting("thumbShowModified") != "none":
+                        self.list.update()
+                oldDocSize = item.data(self.ItemDocumentSizeRole)
+                docSize = QSize(doc.width(), doc.height())
+                if oldDocSize != docSize:
+                    item.setData(self.ItemDocumentSizeRole, docSize)
+                    self.list.invalidateItemRectsCache()
+                    self.updateDocumentThumbnail(doc)
                     self.list.update()
-            oldDocSize = item.data(self.ItemDocumentSizeRole)
-            docSize = QSize(doc.width(), doc.height())
-            if oldDocSize != docSize:
-                item.setData(self.ItemDocumentSizeRole, docSize)
-                self.list.invalidateItemRectsCache()
-                self.updateDocumentThumbnail(doc)
-                self.list.update()
-        else:
-            item.setText(self.documentDisplayName(doc))
+            else:
+                oldName = item.text()
+                name = self.documentDisplayName(doc)
+                if oldName != name:
+                    item.setText(name)
     
     tavg = 0
     def imageChangeDetectionTimerTimeout(self):
@@ -761,15 +770,15 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.deferredItemThumbnailCount = 0
             print("DEFERRED ITEM COUNT = 0")
             self.list.clear()
-            for i in Application.documents():
+            for i in self.documents:
                 self.addDocumentToList(i)
         self.list.invalidateItemRectsCache()
     
     def debugDump(self):
-        count = len(Application.documents())
+        count = len(self.documents)
         print(" - list of all documents (count:"+str(count)+") - ")
         for i in range(count):
-            doc = Application.documents()[i]
+            doc = self.documents[i]
             print("   #"+str(i)+":", doc)
             print("    - fName:", doc.fileName())
             print("    - uid:  ", self.documentUniqueId(doc))
@@ -915,14 +924,14 @@ class OpenDocumentsDocker(krita.DockWidget):
         return [doc.rootNode().uniqueId(), QUuid(doc.annotation("ODD_extra_uid"))]
     
     def findDocumentWithUniqueId(self, uid, enableFallback=False):
-        for doc in Application.documents():
+        for doc in self.documents:
             if uid == self.documentUniqueId(doc):
                 return doc
         print("ODD: could not find document with uid", str(uid))
         if enableFallback:
             print("ODD: falling back to best match")
             uid[1] = QUuid()
-            for doc in Application.documents():
+            for doc in self.documents:
                 if uid == self.documentUniqueId(doc):
                     return doc
         return None

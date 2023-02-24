@@ -321,7 +321,7 @@ class OpenDocumentsViewSettings(QObject):
             # if detected, ask user if they would like to add the annotations now.
             
             isAnyDocAmbiguous = False
-            for i in Application.documents():
+            for i in self.odd.documents:
                 if not self.odd.isDocumentUniquelyIdentified(i):
                     isAnyDocAmbiguous = True
             
@@ -344,9 +344,9 @@ class OpenDocumentsViewSettings(QObject):
                 # iterate backwards over doc list, because we want to only add extraUid's
                 # to the documents that are copies, and they will(? presumably) always be
                 # later in the list than their source doc.
-                docCount = len(Application.documents())
+                docCount = len(self.odd.documents)
                 for i in range(docCount-1, -1, -1):
-                    self.odd.setDocumentExtraUid(Application.documents()[i])
+                    self.odd.setDocumentExtraUid(self.odd.documents[i])
                 self.odd.refreshOpenDocuments()
             else:
                 print("Cancel")
@@ -355,7 +355,7 @@ class OpenDocumentsViewSettings(QObject):
             # if detected, ask user if they would like to delete the annotations now.
             
             isAnyDocWithExtraUid = False
-            for i in Application.documents():
+            for i in self.odd.documents:
                 if i.annotation("ODD_extra_uid"):
                     isAnyDocWithExtraUid = True
             
@@ -375,7 +375,7 @@ class OpenDocumentsViewSettings(QObject):
             
             if msgBox.clickedButton() == btnOk:
                 print("Ok")
-                for i in Application.documents():
+                for i in self.odd.documents:
                     i.removeAnnotation("ODD_extra_uid")
                 self.odd.currentDocumentId = self.odd.findDocumentWithUniqueId(self.odd.currentDocumentId, enableFallback=True)
                 self.odd.refreshOpenDocuments()
