@@ -49,9 +49,13 @@ class OpenDocumentsDocker(krita.DockWidget):
             print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
     
     def documentDisplayName(self, doc, showIfModified=True):
-        fPath = doc.fileName()
-        fName = Path(fPath).name
-        tModi = " *" * doc.modified() * showIfModified
+        if doc:
+            fPath = doc.fileName()
+            fName = Path(fPath).name
+            tModi = " *" * doc.modified() * showIfModified
+        else:
+            fName = "[no document]"
+            tModi = ""
         return (fName if fName else "[not saved]") + tModi
     
     def getScreen(self):
