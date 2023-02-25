@@ -462,10 +462,11 @@ class OpenDocumentsViewSettings(QObject):
         self.panelThumbnailsDisplayScaleLabel = QLabel("Display scale", self.panel)
         self.SD["thumbDisplayScale"]["ui"]["value" ] = QLabel(setting, self.panel)
         self.SD["thumbDisplayScale"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.SD["thumbDisplayScale"]["ui"]["slider"].setRange(0, 19)
+        self.SD["thumbDisplayScale"]["ui"]["slider"].setRange(0, 95)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setTickInterval(1)
-        self.SD["thumbDisplayScale"]["ui"]["slider"].setValue(round(float(setting)*20))
+        self.SD["thumbDisplayScale"]["ui"]["slider"].setPageStep(5)
+        self.SD["thumbDisplayScale"]["ui"]["slider"].setValue(round((float(setting)-0.05)*100.0))
         
         setting = self.readSetting("thumbRenderScale")
         self.panelThumbnailsRenderScaleLayout = QHBoxLayout()
