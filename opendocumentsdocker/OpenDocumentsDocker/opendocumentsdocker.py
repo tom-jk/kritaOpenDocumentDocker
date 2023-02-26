@@ -1054,6 +1054,9 @@ class ODDExtension(Extension):
     
     def fileRevertAction(self):
         doc = Application.activeDocument()
+        if not doc:
+            return
+        
         fname = doc.fileName()
         docname = OpenDocumentsDocker.documentDisplayName(self, doc, showIfModified=False)
 
