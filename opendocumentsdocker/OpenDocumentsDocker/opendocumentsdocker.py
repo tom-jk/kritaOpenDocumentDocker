@@ -388,12 +388,16 @@ class OpenDocumentsDocker(krita.DockWidget):
         )
         self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
         
-        self.vs.createPanel()
         self.viewButton.clicked.connect(self.vs.clickedViewButton)
+        self.buttonLayout.setSpacing(0)
         self.buttonLayout.addWidget(self.loadButton)
         self.buttonLayout.addWidget(self.viewButton)
+        self.buttonLayout.setStretch(0, 1)
+        self.buttonLayout.setStretch(1, 1)
         self.layout.addLayout(self.buttonLayout)
+        self.vs.createPanel()
         
+        self.layout.setSpacing(3)
         self.baseWidget.setLayout(self.layout)
         self.baseWidget.setMinimumWidth(32)
         self.baseWidget.setMinimumHeight(32)
@@ -530,25 +534,49 @@ class OpenDocumentsDocker(krita.DockWidget):
         if direction == "horizontal":
             self.layout.setDirection(QBoxLayout.LeftToRight)
             self.list.setFlow(QListView.LeftToRight)
+            if hasattr(self.vs, "dockerThumbnailsDisplayScaleSlider"):
+                self.vs.dockerThumbnailsDisplayScaleSlider.setOrientation(Qt.Vertical)
+                self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.TopToBottom)
+                self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+                self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+                if self.baseWidget.height() >= 110:
+                    self.layout.removeItem(self.vs.dockerCommonControlsLayout)
+                    self.buttonLayout.insertLayout(1, self.vs.dockerCommonControlsLayout)
+                    self.buttonLayout.setStretch(1, 2)
+                else:
+                    self.buttonLayout.removeItem(self.vs.dockerCommonControlsLayout)
+                    self.layout.insertLayout(2, self.vs.dockerCommonControlsLayout)
             self.buttonLayout.setDirection(QBoxLayout.TopToBottom)
             self.loadButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             self.viewButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             try:
                 self.list.verticalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
-                print("couldn't disconnect vscoll")
+                print("couldn't disconnect vscroll")
                 pass
             self.list.horizontalScrollBar().valueChanged.connect(self.listScrolled)
         else:
             self.layout.setDirection(QBoxLayout.TopToBottom)
             self.list.setFlow(QListView.TopToBottom)
+            if hasattr(self.vs, "dockerThumbnailsDisplayScaleSlider"):
+                self.vs.dockerThumbnailsDisplayScaleSlider.setOrientation(Qt.Horizontal)
+                self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.LeftToRight)
+                self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+                self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+                if self.baseWidget.width() >= 110:
+                    self.layout.removeItem(self.vs.dockerCommonControlsLayout)
+                    self.buttonLayout.insertLayout(1, self.vs.dockerCommonControlsLayout)
+                    self.buttonLayout.setStretch(1, 2)
+                else:
+                    self.buttonLayout.removeItem(self.vs.dockerCommonControlsLayout)
+                    self.layout.insertLayout(2, self.vs.dockerCommonControlsLayout)
             self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
             self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             try:
                 self.list.horizontalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
-                print("couldn't disconnect hscoll")
+                print("couldn't disconnect hscroll")
                 pass
             self.list.verticalScrollBar().valueChanged.connect(self.listScrolled)
         self.updateScrollBarPolicy()

@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QScreen
-from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton
 from krita import *
 
 def convertSettingStringToValue(settingName, string):
@@ -140,6 +140,12 @@ class OpenDocumentsViewSettings(QObject):
                             "btn":None,
                     },
             },
+            "showCommonControlsInDocker": {
+                    "default":"true",
+                    "ui": {
+                            "btn":None,
+                    },
+            },
             "thumbUseProjectionMethod": {
                     "default":"true",
                     "ui": {
@@ -187,12 +193,20 @@ class OpenDocumentsViewSettings(QObject):
                 return ui["btn"].isChecked()
         return None
     
+    def changedDisplay(self, checked):
+        if checked:
+            self.SD["display"]["ui"]["btnThumbnails"].click()
+        else:
+            self.SD["display"]["ui"]["btnText"].click()
+    
     def setDisplayToThumbnails(self):
         print("setDisplayToThumbnails")
         self.writeSetting("display", "thumbnails")
         self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
+        
+        self.dockerDisplayToggleButton.setChecked(True)
     
     def setDisplayToText(self):
         print("setDisplayToText")
@@ -200,6 +214,8 @@ class OpenDocumentsViewSettings(QObject):
         self.odd.setDockerDirection(self.readSetting("direction"))
         self.odd.refreshOpenDocuments()
         self.odd.updateScrollBarPolicy()
+        
+        self.dockerDisplayToggleButton.setChecked(False)
     
     def setDirectionToHorizontal(self):
         print("setDirectionToHorizontal")
@@ -217,6 +233,9 @@ class OpenDocumentsViewSettings(QObject):
         self.odd.setDockerDirection("auto")
     
     def changedThumbDisplayScaleSlider(self, value):
+        if self.sender() == self.dockerThumbnailsDisplayScaleSlider:
+            self.SD["thumbDisplayScale"]["ui"]["slider"].setValue(value)
+            return
         setting = "{:4.2f}".format(self.settingValue("thumbDisplayScale"))
         self.SD["thumbDisplayScale"]["ui"]["value"].setText(setting)
         self.writeSetting("thumbDisplayScale", setting)
@@ -229,6 +248,8 @@ class OpenDocumentsViewSettings(QObject):
         self.odd.list.updateGeometries()
         self.odd.list.viewport().update()
         self.startRefreshAllDelayTimer()
+        
+        self.dockerThumbnailsDisplayScaleSlider.setValue(value)
     
     def changedThumbRenderScaleSlider(self, value):
         setting = convertSettingValueToString("thumbRenderScale", value)
@@ -296,6 +317,15 @@ class OpenDocumentsViewSettings(QObject):
         self.writeSetting("refreshOnSave", setting)
     
     def changedRefreshPeriodically(self, state):
+        if (
+                hasattr(self, "dockerRefreshPeriodicallyToggleButton") and
+                self.sender() == self.dockerRefreshPeriodicallyToggleButton
+        ):
+            self.SD["refreshPeriodically"]["ui"]["btn"].setChecked(state==1)
+        else:
+            self._changedRefreshPeriodically(state)
+        
+    def _changedRefreshPeriodically(self, state):
         setting = str(state==2).lower()
         print("changedRefreshPeriodically to", setting)
         self.writeSetting("refreshPeriodically", setting)
@@ -310,6 +340,9 @@ class OpenDocumentsViewSettings(QObject):
                 self.SD["refreshPeriodicallyDelay" ]["ui"]["slider"].setEnabled(False)
             self.odd.imageChangeDetectionTimer.stop()
             self.odd.refreshTimer.stop()
+        
+        if hasattr(self, "dockerRefreshPeriodicallyToggleButton"):
+            self.dockerRefreshPeriodicallyToggleButton.setChecked(state==2)
     
     def changedIdAutoDisambiguateCopies(self, state):
         setting = str(state==2).lower()
@@ -383,6 +416,20 @@ class OpenDocumentsViewSettings(QObject):
             else:
                 print("Cancel")
     
+    def changedShowCommonControlsInDocker(self, state):
+        setting = str(state==2).lower()
+        print("changedShowCommonControlsInDocker to", setting)
+        self.writeSetting("showCommonControlsInDocker", setting)
+        
+        if state == 2:
+            self.dockerThumbnailsDisplayScaleSlider.show()
+            self.dockerDisplayToggleButton.show()
+            self.dockerRefreshPeriodicallyToggleButton.show()
+        else:
+            self.dockerThumbnailsDisplayScaleSlider.hide()
+            self.dockerDisplayToggleButton.hide()
+            self.dockerRefreshPeriodicallyToggleButton.hide()
+    
     def changedThumbnailUseProjectionMethod(self, state):
         setting = str(state==2).lower()
         print("changedThumbnailUseProjectionMethod to", setting)
@@ -446,6 +493,12 @@ class OpenDocumentsViewSettings(QObject):
         self.SD["display"]["ui"]["btnThumbnails"] = QRadioButton("Thumbnails", self.panel)
         self.SD["display"]["ui"]["btnText"      ] = QRadioButton("Text", self.panel)
         
+        self.dockerDisplayToggleButton = QToolButton()
+        self.dockerDisplayToggleButton.clicked.connect(self.changedDisplay)
+        self.dockerDisplayToggleButton.setCheckable(True)
+        self.dockerDisplayToggleButton.setIcon(Application.icon('folder-pictures'))
+        self.dockerDisplayToggleButton.setChecked(self.readSetting("display") == "thumbnails")
+        
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         
         self.SD["thumbUseProjectionMethod"]["ui"]["btn"] = QCheckBox("Use projection method", self.panel)
@@ -467,6 +520,14 @@ class OpenDocumentsViewSettings(QObject):
         self.SD["thumbDisplayScale"]["ui"]["slider"].setTickInterval(1)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setPageStep(5)
         self.SD["thumbDisplayScale"]["ui"]["slider"].setValue(round((float(setting)-0.05)*100.0))
+        
+        self.dockerThumbnailsDisplayScaleSlider = QSlider(Qt.Horizontal)
+        self.dockerThumbnailsDisplayScaleSlider.setRange(       self.SD["thumbDisplayScale"]["ui"]["slider"].minimum(),
+                                                                self.SD["thumbDisplayScale"]["ui"]["slider"].maximum())
+        self.dockerThumbnailsDisplayScaleSlider.setTickPosition(self.SD["thumbDisplayScale"]["ui"]["slider"].tickPosition())
+        self.dockerThumbnailsDisplayScaleSlider.setTickInterval(self.SD["thumbDisplayScale"]["ui"]["slider"].tickInterval())
+        self.dockerThumbnailsDisplayScaleSlider.setPageStep(    self.SD["thumbDisplayScale"]["ui"]["slider"].pageStep())
+        self.dockerThumbnailsDisplayScaleSlider.setValue(       self.SD["thumbDisplayScale"]["ui"]["slider"].value())
         
         setting = self.readSetting("thumbRenderScale")
         self.panelThumbnailsRenderScaleLayout = QHBoxLayout()
@@ -528,6 +589,12 @@ class OpenDocumentsViewSettings(QObject):
                 "May not catch quick changes if they happen between checks.\n" +
                 "Aggressive settings may degrade performance."
         )
+        
+        self.dockerRefreshPeriodicallyToggleButton = QToolButton()
+        self.dockerRefreshPeriodicallyToggleButton.clicked.connect(self.changedRefreshPeriodically)
+        self.dockerRefreshPeriodicallyToggleButton.setCheckable(True)
+        self.dockerRefreshPeriodicallyToggleButton.setIcon(Application.icon('animation_play'))
+        self.dockerRefreshPeriodicallyToggleButton.setChecked(self.SD["refreshPeriodically"]["ui"]["btn"].isChecked())
         
         setting = self.readSetting("refreshPeriodicallyChecks")
         self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
@@ -609,6 +676,15 @@ class OpenDocumentsViewSettings(QObject):
                 "If you save the image as a krita document, this data is also saved.\n" +
                 "If you open it again at a later time, krita will provide it a new unique ID,\n" +
                 "and ODD will remove the redudant annotation. You can then save the image again to remove it from the file."
+        )
+        
+        self.SD["showCommonControlsInDocker"]["ui"]["btn"] = QCheckBox("Show commonly used settings in the docker", self.panel)
+        self.SD["showCommonControlsInDocker"]["ui"]["btn"].stateChanged.connect(self.changedShowCommonControlsInDocker)
+        self.SD["showCommonControlsInDocker"]["ui"]["btn"].setChecked(self.readSetting("showCommonControlsInDocker") == "true")
+        self.SD["showCommonControlsInDocker"]["ui"]["btn"].setToolTip(
+                "Make some of the most-used of these settings adjustable in the docker itself.\n" +
+                "Included are a slider for the list thumbnail display scale,\n" +
+                "and toggle buttons for changing display mode and enabling periodic thumbnail refresh."
         )
         
         settingDisplay = self.readSetting("display")
@@ -718,8 +794,16 @@ class OpenDocumentsViewSettings(QObject):
         self.panelMiscHeading.setStretch(1, 99)
         self.panelLayout.addLayout(self.panelMiscHeading)
         self.panelLayout.addWidget(self.SD["idAutoDisambiguateCopies"]["ui"]["btn"])
+        self.panelLayout.addWidget(self.SD["showCommonControlsInDocker"]["ui"]["btn"])
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(384)
+        
+        self.odd.layout.insertWidget(1, self.dockerThumbnailsDisplayScaleSlider)
+        self.dockerCommonControlsLayout = QBoxLayout(QBoxLayout.LeftToRight)
+        self.dockerCommonControlsLayout.setSpacing(0)
+        self.dockerCommonControlsLayout.addWidget(self.dockerDisplayToggleButton)
+        self.dockerCommonControlsLayout.addWidget(self.dockerRefreshPeriodicallyToggleButton)
+        self.odd.buttonLayout.insertLayout(1, self.dockerCommonControlsLayout)
         
         self.SD["thumbDisplayScale"        ]["ui"]["slider"].valueChanged.connect(self.changedThumbDisplayScaleSlider)
         self.SD["thumbRenderScale"         ]["ui"]["slider"].valueChanged.connect(self.changedThumbRenderScaleSlider)
@@ -731,6 +815,8 @@ class OpenDocumentsViewSettings(QObject):
         self.SD["tooltipThumbSize"         ]["ui"]["slider"].valueChanged.connect(self.changedTooltipThumbSizeSlider)
         self.SD["refreshPeriodicallyChecks"]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyChecksSlider)
         self.SD["refreshPeriodicallyDelay" ]["ui"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
+        
+        self.dockerThumbnailsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
     
     def eventFilter(self, obj, event):
         if event.type() in [QEvent.FocusIn, QEvent.Hide]:
