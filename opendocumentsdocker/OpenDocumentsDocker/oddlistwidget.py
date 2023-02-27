@@ -16,6 +16,11 @@ class ODDListWidget(QListWidget):
         self.horizontalScrollBar().installEventFilter(self)
         self.verticalScrollBar().installEventFilter(self)
         
+        self.unfadeDelayTimer = QTimer(self)
+        self.unfadeDelayTimer.setInterval(100)
+        self.unfadeDelayTimer.setSingleShot(True)
+        self.unfadeDelayTimer.timeout.connect(self.unfadeDelayTimerTimeout)
+        
         self.hideScrollBars = False
         if Application.readSetting("", "KineticScrollingEnabled", "true") == "true":
             self.setupScroller(QScroller.scroller(self))
@@ -92,6 +97,10 @@ class ODDListWidget(QListWidget):
     
     def enterEvent(self, event):
         self.mouseEntered = True
+        self.unfadeDelayTimer.start()
+        self.viewport().update()
+    
+    def unfadeDelayTimerTimeout(self):
         self.viewport().update()
     
     def leaveEvent(self, event):
@@ -293,7 +302,7 @@ class ODDListWidget(QListWidget):
         opacityListHoveredActive    = 0.75 + 0.25 * baseOpacity
         opacityItemHoveredNotActive = 0.95 + 0.05 * baseOpacity
         opacityItemHoveredActive    = 1.00
-        if not self.odd.vs.settingValue("thumbFadeUnfade"):
+        if self.unfadeDelayTimer.isActive() or not self.odd.vs.settingValue("thumbFadeUnfade"):
             opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
             opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
         
