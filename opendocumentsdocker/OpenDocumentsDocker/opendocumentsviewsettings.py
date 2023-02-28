@@ -469,7 +469,8 @@ class OpenDocumentsViewSettings(QObject):
     def createPanel(self):
         app = Application
         
-        self.panel = QWidget(self.odd, Qt.Popup)
+        self.panel = QFrame(self.odd, Qt.Popup)
+        self.panel.setFrameShape(QFrame.StyledPanel)
         self.panelLayout = QVBoxLayout()
         
         self.SD["display"]["ui"]["btngrp"] = QButtonGroup(self.panel)
