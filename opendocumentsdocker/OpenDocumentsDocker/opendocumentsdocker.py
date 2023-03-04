@@ -954,7 +954,19 @@ class OpenDocumentsDocker(krita.DockWidget):
             size = QSize(1, 1)
         
         return size
-    
+
+    def thumbnailGenerator(self, doc, size, useProj):
+        if type(doc) == Document and useProj:
+            i = doc.projection(0, 0, doc.width(), doc.height())
+            if i:
+                if size.width() < doc.width():
+                    return i.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                else:
+                    return i.scaled(size, Qt.IgnoreAspectRatio, Qt.FastTransformation)
+            return i
+        else:
+            return doc.thumbnail(size.width(), size.height())
+
     def generateThumbnailForItem(self, item, doc):
         # ensure the thumbnail will be complete.
         doc.waitForDone()
@@ -969,20 +981,8 @@ class OpenDocumentsDocker(krita.DockWidget):
                 self.vs.settingValue("thumbRenderScale") if not settingUseProj else 1
         )
         
-        def generator(doc, size):
-            if type(doc) == Document and settingUseProj:
-                i = doc.projection(0, 0, doc.width(), doc.height())
-                if i:
-                    if size.width() < doc.width():
-                        return i.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-                    else:
-                        return i.scaled(size, Qt.IgnoreAspectRatio, Qt.FastTransformation)
-                return i
-            else:
-                return doc.thumbnail(size.width(), size.height())
-        
         if scaleFactor == 1:
-            thumbnail = generator(doc, size)
+            thumbnail = self.thumbnailGenerator(doc, size, settingUseProj)
         
             if thumbnail.isNull():
                 return None
