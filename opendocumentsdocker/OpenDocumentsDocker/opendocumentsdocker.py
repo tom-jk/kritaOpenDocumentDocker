@@ -921,11 +921,20 @@ class OpenDocumentsDocker(krita.DockWidget):
     def calculateDisplaySizeForItem(self, item):
         return self.calculateDisplaySizeForThumbnail(item.data(self.ItemDocumentSizeRole))
     
-    def calculateDisplaySizeForThumbnail(self, docSize=None):
+    def calculateDisplaySizeForThumbnail(self, docSize=None, asFloat=False, applyAspectLimit=False):
         gutterPixels=2
         if not docSize:
             docSize = QSize(512, 512)
+        
         docRatio = float(docSize.height()) / float(docSize.width())
+        
+        if applyAspectLimit:
+            aspectLimit = float(self.vs.readSetting("thumbAspectLimit"))
+            if docRatio > aspectLimit:
+                docRatio = aspectLimit
+            elif 1.0/docRatio > aspectLimit:
+                docRatio = 1.0/aspectLimit
+        
         size = None
         scale = float(self.vs.readSetting("thumbDisplayScale"))
 
@@ -939,20 +948,29 @@ class OpenDocumentsDocker(krita.DockWidget):
             width = self.list.width() - gutterPixels - scrollBarWidth
             width *= scale
             width = min(width, maxSize)
-            height = round(width * docRatio)
-            size = QSize(int(width), int(height))
-            print("cdsft: Vert", scrollBarWidth, self.list.width(), docRatio, str(size.width())+"x"+str(size.height()))
+            height = width * docRatio
+            size = QSizeF(width, height)
+            #print("cdsft: Vert", scrollBarWidth, self.list.width(), docRatio, str(size.width())+"x"+str(size.height()))
         else:
             scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height() if self.list.horizontalScrollBar().isVisible() else 0
             height = self.list.height() - gutterPixels - scrollBarHeight
             height *= scale
             height = min(height, maxSize)
-            width = round(height / docRatio)
-            size = QSize(int(width), int(height))
-            print("cdsft: Hori", scrollBarHeight, self.list.height(), docRatio, str(size.width())+"x"+str(size.height()))
+            width = height / docRatio
+            size = QSizeF(width, height)
+            #print("cdsft: Hori", scrollBarHeight, self.list.height(), docRatio, str(size.width())+"x"+str(size.height()))
         
-        if size.isEmpty():
-            size = QSize(1, 1)
+        if asFloat:
+            if size.width() < 1.0:
+                size.setWidth(1.0)
+            if size.height() < 1.0:
+                size.setHeight(1.0)
+        else:
+            size = size.toSize()
+            if size.width() < 1:
+                size.setWidth(1)
+            if size.height() < 1:
+                size.setHeight(1)
         
         return size
 

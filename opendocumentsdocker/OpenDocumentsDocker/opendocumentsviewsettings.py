@@ -2,6 +2,7 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QScreen
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton
 from krita import *
+import math
 
 def convertSettingStringToValue(settingName, string):
     setting = OpenDocumentsViewSettings.SD[settingName]
@@ -64,6 +65,16 @@ class OpenDocumentsViewSettings(QObject):
                     "default":"2sec",
                     "strings":["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"],
                     "values" :[500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000],
+                    "ui": {
+                            "value":None,
+                            "slider":None,
+                    },
+            },
+            "thumbAspectLimit": {
+                    "default":"1",
+                    "min": 1.0,
+                    "max": 10.0,
+                    "pow":10,
                     "ui": {
                             "value":None,
                             "slider":None,
@@ -182,6 +193,8 @@ class OpenDocumentsViewSettings(QObject):
                 sliderNormValue = 1.0 / sliderRange * (sliderValue - sliderMin)
                 valueRange = self.SD[setting]["max"] - self.SD[setting]["min"]
                 v = self.SD[setting]["min"] + valueRange * sliderNormValue
+                if "pow" in self.SD[setting]:
+                    v = pow(setting["pow"], v)
                 #print("settingValue:", sliderMin, sliderMax, sliderRange, sliderValue, sliderNormValue, valueRange, v)
                 return v
         elif "btngrp" in ui:
@@ -231,6 +244,20 @@ class OpenDocumentsViewSettings(QObject):
         print("setDirectionToAuto")
         self.writeSetting("direction", "auto")
         self.odd.setDockerDirection("auto")
+    
+    def changedThumbAspectLimitSlider(self, value):
+        setting = "{:1.6g}".format(pow(10, value/200.0))
+        self.SD["thumbAspectLimit"]["ui"]["value"].setText("1:{:1.3g}".format(float(setting)))
+        self.writeSetting("thumbAspectLimit", setting)
+        print("changedThumbAspectLimitSlider: value, setting: ", value, setting)
+        
+        if self.readSetting("display") != "thumbnails":
+            return
+        
+        self.odd.list.invalidateItemRectsCache()
+        self.odd.list.updateGeometries()
+        self.odd.list.viewport().update()
+        self.startRefreshAllDelayTimer()
     
     def changedThumbDisplayScaleSlider(self, value):
         if self.sender() == self.dockerThumbnailsDisplayScaleSlider:
@@ -511,6 +538,21 @@ class OpenDocumentsViewSettings(QObject):
                 "Projection should be faster. If there are no issues, leave this enabled."
         )
         
+        setting = self.readSetting("thumbAspectLimit")
+        self.panelThumbnailsAspectLimitLayout = QHBoxLayout()
+        self.panelThumbnailsAspectLimitLabel = QLabel("Aspect limit", self.panel)
+        self.SD["thumbAspectLimit"]["ui"]["value" ] = QLabel("1:{:1.3g}".format(float(setting)), self.panel)
+        self.SD["thumbAspectLimit"]["ui"]["slider"] = QSlider(Qt.Horizontal, self.panel)
+        self.SD["thumbAspectLimit"]["ui"]["slider"].setRange(0, 200)
+        self.SD["thumbAspectLimit"]["ui"]["slider"].setTickPosition(QSlider.NoTicks)
+        self.SD["thumbAspectLimit"]["ui"]["slider"].setTickInterval(1)
+        self.SD["thumbAspectLimit"]["ui"]["slider"].setValue(int(math.log10(float(setting))*200.0))
+        self.SD["thumbAspectLimit"]["ui"]["slider"].setToolTip(
+                "The maximum deviation a document size can be from square before its thumbnail is shrunk.\n" +
+                "For example, 1:1 forces all thumbnails to be square, 1:2 allows thumbnails to be up to twice as long as their width.\n" +
+                "Higher values give better representation of wide/tall documents, at the cost of ease of list navigation."
+        )
+        
         setting = self.readSetting("thumbDisplayScale")
         self.panelThumbnailsDisplayScaleLayout = QHBoxLayout()
         self.panelThumbnailsDisplayScaleLabel = QLabel("Display scale", self.panel)
@@ -724,6 +766,13 @@ class OpenDocumentsViewSettings(QObject):
         self.panelLayout.addLayout(self.panelDisplayAndDirectionLayout)
         self.panelLayout.addWidget(self.panelThumbnailsLabel)
         self.panelLayout.addWidget(self.SD["thumbUseProjectionMethod"]["ui"]["btn"])
+        self.panelThumbnailsAspectLimitLayout.addWidget(self.panelThumbnailsAspectLimitLabel)
+        self.panelThumbnailsAspectLimitLayout.addWidget(self.SD["thumbAspectLimit"]["ui"]["value"])
+        self.panelThumbnailsAspectLimitLayout.addWidget(self.SD["thumbAspectLimit"]["ui"]["slider"])
+        self.panelThumbnailsAspectLimitLayout.setStretch(0, 2)
+        self.panelThumbnailsAspectLimitLayout.setStretch(1, 2)
+        self.panelThumbnailsAspectLimitLayout.setStretch(2, 5)
+        self.panelLayout.addLayout(self.panelThumbnailsAspectLimitLayout)
         self.panelThumbnailsDisplayScaleLayout.addWidget(self.panelThumbnailsDisplayScaleLabel)
         self.panelThumbnailsDisplayScaleLayout.addWidget(self.SD["thumbDisplayScale"]["ui"]["value"])
         self.panelThumbnailsDisplayScaleLayout.addWidget(self.SD["thumbDisplayScale"]["ui"]["slider"])
@@ -806,6 +855,7 @@ class OpenDocumentsViewSettings(QObject):
         self.dockerCommonControlsLayout.addWidget(self.dockerRefreshPeriodicallyToggleButton)
         self.odd.buttonLayout.insertLayout(1, self.dockerCommonControlsLayout)
         
+        self.SD["thumbAspectLimit"         ]["ui"]["slider"].valueChanged.connect(self.changedThumbAspectLimitSlider)
         self.SD["thumbDisplayScale"        ]["ui"]["slider"].valueChanged.connect(self.changedThumbDisplayScaleSlider)
         self.SD["thumbRenderScale"         ]["ui"]["slider"].valueChanged.connect(self.changedThumbRenderScaleSlider)
         self.SD["thumbFadeAmount"          ]["ui"]["slider"].valueChanged.connect(self.changedThumbFadeAmountSlider)

@@ -159,7 +159,7 @@ class ODDListWidget(QListWidget):
         #print("count:", count)
         for i in range(count):
             item = self.item(i)
-            size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole))
+            size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole), False, True)
             itemRects.append(QRect(x, y, size.width(), size.height()))
             #print("appended ", itemRects[i])
             if self.flow() == QListView.TopToBottom:
@@ -334,7 +334,28 @@ class ODDListWidget(QListWidget):
                 y = itemRect.y()
                 w = itemRect.width()
                 h = itemRect.height()
-                painter.drawPixmap(itemRect, pm)
+                
+                if pm:
+                    aspectLimit = float(self.odd.vs.readSetting("thumbAspectLimit"))
+                    cropRect = pm.rect()
+                    itemRatio = h/w
+                    pmRatio = pm.height()/pm.width()
+                    if pmRatio < 1.0:
+                        itemToPmScale = pm.height() / h
+                        cropWidth = w * itemToPmScale
+                        cropRect.setWidth(round(cropWidth))
+                        cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
+                    elif pmRatio > 1.0:
+                        itemToPmScale = pm.width() / w
+                        cropHeight = h * itemToPmScale
+                        cropRect.setHeight(round(cropHeight))
+                        cropRect.moveTop(round((pm.height() - cropHeight) / 2))
+                    cropRect.moveLeft(max(0, cropRect.left()))
+                    cropRect.moveTop(max(0, cropRect.top()))
+                    cropRect.setWidth(min(pm.width(), cropRect.width()))
+                    cropRect.setHeight(min(pm.height(), cropRect.height()))
+                    painter.drawPixmap(itemRect, pm, cropRect)
+                
                 if isItemActiveDoc:
                     painter.setBrush(Qt.NoBrush)
                     painter.setPen(QColor(255,255,255,127))
