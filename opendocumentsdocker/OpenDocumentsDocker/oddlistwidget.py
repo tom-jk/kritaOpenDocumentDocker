@@ -284,6 +284,8 @@ class ODDListWidget(QListWidget):
                 dropShadowOffset = QPoint(o, o)
                 posOffset = QPoint(0 - padding - chRect.x() - chRect.width(), padding - chRect.y())
             else:
+                colorModIconFill = QColor(255, 180, 150)
+                colorModIconLine = QColor(16, 16, 16)
                 isModIconTypeCorner = modIconType in ["corner", "cornerBig"]
                 isModIconTypeSquare = modIconType in ["square", "squareBig"]
                 isModIconTypeCircle = modIconType in ["circle", "circleBig"]
@@ -355,9 +357,9 @@ class ODDListWidget(QListWidget):
                     else:
                         brush = painter.brush()
                         brush.setStyle(Qt.SolidPattern)
-                        brush.setColor(QColor(255,180,150))
+                        brush.setColor(colorModIconFill)
                         painter.setBrush(brush)
-                        painter.setPen(QColor(16,16,16))
+                        painter.setPen(colorModIconLine)
                         if isModIconTypeCorner:
                             painter.drawConvexPolygon(cornerPoly.translated(topRight))
                         elif isModIconTypeSquare:
