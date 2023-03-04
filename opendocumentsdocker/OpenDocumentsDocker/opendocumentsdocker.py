@@ -729,62 +729,6 @@ class OpenDocumentsDocker(krita.DockWidget):
                 else:
                     pass
     
-    def contextMenuEvent(self, event):
-        print("ctx menu event -", event.globalPos(), event.reason())
-        self.listToolTip.hide()
-        if len(self.list.selectedIndexes()) == 0:
-            print("ctx menu cancelled (no selection)")
-            return
-        
-        app = Application
-        item = self.list.selectedItems()[0]
-        listTopLeft = self.list.mapToGlobal(self.list.frameGeometry().topLeft())
-        itemRect = self.list.visualItemRect(item)
-        itemRect.translate(listTopLeft)
-        
-        pos = QPoint(0, 0)
-        if event.reason() == QContextMenuEvent.Mouse:
-            if not itemRect.contains(event.globalPos()):
-                print("ctx menu cancelled (mouse not over item)")
-                return
-            pos = event.globalPos()
-        else:
-            pos = (itemRect.topLeft() + itemRect.bottomRight()) / 2
-        
-        doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
-        if not doc:
-            print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
-            return
-        
-        print("selected:", item, " -", doc.fileName())
-        app.activeDocument().waitForDone()
-        self.findAndActivateView(doc)
-        app.setActiveDocument(doc)
-        doc.waitForDone()
-        menu = QMenu(self)
-        menu.addAction(self.documentDisplayName(doc))
-        menu.actions()[0].setEnabled(False)
-        menu.addSeparator()
-        menu.addAction(app.action('file_save'))
-        menu.addAction(app.action('file_save_as'))
-        menu.addAction(app.action('file_export_file'))
-        menu.addAction(app.action('create_copy'))
-        menu.addSeparator()
-        menu.addAction(app.action('file_documentinfo'))
-        menu.addAction(app.action('image_properties'))
-        menu.addSeparator()
-        menu.addAction(app.action('ODDQuickCopyMergedAction'))
-        menu.addSeparator()
-        if doc.fileName():
-            menu.addAction(app.action('ODDFileRevertAction'))
-        else:
-            print("disable revert")
-            menu.addAction("Revert")
-            menu.actions()[-1].setEnabled(False)
-        menu.addAction(app.action('file_close'))
-        
-        menu.exec(pos)
-    
     def dropEvent(self, event):
         print("dropEvent: ", event)
     
