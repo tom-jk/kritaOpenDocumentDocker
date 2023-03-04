@@ -82,8 +82,9 @@ class OpenDocumentsDocker(krita.DockWidget):
         # From answer to "Use a picture or image in a QToolTip": https://stackoverflow.com/a/34300771
         pxCount = doc.width() * doc.height()
         if pxCount <= self.vs.settingValue("tooltipThumbLimit"):
-            size = self.vs.settingValue("tooltipThumbSize")
-            img = doc.thumbnail(size, size)
+            settingSize = self.vs.settingValue("tooltipThumbSize")
+            size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
+            img = self.thumbnailGenerator(doc, size, self.vs.settingValue("thumbUseProjectionMethod"))
             data = QByteArray()
             buffer = QBuffer(data)
             img.save(buffer, "PNG", 100)
