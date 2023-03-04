@@ -847,6 +847,8 @@ class OpenDocumentsDocker(krita.DockWidget):
     
     def addDocumentToList(self, doc):
         item = QListWidgetItem("", self.list)
+        uid = self.documentUniqueId(doc)
+        item.setData(self.ItemDocumentRole, uid)
         item.setData(self.ItemDocumentSizeRole, QSize(doc.width(), doc.height()))
         item.setData(self.ItemModifiedStatusRole, doc.modified())
         if self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnThumbnails"]:
@@ -854,8 +856,6 @@ class OpenDocumentsDocker(krita.DockWidget):
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
         else:
             item.setText(self.documentDisplayName(doc))
-        uid = self.documentUniqueId(doc)
-        item.setData(self.ItemDocumentRole, uid)
         
         self.list.invalidateItemRectsCache()
         self.list.update()
