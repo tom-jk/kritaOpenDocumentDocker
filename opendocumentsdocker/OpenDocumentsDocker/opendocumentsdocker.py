@@ -205,6 +205,8 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.list.itemRects()
         
         self.lastSize = self.baseWidget.size()
+        
+        self.vs.updatePanelPosition()
     
     def imageCreated(self, image):
         print("image created -", image)
@@ -324,7 +326,11 @@ class OpenDocumentsDocker(krita.DockWidget):
                 self.refreshTimer.stop()
             self.updateDocumentThumbnail()
     
+    def moveEvent(self, event):
+        self.vs.updatePanelPosition()
+    
     def dockMoved(self, area):
+        self.vs.updatePanelPosition()
         self.dockLocation = area
         self.listToolTip.hide()
     
@@ -590,6 +596,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         self.list.update()
         self.list.invalidateItemRectsCache()
+        self.vs.updatePanelPosition()
     
     def updateScrollBarPolicy(self):
         if self.list.hideScrollBars:

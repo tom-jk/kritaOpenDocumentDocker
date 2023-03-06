@@ -157,6 +157,12 @@ class OpenDocumentsViewSettings(QObject):
                             "btn":None,
                     },
             },
+            "dockerAlignButtonsToSettingsPanel": {
+                    "default":"true",
+                    "ui": {
+                            "btn":None,
+                    },
+            },
             "thumbUseProjectionMethod": {
                     "default":"true",
                     "ui": {
@@ -168,6 +174,8 @@ class OpenDocumentsViewSettings(QObject):
     def __init__(self, odd):
         super(OpenDocumentsViewSettings, self).__init__()
         self.odd = odd
+        self.panelSize = QSize()
+        self.panelPosition = QPoint()
     
     def readSetting(self, setting):
         if not setting in self.SD:
@@ -457,6 +465,13 @@ class OpenDocumentsViewSettings(QObject):
             self.dockerDisplayToggleButton.hide()
             self.dockerRefreshPeriodicallyToggleButton.hide()
     
+    def changedDockerAlignButtonsToSettingsPanel(self, state):
+        setting = str(state==2).lower()
+        print("changedDockerAlignButtonsToSettingsPanel to", setting)
+        self.writeSetting("dockerAlignButtonsToSettingsPanel", setting)
+        
+        self.updatePanelPosition()
+    
     def changedThumbnailUseProjectionMethod(self, state):
         setting = str(state==2).lower()
         print("changedThumbnailUseProjectionMethod to", setting)
@@ -730,6 +745,16 @@ class OpenDocumentsViewSettings(QObject):
                 "and toggle buttons for changing display mode and enabling periodic thumbnail refresh."
         )
         
+        self.SD["dockerAlignButtonsToSettingsPanel"]["ui"]["btn"] = QCheckBox("Move docker buttons to align with settings panel", self.panel)
+        self.SD["dockerAlignButtonsToSettingsPanel"]["ui"]["btn"].setChecked(self.readSetting("dockerAlignButtonsToSettingsPanel") == "true")
+        self.SD["dockerAlignButtonsToSettingsPanel"]["ui"]["btn"].stateChanged.connect(self.changedDockerAlignButtonsToSettingsPanel)
+        self.SD["dockerAlignButtonsToSettingsPanel"]["ui"]["btn"].setToolTip(
+                "This panel will try to appear in a place that obscures the docker list as little as possible.\n" +
+                "This means it may appear on the other side of the docker, far from the default position of the settings button.\n" +
+                "This setting allows the docker buttons to move to the side of the docker where the settings button will be closest.\n" +
+                "The refresh and settings buttons may also switch position."
+        )
+        
         settingDisplay = self.readSetting("display")
         self.SD["display"]["ui"]["btngrp"       ].addButton(self.SD["display"]["ui"]["btnThumbnails"])
         self.SD["display"]["ui"]["btngrp"       ].addButton(self.SD["display"]["ui"]["btnText"      ])
@@ -845,6 +870,7 @@ class OpenDocumentsViewSettings(QObject):
         self.panelLayout.addLayout(self.panelMiscHeading)
         self.panelLayout.addWidget(self.SD["idAutoDisambiguateCopies"]["ui"]["btn"])
         self.panelLayout.addWidget(self.SD["showCommonControlsInDocker"]["ui"]["btn"])
+        self.panelLayout.addWidget(self.SD["dockerAlignButtonsToSettingsPanel"]["ui"]["btn"])
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(384)
         
@@ -875,50 +901,77 @@ class OpenDocumentsViewSettings(QObject):
         return False
     
     def clickedViewButton(self):
-        btnTopLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().topLeft())
-        btnBottomLeft = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().bottomLeft())
-        btnBottomRight = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().bottomRight())
-        btnTopRight = self.odd.baseWidget.mapToGlobal(self.odd.viewButton.frameGeometry().topRight())
-        btnCenter = (btnTopLeft+btnBottomRight)/2
-        
+        self.panel.move(self.panelPosition)
         self.panel.show()
-        self.panel.layout().invalidate()
-        self.panel.hide()
-        panelSize = self.panel.size()
-        
-        pos = QPoint(0, 0)
-        
-        if hasattr(self.odd, "screen"):
-            # work out which side of the widget has the most space and put the view panel there.
-            screen = self.odd.screen()
-            screenTopLeft = screen.availableGeometry().topLeft()
-            screenBottomRight = screen.availableGeometry().bottomRight()
-            screenCenter = (screenTopLeft+screenBottomRight)/2
-            if btnCenter.x() < screenCenter.x():
-                if btnCenter.y() < screenCenter.y():
-                    # top left
-                    pos = btnBottomLeft
-                else:
-                    # bottom left
-                    pos = btnTopLeft - QPoint(0, panelSize.height())
-            else:
-                if btnCenter.y() < screenCenter.y():
-                    # top right
-                    pos = btnBottomRight - QPoint(panelSize.width(), 0)
-                else:
-                    # bottom right
-                    pos = btnTopRight - QPoint(panelSize.width(), panelSize.height())
+    
+    def updatePanelPosition(self):
+        direction = self._updatePanelPosition()
+        if self.readSetting("dockerAlignButtonsToSettingsPanel") == "false":
+            direction = 0
+        print("updatePanelPosition: direction =", direction)
+        if self.odd.list.flow() == QListView.TopToBottom:
+            self.odd.layout.setDirection(QBoxLayout.TopToBottom if not direction == 1 else QBoxLayout.BottomToTop)
+            self.odd.buttonLayout.setDirection(QBoxLayout.LeftToRight if not direction == 3 else QBoxLayout.RightToLeft)
         else:
-            # fallback to using dock area
-            if self.odd.dockLocation == Qt.LeftDockWidgetArea:
-                # bottom left
-                pos = btnTopLeft - QPoint(0, panelSize.height())
-            elif self.odd.dockLocation == Qt.TopDockWidgetArea:
-                # top right
-                pos = btnBottomRight - QPoint(panelSize.width(), 0)
-            else:
-                # bottom right
-                pos = btnTopRight - QPoint(panelSize.width(), panelSize.height())
+            self.odd.layout.setDirection(QBoxLayout.LeftToRight if not direction == 3 else QBoxLayout.RightToLeft)
+            self.odd.buttonLayout.setDirection(QBoxLayout.TopToBottom if not direction == 1 else QBoxLayout.BottomToTop)
+    
+    def _updatePanelPosition(self):
+        baseGeo = QRect(self.odd.mapToGlobal(self.odd.baseWidget.frameGeometry().topLeft()), self.odd.baseWidget.frameGeometry().size())
+        baseTopLeft = baseGeo.topLeft()
+        baseTopRight = baseGeo.topRight() + QPoint(1,0)
+        baseBottomRight = baseGeo.bottomRight() + QPoint(1,1)
         
-        self.panel.move(pos)
-        self.panel.show()
+        listTopLeft = self.odd.mapToGlobal(self.odd.list.frameGeometry().topLeft())
+        listRect = QRect(listTopLeft, self.odd.list.size())
+        
+        screen = self.odd.getScreen().availableGeometry()
+        screenTopLeft = screen.topLeft()
+        screenBottomRight = screen.bottomRight() + QPoint(1,1)
+        
+        if not self.panelSize.isValid():
+            self.panel.show()
+            self.panel.layout().invalidate()
+            self.panel.hide()
+            self.panelSize = self.panel.size()
+                
+        posRight = baseBottomRight + QPoint(1, 1-self.panelSize.height())
+        posRight.setY(min(max(posRight.y(), screenTopLeft.y()), screenBottomRight.y()-self.panelSize.height()))
+        
+        if posRight.x() + self.panelSize.width() < screenBottomRight.x():
+            self.panelPosition = posRight
+            return 0
+        
+        posAbove = QPoint(baseTopRight.x(), baseTopRight.y()) - QPoint(self.panelSize.width(), self.panelSize.height())
+        if posAbove.y() > screenTopLeft.y():
+            self.panelPosition = posAbove
+            return 1
+        
+        posBelow = baseBottomRight - QPoint(self.panelSize.width(), 0)
+        if posBelow.y() + self.panelSize.height() < screenBottomRight.y():
+            self.panelPosition = posBelow
+            return 2
+        
+        posLeft = QPoint(baseTopLeft.x() - self.panelSize.width(), posRight.y())
+        if posLeft.x() > screenTopLeft.x():
+            self.panelPosition = posLeft
+            return 3
+        
+        # no perfect position for panel, so find which was the least-worst instead.
+        # this would be the position where it least obscures the list.
+        posRight.setX(screenBottomRight.x() - self.panelSize.width())
+        posAbove.setY(screenTopLeft.y())
+        posBelow.setY(screenBottomRight.y() - self.panelSize.height())
+        posLeft.setX(screenTopLeft.x())
+        coverageRight = QRect(posRight, self.panelSize).intersected(listRect).size()
+        coverageAbove = QRect(posAbove, self.panelSize).intersected(listRect).size()
+        coverageBelow = QRect(posBelow, self.panelSize).intersected(listRect).size()
+        coverageLeft  = QRect(posLeft,  self.panelSize).intersected(listRect).size()
+        coverageArea = []
+        coverageArea.append({"r":0, "pos":posRight, "area":coverageRight.width() * coverageRight.height()})
+        coverageArea.append({"r":1, "pos":posAbove, "area":coverageAbove.width() * coverageAbove.height()})
+        coverageArea.append({"r":2, "pos":posBelow, "area":coverageBelow.width() * coverageBelow.height()})
+        coverageArea.append({"r":3, "pos":posLeft,  "area":coverageLeft.width()  * coverageLeft.height() })
+        coverageAreaSorted = sorted(coverageArea, key = lambda d: d['area'])
+        self.panelPosition = coverageAreaSorted[0]['pos']
+        return coverageAreaSorted[0]["r"]
