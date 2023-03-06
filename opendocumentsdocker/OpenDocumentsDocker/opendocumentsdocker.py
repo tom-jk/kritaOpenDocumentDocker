@@ -83,7 +83,12 @@ class OpenDocumentsDocker(krita.DockWidget):
         pxCount = doc.width() * doc.height()
         if pxCount <= self.vs.settingValue("tooltipThumbLimit"):
             settingSize = self.vs.settingValue("tooltipThumbSize")
-            size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
+            w = doc.width()
+            h = doc.height()
+            if w > h:
+                size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
+            else:
+                size = QSize(int(settingSize * (doc.width() / doc.height())), settingSize)
             img = self.thumbnailGenerator(doc, size, self.vs.settingValue("thumbUseProjectionMethod"))
             data = QByteArray()
             buffer = QBuffer(data)
