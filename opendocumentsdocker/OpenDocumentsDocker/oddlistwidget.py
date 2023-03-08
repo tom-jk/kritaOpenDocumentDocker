@@ -164,6 +164,9 @@ class ODDListWidget(QListWidget):
                 stackCount = int((float(self.viewport().width())+checkExt) / idealSize.width())
             else:
                 stackCount = int((float(self.viewport().height())+checkExt) / idealSize.height())
+            if stackCount == 0:
+                print("note: stackCount == 0")
+                stackCount = 1
             
             if gridMode == "masonry":
                 self._itemRectsMasonryLayout(itemRects, count, isListVertical, idealSize, stackCount)
