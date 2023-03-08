@@ -108,9 +108,10 @@ class OpenDocumentsDocker(krita.DockWidget):
         
         ttPos = None
         
-        listTopLeft = self.list.mapToGlobal(self.list.frameGeometry().topLeft())
-        listBottomRight = self.list.mapToGlobal(self.list.frameGeometry().bottomRight())
-        listTopRight = self.list.mapToGlobal(self.list.frameGeometry().topRight())
+        listTopLeft = self.baseWidget.mapToGlobal(self.list.frameGeometry().topLeft())
+        listBottomLeft = self.baseWidget.mapToGlobal(self.list.frameGeometry().bottomLeft())
+        listBottomRight = self.baseWidget.mapToGlobal(self.list.frameGeometry().bottomRight())
+        listTopRight = self.baseWidget.mapToGlobal(self.list.frameGeometry().topRight())
         listCenter = (listTopLeft+listBottomRight)/2
         itemRect = self.list.visualItemRect(item)
         
@@ -122,12 +123,12 @@ class OpenDocumentsDocker(krita.DockWidget):
         screenCenter = (screenTopLeft+screenBottomRight)/2
         if self.list.flow() == QListView.TopToBottom:
             if listCenter.x() < screenCenter.x():
-                ttPos = listTopRight + itemRect.topLeft()
+                ttPos = listTopRight + QPoint(0, itemRect.top())
             else:
                 ttPos = listTopLeft + QPoint(-self.listToolTip.sizeHint().width(), itemRect.top())
         else:
             if listCenter.y() < screenCenter.y():
-                ttPos = listTopLeft + QPoint(itemRect.left(), itemRect.top() + itemRect.height())
+                ttPos = listBottomLeft + QPoint(itemRect.left(), 0)
             else:
                 ttPos = listTopLeft + QPoint(itemRect.left(), -self.listToolTip.sizeHint().height())
         
