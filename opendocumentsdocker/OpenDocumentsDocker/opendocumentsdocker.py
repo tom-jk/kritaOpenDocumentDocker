@@ -829,7 +829,7 @@ class OpenDocumentsDocker(krita.DockWidget):
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         
-        settingDisplayThumbs = self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnThumbnails"]
+        settingDisplayThumbs = self.vs.settingValue("display") == self.vs.UI["display"]["btnThumbnails"]
         if not settingDisplayThumbs:
             force = False
         
@@ -864,7 +864,7 @@ class OpenDocumentsDocker(krita.DockWidget):
         item.setData(self.ItemDocumentRole, uid)
         item.setData(self.ItemDocumentSizeRole, QSize(doc.width(), doc.height()))
         item.setData(self.ItemModifiedStatusRole, doc.modified())
-        if self.vs.settingValue("display") == self.vs.SD["display"]["ui"]["btnThumbnails"]:
+        if self.vs.settingValue("display") == self.vs.UI["display"]["btnThumbnails"]:
             thumbnail = self.generateThumbnailForItem(item, doc)
             item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
         else:
