@@ -40,6 +40,26 @@ class OpenDocumentsViewSettings(QObject):
                             "btnText":None,
                     },
             },
+            "grid": {
+                    "default":"false",
+                    "ui": {
+                            "btn":None
+                    },
+            },
+            "gridMode": {
+                    "default":"stretchToFit",
+                    "strings":["Stretch to fit", "Keep aspect ratio", "Crop to fit", "Masonry"],
+                    "values" :["stretchToFit", "keepAspectRatio", "cropToFit", "masonry"],
+                    "tooltips":[
+                            "list items are square and thumbnails are stretched to fit with no regard to aspect ratio.",
+                            "thumbnails show the full image at the correct aspect ratio.",
+                            "list items are square and thumbnails are cropped to fit to maintain pixel aspect ratio.",
+                            "thumbnails are cropped according to aspect limit setting and stacked end-to-end.",
+                    ],
+                    "ui": {
+                            "btn":None,
+                    },
+            },
             "refreshOnSave": {
                     "default":"true",
                     "ui": {
@@ -252,6 +272,32 @@ class OpenDocumentsViewSettings(QObject):
         print("setDirectionToAuto")
         self.writeSetting("direction", "auto")
         self.odd.setDockerDirection("auto")
+    
+    def changedGrid(self, state):
+        setting = str(state==2).lower()
+        print("changedGrid to", setting)
+        self.writeSetting("grid", setting)
+        
+        if self.readSetting("display") != "thumbnails":
+            return
+        
+        self.odd.list.invalidateItemRectsCache()
+        self.odd.list.updateGeometries()
+        self.odd.list.viewport().update()
+        self.startRefreshAllDelayTimer()
+    
+    def changedGridMode(self, index):
+        setting = self.settingValue("gridMode")
+        print("changedGridMode to", setting)
+        self.writeSetting("gridMode", setting)
+        
+        if self.readSetting("display") != "thumbnails":
+            return
+        
+        self.odd.list.invalidateItemRectsCache()
+        self.odd.list.updateGeometries()
+        self.odd.list.viewport().update()
+        self.startRefreshAllDelayTimer()
     
     def changedThumbAspectLimitSlider(self, value):
         setting = "{:1.6g}".format(pow(10, value/200.0))
@@ -542,6 +588,25 @@ class OpenDocumentsViewSettings(QObject):
         self.dockerDisplayToggleButton.setIcon(Application.icon('folder-pictures'))
         self.dockerDisplayToggleButton.setChecked(self.readSetting("display") == "thumbnails")
         
+        self.panelGridLayout = QHBoxLayout()
+        self.SD["grid"]["ui"]["btn"] = QCheckBox("Grid", self.panel)
+        self.SD["grid"]["ui"]["btn"].stateChanged.connect(self.changedGrid)
+        self.SD["grid"]["ui"]["btn"].setChecked(self.readSetting("grid") == "true")
+        self.SD["grid"]["ui"]["btn"].setToolTip(
+                "Lay thumbnails out in a grid if possible.\n" +
+                "Thumbnail display scale must be 0.5 or less.\n" +
+                "When the list is vertical, items are arranged left-to-right, row-by-row.\n" +
+                "When the list is horizontal, items are arranged top-to-bottom, column-by-column."
+        )
+        
+        setting = self.readSetting("gridMode")
+        self.SD["gridMode"]["ui"]["btn"] = QComboBox()
+        self.SD["gridMode"]["ui"]["btn"].addItems(self.SD["gridMode"]["strings"])
+        self.SD["gridMode"]["ui"]["btn"].setCurrentText(convertSettingValueToString("gridMode", setting))
+        for i in range(len(self.SD["gridMode"]["tooltips"])):
+            self.SD["gridMode"]["ui"]["btn"].setItemData(i, self.SD["gridMode"]["tooltips"][i], Qt.ToolTipRole)
+        self.SD["gridMode"]["ui"]["btn"].activated.connect(self.changedGridMode)
+        
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         
         self.SD["thumbUseProjectionMethod"]["ui"]["btn"] = QCheckBox("Use projection method", self.panel)
@@ -786,7 +851,9 @@ class OpenDocumentsViewSettings(QObject):
         self.panelDisplayLayout.addWidget(self.panelDisplayLabel)
         self.panelDisplayLayout.addWidget(self.SD["display"]["ui"]["btnThumbnails"])
         self.panelDisplayLayout.addWidget(self.SD["display"]["ui"]["btnText"])
-        self.panelDisplayLayout.setAlignment(Qt.AlignTop)
+        self.panelGridLayout.addWidget(self.SD["grid"]["ui"]["btn"])
+        self.panelGridLayout.addWidget(self.SD["gridMode"]["ui"]["btn"])
+        self.panelDisplayLayout.addLayout(self.panelGridLayout)
         self.panelDisplayAndDirectionLayout.addLayout(self.panelDisplayLayout)
         self.panelLayout.addLayout(self.panelDisplayAndDirectionLayout)
         self.panelLayout.addWidget(self.panelThumbnailsLabel)

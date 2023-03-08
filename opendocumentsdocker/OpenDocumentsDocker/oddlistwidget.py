@@ -11,6 +11,7 @@ class ODDListWidget(QListWidget):
         self._itemRectsValid = False
         self._itemRectsRecaching = False
         self._doNotRecacheItemRects = False
+        self._childrenExtent = 0
         self._childrenRect = QRect(0, 0, 0, 0)
         super(ODDListWidget, self).__init__()
         self.horizontalScrollBar().installEventFilter(self)
@@ -150,43 +151,124 @@ class ODDListWidget(QListWidget):
         self._itemRectsRecaching = True
         itemRects = []
         
-        if self.flow() == QListView.TopToBottom:
+        isListVertical = self.flow() == QListView.TopToBottom
+        
+        if self.odd.vs.readSetting("grid") == "true":
+            # in vertical grid mode, go right until can't fit, then go down and back left.
+            # in horizontal grid mode, go down until can't fit, then go right and back up.
+            gridMode = self.odd.vs.readSetting("gridMode")
+            
+            idealSize = self.odd.calculateDisplaySizeForThumbnail(None, True)
+            checkExt = 1.0 * float(self.odd.vs.readSetting("thumbDisplayScale"))
+            if isListVertical:
+                stackCount = int((float(self.viewport().width())+checkExt) / idealSize.width())
+            else:
+                stackCount = int((float(self.viewport().height())+checkExt) / idealSize.height())
+            
+            if gridMode == "masonry":
+                self._itemRectsMasonryLayout(itemRects, count, isListVertical, idealSize, stackCount)
+            else:
+                self._itemRectsGridLayout(itemRects, count, isListVertical, idealSize, stackCount, gridMode in ["stretchToFit", "cropToFit"])
+        else:
+            self._itemRectsBasicLayout(itemRects, count, isListVertical)
+        
+        self._childrenExtent = 0
+        for i in range(count):
+            r = itemRects[i]
+            pos = r.y() + r.height() if isListVertical else r.x() + r.width()
+            if pos > self._childrenExtent:
+                self._childrenExtent = pos
+        
+        self._itemRects = itemRects
+        self._itemRectsValid = True
+        self._itemRectsRecaching = False
+        return self._itemRects
+            
+    def _itemRectsBasicLayout(self, itemRects, count, isListVertical):
+        if isListVertical:
             x = y = xExt = 0
             yExt = 2
         else:
             x = y = yExt = 0
             xExt = 2
-        #print("count:", count)
         for i in range(count):
             item = self.item(i)
             size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole), False, True)
             itemRects.append(QRect(x, y, size.width(), size.height()))
-            #print("appended ", itemRects[i])
-            if self.flow() == QListView.TopToBottom:
+            if isListVertical:
                 y += size.height() + yExt
             else:
                 x += size.width() + xExt
-        self._itemRects = itemRects
-        self._itemRectsValid = True
-        self._itemRectsRecaching = False
-        return self._itemRects
+    
+    def _itemRectsGridLayout(self, itemRects, count, isListVertical, idealSize, stackCount, isEveryItemSquare):
+        x = y = stack = 0
+        previousSize = QSize(0, 0)
+        
+        for i in range(count):
+            item = self.item(i)
+            if stack == stackCount:
+                if isListVertical:
+                    x = 0
+                    y += previousSize.height()
+                else:
+                    y = 0
+                    x += previousSize.width()
+                stack = 0
+                previousSize = QSize(0, 0)
+            if isEveryItemSquare:
+                size = idealSize
+                previousSize = size
+            else:
+                size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole))
+                previousSize = QSize(max(previousSize.width(), size.width()), max(previousSize.height(), size.height()))
+            itemRects.append(QRectF(x, y, size.width(), size.height()).toRect())
+            if isListVertical:
+                x += size.width()
+            else:
+                y += size.height()
+            stack += 1
+    
+    def _itemRectsMasonryLayout(self, itemRects, count, isListVertical, idealSize, stackCount):
+        stacksPos = []
+        stacksEnd = []
+        pos = stack = 0
+        
+        for s in range(stackCount):
+            stacksPos.append(pos)
+            stacksEnd.append(0)
+            pos += idealSize.width() if self.flow() == QListView.TopToBottom else idealSize.height()
+        
+        for i in range(count):
+            item = self.item(i)
+            docSize = item.data(self.odd.ItemDocumentSizeRole)
+            itemSize = self.odd.calculateDisplaySizeForThumbnail(docSize, True, True)
+            
+            if isListVertical:
+                x = stacksPos[stack]
+                y = stacksEnd[stack]
+                stacksEnd[stack] += itemSize.height()
+            else:
+                y = stacksPos[stack]
+                x = stacksEnd[stack]
+                stacksEnd[stack] += itemSize.width()
+            
+            itemRects.append(QRectF(x, y, itemSize.width(), itemSize.height()).toRect())
+            
+            stack = stacksEnd.index(min(stacksEnd))
     
     def updateScrollBarRange(self):
         itemRects = self.itemRects()
         if not itemRects:
             return
-        rect = itemRects[-1]
-        right  = rect.x() + rect.width()
-        bottom = rect.y() + rect.height()
         if self.flow() == QListView.TopToBottom:
-            #print("vscroll max =", bottom, "-", self.viewport().height(), "=", bottom-self.viewport().height())
-            self.verticalScrollBar().setRange(0, bottom - self.viewport().height())
-            self._childrenRect = QRect(0, 0, self.viewport().width(), bottom)
+            #print("vscroll max =", self._childrenExtent, "-", self.viewport().height(), "=", self._childrenExtent-self.viewport().height())
+            self.verticalScrollBar().setRange(0, self._childrenExtent - self.viewport().height())
+            self._childrenRect = QRect(0, 0, self.viewport().width(), self._childrenExtent)
             self.horizontalScrollBar().setRange(0, 0)
         else:
-            #print("hscroll max =", right, "-", self.viewport().width(), "=", right-self.viewport().width())
-            self.horizontalScrollBar().setRange(0, right - self.viewport().width())
-            self._childrenRect = QRect(0, 0, right, self.viewport().height())
+            #print("hscroll max =", self._childrenExtent, "-", self.viewport().width(), "=", self._childrenExtent-self.viewport().width())
+            self.horizontalScrollBar().setRange(0, self._childrenExtent - self.viewport().width())
+            self._childrenRect = QRect(0, 0, self._childrenExtent, self.viewport().height())
             self.verticalScrollBar().setRange(0, 0)
     
     def indexAt(self, point):
@@ -308,6 +390,13 @@ class ODDListWidget(QListWidget):
             opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
             opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
         
+        isGrid = self.odd.vs.readSetting("grid") == "true"
+        if isGrid:
+            colorGridLine = self.palette().color(self.backgroundRole())
+            isStretchToFit = self.odd.vs.readSetting("gridMode") == "stretchToFit"
+        else:
+            isStretchToFit = False
+        
         for i in range(count):
             item = self.item(i)
             isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
@@ -336,25 +425,28 @@ class ODDListWidget(QListWidget):
                 h = itemRect.height()
                 
                 if pm:
-                    aspectLimit = float(self.odd.vs.readSetting("thumbAspectLimit"))
-                    cropRect = pm.rect()
-                    itemRatio = h/w
-                    pmRatio = pm.height()/pm.width()
-                    if pmRatio < 1.0:
-                        itemToPmScale = pm.height() / h
-                        cropWidth = w * itemToPmScale
-                        cropRect.setWidth(round(cropWidth))
-                        cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
-                    elif pmRatio > 1.0:
-                        itemToPmScale = pm.width() / w
-                        cropHeight = h * itemToPmScale
-                        cropRect.setHeight(round(cropHeight))
-                        cropRect.moveTop(round((pm.height() - cropHeight) / 2))
-                    cropRect.moveLeft(max(0, cropRect.left()))
-                    cropRect.moveTop(max(0, cropRect.top()))
-                    cropRect.setWidth(min(pm.width(), cropRect.width()))
-                    cropRect.setHeight(min(pm.height(), cropRect.height()))
-                    painter.drawPixmap(itemRect, pm, cropRect)
+                    if isStretchToFit:
+                        painter.drawPixmap(itemRect, pm)
+                    else:
+                        aspectLimit = float(self.odd.vs.readSetting("thumbAspectLimit"))
+                        cropRect = pm.rect()
+                        itemRatio = h/w
+                        pmRatio = pm.height()/pm.width()
+                        if pmRatio < 1.0:
+                            itemToPmScale = pm.height() / h
+                            cropWidth = w * itemToPmScale
+                            cropRect.setWidth(round(cropWidth))
+                            cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
+                        elif pmRatio > 1.0:
+                            itemToPmScale = pm.width() / w
+                            cropHeight = h * itemToPmScale
+                            cropRect.setHeight(round(cropHeight))
+                            cropRect.moveTop(round((pm.height() - cropHeight) / 2))
+                        cropRect.moveLeft(max(0, cropRect.left()))
+                        cropRect.moveTop(max(0, cropRect.top()))
+                        cropRect.setWidth(min(pm.width(), cropRect.width()))
+                        cropRect.setHeight(min(pm.height(), cropRect.height()))
+                        painter.drawPixmap(itemRect, pm, cropRect)
                 
                 if isItemActiveDoc:
                     painter.setBrush(Qt.NoBrush)
@@ -387,6 +479,11 @@ class ODDListWidget(QListWidget):
                             painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
                         elif isModIconTypeCircle:
                             painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+                if isGrid:
+                    painter.setBrush(Qt.NoBrush)
+                    painter.setPen(colorGridLine)
+                    painter.drawLine(x, y+h-1, x+w-1, y+h-1)
+                    painter.drawLine(x+w-1, y, x+w-1, y+h-1)
         painter.end()
 
     def contextMenuEvent(self, event):
