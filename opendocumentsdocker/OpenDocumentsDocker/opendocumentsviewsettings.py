@@ -22,6 +22,7 @@ def convertSettingValueToString(settingName, value):
 
 class OpenDocumentsViewSettings(QObject):
     # Settings Data
+    isFirstRun = True
     SD = {
             "direction": {
                     "default":"auto",
@@ -31,6 +32,10 @@ class OpenDocumentsViewSettings(QObject):
             },
             "grid": {
                     "default":"false",
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "gridMode": {
                     "default":"stretchToFit",
@@ -42,6 +47,10 @@ class OpenDocumentsViewSettings(QObject):
                             "list items are square and thumbnails are cropped to fit to maintain pixel aspect ratio.",
                             "thumbnails are cropped according to aspect limit setting and stacked end-to-end.",
                     ],
+                    "depends": {
+                        "dependsOn":["grid", "display"],
+                        "evaluator":lambda self: self.settingValue("grid") and self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "refreshOnSave": {
                     "default":"true",
@@ -53,40 +62,73 @@ class OpenDocumentsViewSettings(QObject):
                     "default":"15/sec",
                     "strings":["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"],
                     "values" :[1000, 500, 333, 250, 200, 125, 100, 67, 50, 33],
+                    "depends": {
+                            "dependsOn":["refreshPeriodically"],
+                            "evaluator": lambda self: self.settingValue("refreshPeriodically"),
+                    },
             },
             "refreshPeriodicallyDelay": {
                     "default":"2sec",
                     "strings":["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"],
                     "values" :[500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000],
+                    "depends": {
+                            "dependsOn":["refreshPeriodically"],
+                            "evaluator": lambda self: self.settingValue("refreshPeriodically"),
+                    },
             },
             "thumbAspectLimit": {
                     "default":"1",
                     "min": 1.0,
                     "max": 10.0,
                     "pow":10,
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "thumbDisplayScale": {
                     "default":"1.00",
                     "min":0.05,
                     "max":1.00,
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "thumbRenderScale": {
                     "default":"1",
                     "strings":["1/16", "1/8", "1/4", "1/2", "1"],
                     "values" :[1.0/16.0, 1.0/8.0, 1.0/4.0, 1.0/2.0, 1],
+                    "depends": {
+                            "dependsOn":["thumbUseProjectionMethod"],
+                            "evaluator": lambda self: self.settingValue("display", True) == "thumbnails" and \
+                                                      not self.settingValue("thumbUseProjectionMethod"),
+                    },
             },
             "thumbFadeAmount": {
                     "default":"0.00",
                     "min":0.00,
                     "max":1.00,
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "thumbFadeUnfade": {
                     "default":"false",
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "thumbShowModified": {
                     "default":"none",
                     "strings":["Don't show", "Corner", "Square", "Circle", "Asterisk", "Big Corner", "Big Square", "Big Circle", "Big Asterisk"],
                     "values" :["none", "corner", "square", "circle", "asterisk", "cornerBig", "squareBig", "circleBig", "asteriskBig"],
+                    "depends": {
+                        "dependsOn":["display"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
             },
             "tooltipShow": {
                     "default":"true",
@@ -95,11 +137,19 @@ class OpenDocumentsViewSettings(QObject):
                     "default":"≤4096px²",
                     "strings":["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"],
                     "values" :[0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")],
+                    "depends": {
+                            "dependsOn":["tooltipShow"],
+                            "evaluator": lambda self: self.settingValue("tooltipShow"),
+                    },
             },
             "tooltipThumbSize": {
                     "default":"128px",
                     "strings":["64px", "96px", "128px", "160px", "192px", "256px", "384px", "512px"],
                     "values" :[64, 96, 128, 160, 192, 256, 384, 512],
+                    "depends": {
+                            "dependsOn":["tooltipShow", "tooltipThumbLimit"],
+                            "evaluator": lambda self: self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0,
+                    },
             },
             "idAutoDisambiguateCopies": {
                     "default":"false",
@@ -120,6 +170,10 @@ class OpenDocumentsViewSettings(QObject):
         self.odd = odd
         self.panelSize = QSize()
         self.panelPosition = QPoint()
+        
+        if self.isFirstRun:
+            OpenDocumentsViewSettings.cacheSettingsDataDependencies()
+            self.isFirstRun = False
         
         self.UI = {
                 "direction": {
@@ -200,6 +254,23 @@ class OpenDocumentsViewSettings(QObject):
                 },
         }
     
+    @classmethod
+    def cacheSettingsDataDependencies(cls):
+        for setting in cls.SD.items():
+            sName = setting[0]
+            sData = setting[1]
+            if "depends" in sData:
+                depends = sData["depends"]
+                if "dependsOn" in depends:
+                    dependsOn = depends["dependsOn"]
+                    for i in dependsOn:
+                        s = cls.SD[i]
+                        if not "depends" in s:
+                            s["depends"] = {"dependedOnBy":[]}
+                        elif not "dependedOnBy" in s["depends"]:
+                            s["depends"]["dependedOnBy"] = []
+                        cls.SD[i]["depends"]["dependedOnBy"].append(sName)
+    
     def readSetting(self, setting):
         if not setting in self.SD:
             return
@@ -209,8 +280,18 @@ class OpenDocumentsViewSettings(QObject):
         if not setting in self.SD:
             return
         Application.writeSetting("OpenDocumentsDocker", setting, value)
+        self.updateControlsEnabledState(setting)
     
-    def settingValue(self, setting):
+    def updateControlsEnabledState(self, setting):
+        if "depends" in self.SD[setting] and "dependedOnBy" in self.SD[setting]["depends"]:
+            for i in self.SD[setting]["depends"]["dependedOnBy"]:
+                enable = self.SD[i]["depends"]["evaluator"](self)
+                if "btn" in self.UI[i]:
+                    self.UI[i]["btn"].setEnabled(enable)
+                elif "slider" in self.UI[i]:
+                    self.UI[i]["slider"].setEnabled(enable)
+    
+    def settingValue(self, setting, asName=False):
         ui = self.UI[setting]
         if "slider" in ui:
             if "values" in self.SD[setting]:
@@ -229,7 +310,8 @@ class OpenDocumentsViewSettings(QObject):
                 #print("settingValue:", sliderMin, sliderMax, sliderRange, sliderValue, sliderNormValue, valueRange, v)
                 return v
         elif "btngrp" in ui:
-            return ui["btngrp"].checkedButton()
+            btn = ui["btngrp"].checkedButton()
+            return btn.objectName() if asName else btn
         elif "btn" in ui:
             if "values" in self.SD[setting]:
                 return self.SD[setting]["values"][ui["btn"].currentIndex()]
@@ -372,23 +454,11 @@ class OpenDocumentsViewSettings(QObject):
         setting = str(state==2).lower()
         print("changedTooltipShow to", setting)
         self.writeSetting("tooltipShow", setting)
-        if self.UI["tooltipThumbLimit"]["slider"]:
-            if state == 2:
-                self.UI["tooltipThumbLimit"]["slider"].setEnabled(True)
-                self.UI["tooltipThumbSize"]["slider"].setEnabled(self.UI["tooltipThumbLimit"]["slider"].value != 0)
-            else:
-                self.UI["tooltipThumbLimit"]["slider"].setEnabled(False)
-                self.UI["tooltipThumbSize"]["slider"].setEnabled(False)
     
     def changedTooltipThumbLimitSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbLimit", value)
         self.UI["tooltipThumbLimit"]["value"].setText(setting)
         self.writeSetting("tooltipThumbLimit", setting)
-        if self.UI["tooltipThumbSize"]["slider"]:
-            if value != 0:
-                self.UI["tooltipThumbSize"]["slider"].setEnabled(True)
-            else:
-                self.UI["tooltipThumbSize"]["slider"].setEnabled(False)
     
     def changedTooltipThumbSizeSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbSize", value)
@@ -414,19 +484,12 @@ class OpenDocumentsViewSettings(QObject):
         print("changedRefreshPeriodically to", setting)
         self.writeSetting("refreshPeriodically", setting)
         if state == 2:
-            if self.UI["refreshPeriodicallyChecks"]["slider"]:
-                self.UI["refreshPeriodicallyChecks"]["slider"].setEnabled(True)
-                self.UI["refreshPeriodicallyDelay" ]["slider"].setEnabled(True)
             self.odd.imageChangeDetectionTimer.start()
         else:
-            if self.UI["refreshPeriodicallyChecks"]["slider"]:
-                self.UI["refreshPeriodicallyChecks"]["slider"].setEnabled(False)
-                self.UI["refreshPeriodicallyDelay" ]["slider"].setEnabled(False)
             self.odd.imageChangeDetectionTimer.stop()
             self.odd.refreshTimer.stop()
         
-        if hasattr(self, "dockerRefreshPeriodicallyToggleButton"):
-            self.dockerRefreshPeriodicallyToggleButton.setChecked(state==2)
+        self.dockerRefreshPeriodicallyToggleButton.setChecked(state==2)
     
     def changedIdAutoDisambiguateCopies(self, state):
         setting = str(state==2).lower()
@@ -525,11 +588,6 @@ class OpenDocumentsViewSettings(QObject):
         setting = str(state==2).lower()
         print("changedThumbnailUseProjectionMethod to", setting)
         self.writeSetting("thumbUseProjectionMethod", setting)
-        if self.UI["thumbRenderScale"]["slider"]:
-            if state == 2:
-                self.UI["thumbRenderScale"]["slider"].setEnabled(False)
-            else:
-                self.UI["thumbRenderScale"]["slider"].setEnabled(True)
         
         self.startRefreshAllDelayTimer()
         
@@ -583,18 +641,20 @@ class OpenDocumentsViewSettings(QObject):
         self.panelDisplayLayout = QVBoxLayout()
         self.panelDisplayLabel = QLabel("Display", self.panel)
         self.UI["display"]["btnThumbnails"] = QRadioButton("Thumbnails", self.panel)
+        self.UI["display"]["btnThumbnails"].setObjectName("thumbnails")
         self.UI["display"]["btnText"      ] = QRadioButton("Text", self.panel)
+        self.UI["display"]["btnText"      ].setObjectName("text")
         
         self.dockerDisplayToggleButton = QToolButton()
-        self.dockerDisplayToggleButton.clicked.connect(self.changedDisplay)
         self.dockerDisplayToggleButton.setCheckable(True)
         self.dockerDisplayToggleButton.setIcon(Application.icon('folder-pictures'))
         self.dockerDisplayToggleButton.setChecked(self.readSetting("display") == "thumbnails")
+        self.dockerDisplayToggleButton.clicked.connect(self.changedDisplay)
         
         self.panelGridLayout = QHBoxLayout()
         self.UI["grid"]["btn"] = QCheckBox("Grid", self.panel)
-        self.UI["grid"]["btn"].stateChanged.connect(self.changedGrid)
         self.UI["grid"]["btn"].setChecked(self.readSetting("grid") == "true")
+        self.UI["grid"]["btn"].stateChanged.connect(self.changedGrid)
         self.UI["grid"]["btn"].setToolTip(
                 "Lay thumbnails out in a grid if possible.\n" +
                 "Thumbnail display scale must be 0.5 or less.\n" +
@@ -613,8 +673,8 @@ class OpenDocumentsViewSettings(QObject):
         self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
         
         self.UI["thumbUseProjectionMethod"]["btn"] = QCheckBox("Use projection method", self.panel)
-        self.UI["thumbUseProjectionMethod"]["btn"].stateChanged.connect(self.changedThumbnailUseProjectionMethod)
         self.UI["thumbUseProjectionMethod"]["btn"].setChecked(self.readSetting("thumbUseProjectionMethod") == "true")
+        self.UI["thumbUseProjectionMethod"]["btn"].stateChanged.connect(self.changedThumbnailUseProjectionMethod)
         self.UI["thumbUseProjectionMethod"]["btn"].setToolTip(
                 "If enabled, ODD will generate thumbnails with the projection method.\n" +
                 "If disabled, ODD will use the thumbnail method.\n" +
@@ -684,8 +744,8 @@ class OpenDocumentsViewSettings(QObject):
         
         self.panelThumbnailsFadeAmountControlsLayout = QHBoxLayout()
         self.UI["thumbFadeUnfade"]["btn"] = QCheckBox(self.panel)
-        self.UI["thumbFadeUnfade"]["btn"].stateChanged.connect(self.changedThumbFadeUnfade)
         self.UI["thumbFadeUnfade"]["btn"].setChecked(self.readSetting("thumbFadeUnfade") == "true")
+        self.UI["thumbFadeUnfade"]["btn"].stateChanged.connect(self.changedThumbFadeUnfade)
         self.UI["thumbFadeUnfade"]["btn"].setToolTip("Un-fade on mouse hover.")
         
         setting = self.readSetting("thumbShowModified")
@@ -701,13 +761,13 @@ class OpenDocumentsViewSettings(QObject):
         self.previewThumbnailsShowModified = ""
         
         self.UI["refreshOnSave"]["btn"] = QCheckBox("Refresh on save", self.panel)
-        self.UI["refreshOnSave"]["btn"].stateChanged.connect(self.changedRefreshOnSave)
         self.UI["refreshOnSave"]["btn"].setChecked(self.readSetting("refreshOnSave") == "true")
+        self.UI["refreshOnSave"]["btn"].stateChanged.connect(self.changedRefreshOnSave)
         self.UI["refreshOnSave"]["btn"].setToolTip("When you save an image, refresh its thumbnail automatically.")
         
         self.UI["refreshPeriodically"]["btn"] = QCheckBox("Refresh periodically (experimental)", self.panel)
-        self.UI["refreshPeriodically"]["btn"].stateChanged.connect(self.changedRefreshPeriodically)
         self.UI["refreshPeriodically"]["btn"].setChecked(self.readSetting("refreshPeriodically") == "true")
+        self.UI["refreshPeriodically"]["btn"].stateChanged.connect(self.changedRefreshPeriodically)
         self.UI["refreshPeriodically"]["btn"].setToolTip(
                 "Automatically refresh the thumbnail for the active image if a change is detected.\n" + 
                 "Checks for changes to the image so-many times each second.\n" +
@@ -717,10 +777,10 @@ class OpenDocumentsViewSettings(QObject):
         )
         
         self.dockerRefreshPeriodicallyToggleButton = QToolButton()
-        self.dockerRefreshPeriodicallyToggleButton.clicked.connect(self.changedRefreshPeriodically)
         self.dockerRefreshPeriodicallyToggleButton.setCheckable(True)
         self.dockerRefreshPeriodicallyToggleButton.setIcon(Application.icon('animation_play'))
         self.dockerRefreshPeriodicallyToggleButton.setChecked(self.UI["refreshPeriodically"]["btn"].isChecked())
+        self.dockerRefreshPeriodicallyToggleButton.clicked.connect(self.changedRefreshPeriodically)
         
         setting = self.readSetting("refreshPeriodicallyChecks")
         self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
@@ -752,8 +812,8 @@ class OpenDocumentsViewSettings(QObject):
         
         self.panelTooltipsHeading = QHBoxLayout()
         self.UI["tooltipShow"]["btn"] = QCheckBox("Tooltips", self.panel)
-        self.UI["tooltipShow"]["btn"].stateChanged.connect(self.changedTooltipShow)
         self.UI["tooltipShow"]["btn"].setChecked(self.readSetting("tooltipShow") == "true")
+        self.UI["tooltipShow"]["btn"].stateChanged.connect(self.changedTooltipShow)
         self.panelTooltipsHeadingLine = QLabel("", self.panel)
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
@@ -792,8 +852,8 @@ class OpenDocumentsViewSettings(QObject):
         self.panelMiscHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         self.UI["idAutoDisambiguateCopies"]["btn"] = QCheckBox("Auto disambiguate document ID's (modifies file)", self.panel)
-        self.UI["idAutoDisambiguateCopies"]["btn"].stateChanged.connect(self.changedIdAutoDisambiguateCopies)
         self.UI["idAutoDisambiguateCopies"]["btn"].setChecked(self.readSetting("idAutoDisambiguateCopies") == "true")
+        self.UI["idAutoDisambiguateCopies"]["btn"].stateChanged.connect(self.changedIdAutoDisambiguateCopies)
         self.UI["idAutoDisambiguateCopies"]["btn"].setToolTip(
                 "ODD uses a unique ID supplied by Krita to identify documents.\n" +
                 "When you 'create copy from current image', This copy does not receive a new ID.\n" +
@@ -805,8 +865,8 @@ class OpenDocumentsViewSettings(QObject):
         )
         
         self.UI["showCommonControlsInDocker"]["btn"] = QCheckBox("Show commonly used settings in the docker", self.panel)
-        self.UI["showCommonControlsInDocker"]["btn"].stateChanged.connect(self.changedShowCommonControlsInDocker)
         self.UI["showCommonControlsInDocker"]["btn"].setChecked(self.readSetting("showCommonControlsInDocker") == "true")
+        self.UI["showCommonControlsInDocker"]["btn"].stateChanged.connect(self.changedShowCommonControlsInDocker)
         self.UI["showCommonControlsInDocker"]["btn"].setToolTip(
                 "Make some of the most-used of these settings adjustable in the docker itself.\n" +
                 "Included are a slider for the list thumbnail display scale,\n" +
@@ -964,6 +1024,9 @@ class OpenDocumentsViewSettings(QObject):
         self.UI["refreshPeriodicallyDelay" ]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
         
         self.dockerThumbnailsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
+        
+        for setting in self.SD:
+            self.updateControlsEnabledState(setting)
     
     def eventFilter(self, obj, event):
         if event.type() in [QEvent.FocusIn, QEvent.Hide]:
@@ -975,6 +1038,9 @@ class OpenDocumentsViewSettings(QObject):
         self.panel.show()
     
     def updatePanelPosition(self):
+        if not hasattr(self, "panel"):
+            return
+        
         direction = self._updatePanelPosition()
         if self.readSetting("dockerAlignButtonsToSettingsPanel") == "false":
             direction = 0
