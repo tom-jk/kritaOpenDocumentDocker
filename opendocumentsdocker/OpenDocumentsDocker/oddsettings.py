@@ -5,14 +5,14 @@ from krita import *
 import math
 
 def convertSettingStringToValue(settingName, string):
-    setting = OpenDocumentsViewSettings.SD[settingName]
+    setting = ODDSettings.SD[settingName]
     if string in setting["strings"]:
         return setting["strings"].index(string)
     else:
         return setting["strings"].index(setting["default"])
 
 def convertSettingValueToString(settingName, value):
-    setting = OpenDocumentsViewSettings.SD[settingName]
+    setting = ODDSettings.SD[settingName]
     if type(value) is not str and value >= 0 and value < len(setting["strings"]):
         return setting["strings"][value]
     elif type(value) is str and value in setting["values"]:
@@ -20,7 +20,7 @@ def convertSettingValueToString(settingName, value):
     else:
         return setting["default"]
 
-class OpenDocumentsViewSettings(QObject):
+class ODDSettings(QObject):
     # Settings Data
     isFirstRun = True
     SD = {
@@ -166,13 +166,13 @@ class OpenDocumentsViewSettings(QObject):
     }
     
     def __init__(self, odd):
-        super(OpenDocumentsViewSettings, self).__init__()
+        super(ODDSettings, self).__init__()
         self.odd = odd
         self.panelSize = QSize()
         self.panelPosition = QPoint()
         
         if self.isFirstRun:
-            OpenDocumentsViewSettings.cacheSettingsDataDependencies()
+            ODDSettings.cacheSettingsDataDependencies()
             self.isFirstRun = False
         
         self.UI = {

@@ -7,10 +7,10 @@ from krita import *
 from time import *
 import uuid
 from pathlib import Path
-from .opendocumentsviewsettings import OpenDocumentsViewSettings as ODVS, convertSettingStringToValue, convertSettingValueToString
+from .oddsettings import ODDSettings, convertSettingStringToValue, convertSettingValueToString
 from .oddlistwidget import ODDListWidget
 
-class OpenDocumentsDocker(krita.DockWidget):
+class ODDDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
     ItemModifiedStatusRole = Qt.UserRole+2
@@ -341,12 +341,12 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.listToolTip.hide()
     
     def __init__(self):
-        print("OpenDocumentsDocker: begin init")
-        super(OpenDocumentsDocker, self).__init__()
+        print("ODDDocker: begin init")
+        super(ODDDocker, self).__init__()
         
         self.documents = []
         
-        self.vs = ODVS(self)
+        self.vs = ODDSettings(self)
         
         self.dockLocation = None
         self.dockLocationChanged.connect(self.dockMoved)
@@ -391,13 +391,13 @@ class OpenDocumentsDocker(krita.DockWidget):
         self.imageChangeDetectionTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("refreshPeriodicallyChecks")
         self.imageChangeDetectionTimer.setInterval(
-            ODVS.SD["refreshPeriodicallyChecks"]["values"][convertSettingStringToValue("refreshPeriodicallyChecks", setting)]
+            ODDSettings.SD["refreshPeriodicallyChecks"]["values"][convertSettingStringToValue("refreshPeriodicallyChecks", setting)]
         )
         self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
         self.refreshTimer = QTimer(self.baseWidget)
         setting = self.vs.readSetting("refreshPeriodicallyDelay")
         self.refreshTimer.setInterval(
-            ODVS.SD["refreshPeriodicallyDelay"]["values"][convertSettingStringToValue("refreshPeriodicallyDelay", setting)]
+            ODDSettings.SD["refreshPeriodicallyDelay"]["values"][convertSettingStringToValue("refreshPeriodicallyDelay", setting)]
         )
         self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
         
@@ -1062,7 +1062,7 @@ class ODDExtension(Extension):
             return
         
         fname = doc.fileName()
-        docname = OpenDocumentsDocker.documentDisplayName(self, doc, showIfModified=False)
+        docname = ODDDocker.documentDisplayName(self, doc, showIfModified=False)
 
         msgBox = QMessageBox(
                 QMessageBox.Warning,
@@ -1082,9 +1082,9 @@ class ODDExtension(Extension):
             doc.setBatchmode(True)
             doc.setModified(False)
             
-            if OpenDocumentsDocker.imageChangeDetected:
-                OpenDocumentsDocker.imageChangeDetected = False
-                OpenDocumentsDocker.refreshTimer.stop()
+            if ODDDocker.imageChangeDetected:
+                ODDDocker.imageChangeDetected = False
+                ODDDocker.refreshTimer.stop()
             
             Application.action('file_close').trigger()
             newdoc = Application.openDocument(fname)
