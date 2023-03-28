@@ -735,7 +735,7 @@ class ODDSettings(QObject):
         self.UI["grid"]["btn"].setChecked(self.readSetting("grid") == "true")
         self.UI["grid"]["btn"].stateChanged.connect(self.changedGrid)
         self.UI["grid"]["btn"].setToolTip(
-                "Lay thumbnails out in a grid if possible.\n" +
+                "Lay thumbnails out in a grid if possible.\n\n" +
                 "Thumbnail display scale must be 0.5 or less.\n" +
                 "When the list is vertical, items are arranged left-to-right, row-by-row.\n" +
                 "When the list is horizontal, items are arranged top-to-bottom, column-by-column."
@@ -771,7 +771,7 @@ class ODDSettings(QObject):
         self.UI["thumbAspectLimit"]["slider"].setTickInterval(1)
         self.UI["thumbAspectLimit"]["slider"].setValue(int(math.log10(float(setting))*200.0))
         self.UI["thumbAspectLimit"]["slider"].setToolTip(
-                "The maximum deviation a document size can be from square before its thumbnail is shrunk.\n" +
+                "The maximum deviation a document size can be from square before its thumbnail is shrunk.\n\n" +
                 "For example, 1:1 forces all thumbnails to be square, 1:2 allows thumbnails to be up to twice as long as their width.\n" +
                 "Higher values give better representation of wide/tall documents, at the cost of ease of list navigation."
         )
@@ -848,7 +848,7 @@ class ODDSettings(QObject):
         self.UI["refreshPeriodically"]["btn"].setChecked(self.readSetting("refreshPeriodically") == "true")
         self.UI["refreshPeriodically"]["btn"].stateChanged.connect(self.changedRefreshPeriodically)
         self.UI["refreshPeriodically"]["btn"].setToolTip(
-                "Automatically refresh the thumbnail for the active image if a change is detected.\n" + 
+                "Automatically refresh the thumbnail for the active image if a change is detected.\n\n" + 
                 "Checks for changes to the image so-many times each second.\n" +
                 "Then tries to refresh the thumbnail every so-many seconds.\n" +
                 "May not catch quick changes if they happen between checks.\n" +
@@ -926,7 +926,7 @@ class ODDSettings(QObject):
         self.UI["showCommonControlsInDocker"]["btn"].setChecked(self.readSetting("showCommonControlsInDocker") == "true")
         self.UI["showCommonControlsInDocker"]["btn"].stateChanged.connect(self.changedShowCommonControlsInDocker)
         self.UI["showCommonControlsInDocker"]["btn"].setToolTip(
-                "Make some of the most-used of these settings adjustable in the docker itself.\n" +
+                "Make some of the most-used of these settings adjustable in the docker itself.\n\n" +
                 "Included are a slider for the list thumbnail display scale,\n" +
                 "and toggle buttons for changing display mode and enabling periodic thumbnail refresh."
         )
@@ -935,6 +935,7 @@ class ODDSettings(QObject):
         self.UI["dockerAlignButtonsToSettingsPanel"]["btn"].setChecked(self.readSetting("dockerAlignButtonsToSettingsPanel") == "true")
         self.UI["dockerAlignButtonsToSettingsPanel"]["btn"].stateChanged.connect(self.changedDockerAlignButtonsToSettingsPanel)
         self.UI["dockerAlignButtonsToSettingsPanel"]["btn"].setToolTip(
+                "Allow the docker buttons to move around the docker so that the settings button will be close to the settings panel.\n\n" +
                 "This panel will try to appear in a place that obscures the docker list as little as possible.\n" +
                 "This means it may appear on the other side of the docker, far from the default position of the settings button.\n" +
                 "This setting allows the docker buttons to move to the side of the docker where the settings button will be closest.\n" +
@@ -953,6 +954,7 @@ class ODDSettings(QObject):
         self.UI["excessThumbCacheLimit"]["slider"].setTickInterval(1)
         self.setUiValuesForExcessThumbCacheLimit(setting)
         self.UI["excessThumbCacheLimit"]["slider"].setToolTip(
+                "Limit the amount of memory allowed to keep unused but potentially reusable thumbnails in cache.\n\n" +
                 "Unused thumbnails remain in memory so they can be reused. This is faster than generating new ones.\n" +
                 "For example, caching the tooltip thumbnail reduces lag when hovering the mouse over the list.\n" +
                 "When the size of these unused thumbnails exceeds this limit, the least recently used ones will be discarded."
