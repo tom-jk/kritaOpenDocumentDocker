@@ -2,11 +2,12 @@
 
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
 from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent
-from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QVBoxLayout, QHBoxLayout, QListView, QPushButton, QMenu, QAbstractItemView, QListWidgetItem, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QSizePolicy, QStackedLayout, QScrollArea
 from krita import *
 from time import *
 import uuid
 from pathlib import Path
+from .odd import ODD
 from .oddsettings import ODDSettings, convertSettingStringToValue, convertSettingValueToString
 from .oddlistwidget import ODDListWidget
 
@@ -15,62 +16,146 @@ class ODDDocker(krita.DockWidget):
     ItemUpdateDeferredRole = Qt.UserRole+1
     ItemModifiedStatusRole = Qt.UserRole+2
     ItemDocumentSizeRole   = Qt.UserRole+3
+    ItemThumbnailKeyRole   = Qt.UserRole+4
     
-    imageChangeDetected = False
+    imageChangeDetected = False # todo: make instance attribute, not class?
     
-    # https://krita-artists.org/t/scripting-open-an-existing-file/32124/4
-    def findAndActivateView(self, doc):
-        app = Application
-        for win in app.windows():
-            for view in win.views():
-                if view.document() == doc:
-                    win.activate()
-                    win.showView(view)
-                    view.setVisible()
-                    return
-    
-    def documentHasViews(self, doc, exception):
-        """
-        returns true if at least one open view shows this document
-        (any view besides exception, if provided).
-        """
-        for win in Application.windows():
-            for view in win.views():
-                if view != exception:
-                    if self.documentUniqueId(view.document()) == self.documentUniqueId(doc):
-                        return True
-        return False
+    def __init__(self):
+        print("ODDDocker: begin init", self)
+        super(ODDDocker, self).__init__()
+        
+        ODD.dockers.append(self)
+        self.vs = ODDSettings(ODD.instance, self)
+        
+        self.dockLocation = None
+        self.dockLocationChanged.connect(self.dockMoved)
+        self.dockVisible = True
+        self.visibilityChanged.connect(self.dockVisibilityChanged)
+        self.deferredItemThumbnailCount = 0
+        
+        self.baseWidget = QWidget()
+        self.layout = QBoxLayout(QBoxLayout.TopToBottom)
+        self.list = ODDListWidget(ODD.instance, self)
+        self.listToolTip = QLabel()
+        self.listToolTip.setWindowFlags(Qt.ToolTip)
+        self.buttonLayout = QBoxLayout(QBoxLayout.LeftToRight)
+        self.loadButton = QPushButton()
+        self.loadButton.setIcon(Application.icon('view-refresh'))
+        self.viewButton = QPushButton()
+        self.viewButton.setIcon(Application.icon('view-choose'))
+        self.infoButton = QPushButton()
+        self.infoButton.setIcon(Application.icon('selection-info'))
+        
+        self.setDockerDirection(self.vs.readSetting("direction"))
+        self.list.setMovement(QListView.Free)
+        self.list.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.list.itemActivated.connect(self.itemClicked)
+        self.list.itemClicked.connect(self.itemClicked)
+        self.list.setMouseTracking(True)
+        if False:
+            self.list.setAcceptDrops(True)
+            self.list.setDragEnabled(True)
+            self.list.setDropIndicatorShown(True)
+            print("qaiv.im:", QAbstractItemView.InternalMove)
+            self.list.setDragDropMode(QAbstractItemView.InternalMove)
+            self.list.setDefaultDropAction(Qt.MoveAction)
+            self.list.setDragDropOverwriteMode(False)
+        else:
+            self.list.setAcceptDrops(False)
+            self.list.setDragEnabled(False)
+        
+        self.dockerStack = QStackedLayout()
+        
+        self.infoScrollArea = QScrollArea()
+        self.infoContainer = QWidget()
+        self.infoLayout = QVBoxLayout()
+        self.infoLayout.setAlignment(Qt.AlignTop)
+        self.infoLabel = QLabel("info.")
+        self.infoLayout.addWidget(self.infoLabel)
+        self.infoContainer.setLayout(self.infoLayout)
+        self.infoScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.infoScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.infoScrollArea.setWidgetResizable(True)
+        self.infoScrollArea.setWidget(self.infoContainer)
+        
+        self.dockerStack.addWidget(self.list)
+        self.dockerStack.addWidget(self.infoScrollArea)
+        self.layout.addLayout(self.dockerStack)
+        
+        self.imageChangeDetected = False
+        self.imageOldSize = QSize(0, 0)
+        self.imageChangeDetectionTimer = QTimer(self.baseWidget)
+        setting = self.vs.readSetting("refreshPeriodicallyChecks")
+        self.imageChangeDetectionTimer.setInterval(
+            ODDSettings.SD["refreshPeriodicallyChecks"]["values"][convertSettingStringToValue("refreshPeriodicallyChecks", setting)]
+        )
+        self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
+        self.refreshTimer = QTimer(self.baseWidget)
+        setting = self.vs.readSetting("refreshPeriodicallyDelay")
+        self.refreshTimer.setInterval(
+            ODDSettings.SD["refreshPeriodicallyDelay"]["values"][convertSettingStringToValue("refreshPeriodicallyDelay", setting)]
+        )
+        self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
+        
+        self.viewButton.clicked.connect(self.vs.clickedViewButton)
+        self.buttonLayout.setSpacing(0)
+        self.buttonLayout.addWidget(self.loadButton)
+        self.buttonLayout.addWidget(self.viewButton)
+        self.buttonLayout.addWidget(self.infoButton)
+        self.buttonLayout.setStretch(0, 1)
+        self.buttonLayout.setStretch(1, 1)
+        self.layout.addLayout(self.buttonLayout)
+        self.vs.createPanel()
+        
+        self.layout.setSpacing(3)
+        self.baseWidget.setLayout(self.layout)
+        self.baseWidget.setMinimumWidth(32)
+        self.baseWidget.setMinimumHeight(32)
+        self.setWidget(self.baseWidget)
+        
+        self.lastSize = self.baseWidget.size()
+        self.resizeDelay = QTimer(self.baseWidget)
+        self.resizeDelay.timeout.connect(self.delayedResize)
+        
+        self.refreshAllDelay = QTimer(self.baseWidget)
+        self.refreshAllDelay.setInterval(1000)
+        self.refreshAllDelay.setSingleShot(True)
+        self.refreshAllDelay.timeout.connect(self.refreshAllDelayTimeout)
+        
+        self.itemUpdateTimer = QTimer(self.baseWidget)
+        self.itemUpdateTimer.setInterval(500)
+        self.itemUpdateTimer.timeout.connect(self.itemUpdateTimerTimeout)
+        self.itemUpdateTimer.start()
+        
+        self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
+        self.infoButton.clicked.connect(self.toggleDockerInfoView)
+        self.setWindowTitle(i18n("Open Documents Docker"))
+        
+        # used for doing things with the document that was current before active view changed
+        self.currentDocument = None
+        
+        self.refreshOpenDocuments()
+        
+        appNotifier = Application.notifier()
+        appNotifier.setActive(True)
+        
+        appNotifier.imageSaved.connect(self.imageSaved)
+        
+        appNotifier.windowCreated.connect(self.windowCreated)
     
     def itemClicked(self, item):
-        doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
+        doc = item.data(self.ItemDocumentRole)
         if doc:
-            self.findAndActivateView(doc)
+            ODD.findAndActivateView(doc)
         else:
             print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
-    
-    def documentDisplayName(self, doc, showIfModified=True):
-        if doc:
-            fPath = doc.fileName()
-            fName = Path(fPath).name
-            tModi = " *" * doc.modified() * showIfModified
-        else:
-            fName = "[no document]"
-            tModi = ""
-        return (fName if fName else "[not saved]") + tModi
-    
-    def getScreen(self):
-        if hasattr(self, "screen"):
-            return self.screen()
-        if self.windowHandle():
-            return self.windowHandle().screen()
-        if self.parent() and self.parent().windowHandle():
-            return self.parent().windowHandle().screen()
     
     def itemEntered(self, item):
         if not self.vs.settingValue("tooltipShow"):
             return
         
-        doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
+        doc = item.data(self.ItemDocumentRole)
         if not doc:
             return
         
@@ -89,7 +174,7 @@ class ODDDocker(krita.DockWidget):
                 size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
             else:
                 size = QSize(int(settingSize * (doc.width() / doc.height())), settingSize)
-            img = self.thumbnailGenerator(doc, size, self.vs.settingValue("thumbUseProjectionMethod"))
+            img = ODD.requestThumbnail(doc, (size.width(), size.height(), doc.width(), doc.height()))
             data = QByteArray()
             buffer = QBuffer(data)
             img.save(buffer, "PNG", 100)
@@ -98,7 +183,7 @@ class ODDDocker(krita.DockWidget):
             imgHtml = "(image too big)"
         
         ttText += "<td><table border='1'><tr><td>" + imgHtml + "</td></tr></table></td>"
-        ttText += "<td style='padding-left: 8px'><h2 style='margin-bottom:0px'>" + self.documentDisplayName(doc) + "</h2>"
+        ttText += "<td style='padding-left: 8px'><h2 style='margin-bottom:0px'>" + ODD.documentDisplayName(doc) + "</h2>"
         ttText += "<p style='white-space:pre; margin-top:0px'><small>" + fPath + "</small></p>"
         ttText += "<p style='margin-top:0px'><small>" + str(doc.width()) + " x " + str(doc.height()) + "</small></p>"
         ttText += "</td>"
@@ -115,7 +200,7 @@ class ODDDocker(krita.DockWidget):
         listCenter = (listTopLeft+listBottomRight)/2
         itemRect = self.list.visualItemRect(item)
         
-        screen = self.getScreen().availableGeometry()
+        screen = ODD.instance.getScreen(self).availableGeometry()
         screenTopLeft = screen.topLeft()
         screenBottomRight = screen.bottomRight()
         
@@ -203,7 +288,7 @@ class ODDDocker(krita.DockWidget):
                 print(" refresh", len(itemsWithBadThumbs), "items")
                 for i in itemsWithBadThumbs:
                     item = self.list.item(i)
-                    self.updateDocumentThumbnail(self.findDocumentWithItem(item))
+                    self.updateDocumentThumbnail(item.data(self.ItemDocumentRole))
             else:
                 print(" refresh all items")
                 self.refreshOpenDocuments(soft=True, force=False)
@@ -214,116 +299,37 @@ class ODDDocker(krita.DockWidget):
         
         self.vs.updatePanelPosition()
     
-    def imageCreated(self, image):
-        print("image created -", image)
-        fName = image.fileName()
+    def documentCreated(self, doc):
+        print("document created -", doc)
+        fName = doc.fileName()
         print(" name:", (fName if fName else "[not saved]"))
         
-        self.documents = Application.documents()
-        docIndex = len(self.documents)-1
-        
-        # assume new image will always be doc at end of documents list.
-        doc = self.documents[docIndex]
-        print(" #"+str(docIndex)+", id:", doc.rootNode().uniqueId())
-        
-        self.setDocumentExtraUid(doc)
         self.addDocumentToList(doc)
     
-    def isDocumentUniquelyIdentified(self, doc):
-        uid = doc.rootNode().uniqueId()
-        extraUid = doc.annotation("ODD_extra_uid") or b''
-        docCount = len(self.documents)
-        for i in range(docCount):
-            d = self.documents[i]
-            if d != doc:
-                if uid == d.rootNode().uniqueId():
-                    if extraUid == d.annotation("ODD_extra_uid"):
-                        return False
-        return True
+    def documentClosed(self, doc):
+        print("document closed -", doc, doc.fileName())
         
-    def setDocumentExtraUid(self, doc):
-        """
-        Compares a document's uid/extraUid against all other open documents, and:
-         If any share both uid and extraUid (ie. both have empty extraUid's):
-          assign this document a new extraUid.
-         If any share uid but not extraUid:
-          do nothing, document is satisfactorily disambiguated.
-         If none share uid:
-          remove extraUid from document if it has one, it no longer needs it.
-        """
-        isUnique = True
-        canRemoveExtraUid = True
-        uid = doc.rootNode().uniqueId()
-        extraUid = doc.annotation("ODD_extra_uid") or b''
-        #print("doc:      ", doc)
-        #print("uid:      ", uid)
-        #print("extraUid: ", extraUid)
-        docCount = len(self.documents)
-        for i in range(docCount):
-            d = self.documents[i]
-            if d != doc:
-                if uid == d.rootNode().uniqueId():
-                    canRemoveExtraUid = False
-                    if extraUid == d.annotation("ODD_extra_uid"):
-                        print("uid clash between this image", doc, "and", d)
-                        isUnique = False
-                        break
-        if not isUnique:
-            if self.vs.readSetting("idAutoDisambiguateCopies") == "true":
-                print("setting extra uid for document", doc, "with uid", uid)
-                doc.setAnnotation(
-                        "ODD_extra_uid",
-                        "An extra id used by Open Documents Docker to distinguish copied images from their origin during a krita session.",
-                        QByteArray(str(uuid.uuid4()).encode())
-                )
-        else:
-            if canRemoveExtraUid:
-                if extraUid:
-                    print("remove redundant extra uid from document", doc, "with uid", uid, "and extra uid", extraUid)
-                    doc.removeAnnotation("ODD_extra_uid")
-    
-    def viewClosed(self, view):
-        print("view closed - doc name:", self.documentDisplayName(view.document()), "id:", self.documentUniqueId(view.document()))
+        self.removeDocumentFromList(doc)
         
-        self.documentUniqueIdFromLastClosedView = self.documentUniqueId(view.document())
-        print("View Closed:")
-        print(" - SET documentUniqueIdFromLastClosedView =", self.documentUniqueIdFromLastClosedView)
-    
-    def imageClosed(self, filename):
-        print("image closed -", filename)
-        
-        # a view just closed, and now an image just closed.
-        # so this image must be the document from that view.
-        assert self.documentUniqueIdFromLastClosedView != None, "ODD: imageClosed: an image closed without a view closing first?"
-        
-        self.removeDocumentFromList(self.documentUniqueIdFromLastClosedView)
-        
-        self.documents = Application.documents()
-        
-        print("", self.currentDocumentId)
-        print("", self.documentUniqueIdFromLastClosedView)
-        if self.currentDocumentId == self.documentUniqueIdFromLastClosedView:
+        print("", self.currentDocument)
+        if self.currentDocument == doc:
             print(" we've closed the document that was current.")
             if self.imageChangeDetected:
                 print(" it was waiting to refresh, cancelling.")
                 self.imageChangeDetected = False
                 self.refreshTimer.stop()
             
-            if len(self.documents) == 0:
+            if len(ODD.documents) == 0:
                 print(" it was the last open document.")
-                self.currentDocumentId = None
-        
-        self.documentUniqueIdFromLastClosedView = None
-        print("Image Closed:")
-        print(" - SET documentUniqueIdFromLastClosedView =", self.documentUniqueIdFromLastClosedView)
+                self.currentDocument = None
     
     def imageSaved(self, filename):
         # unnecessary? the document just saved should be the active one
         doc = None
-        docCount = len(self.documents)
+        docCount = len(ODDDocker.documents)
         for i in range(docCount):
-            if self.documents[i].fileName() == filename:
-                doc = self.documents[i]
+            if ODDDocker.documents[i].fileName() == filename:
+                doc = ODDDocker.documents[i]
                 break
         print("image saved -", filename, "(doc", str(doc) + ")")
         if self.vs.settingValue("refreshOnSave"):
@@ -333,118 +339,13 @@ class ODDDocker(krita.DockWidget):
             self.updateDocumentThumbnail()
     
     def moveEvent(self, event):
+        #print("moveEvent:", event.pos(), self.pos(), self.baseWidget.mapToGlobal(self.baseWidget.pos()))
         self.vs.updatePanelPosition()
     
     def dockMoved(self, area):
         self.vs.updatePanelPosition()
         self.dockLocation = area
         self.listToolTip.hide()
-    
-    def __init__(self):
-        print("ODDDocker: begin init")
-        super(ODDDocker, self).__init__()
-        
-        self.documents = []
-        
-        self.vs = ODDSettings(self)
-        
-        self.dockLocation = None
-        self.dockLocationChanged.connect(self.dockMoved)
-        self.dockVisible = True
-        self.visibilityChanged.connect(self.dockVisibilityChanged)
-        self.deferredItemThumbnailCount = 0
-        
-        self.baseWidget = QWidget()
-        self.layout = QBoxLayout(QBoxLayout.TopToBottom)
-        self.list = ODDListWidget(self)
-        self.listToolTip = QLabel()
-        self.listToolTip.setWindowFlags(Qt.ToolTip)
-        self.buttonLayout = QBoxLayout(QBoxLayout.LeftToRight)
-        self.loadButton = QPushButton()
-        self.loadButton.setIcon(Application.icon('view-refresh'))
-        self.viewButton = QPushButton()
-        self.viewButton.setIcon(Application.icon('view-choose'))
-        
-        self.setDockerDirection(self.vs.readSetting("direction"))
-        self.list.setMovement(QListView.Free)
-        self.list.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.list.itemActivated.connect(self.itemClicked)
-        self.list.itemClicked.connect(self.itemClicked)
-        self.list.setMouseTracking(True)
-        if False:
-            self.list.setAcceptDrops(True)
-            self.list.setDragEnabled(True)
-            self.list.setDropIndicatorShown(True)
-            print("qaiv.im:", QAbstractItemView.InternalMove)
-            self.list.setDragDropMode(QAbstractItemView.InternalMove)
-            self.list.setDefaultDropAction(Qt.MoveAction)
-            self.list.setDragDropOverwriteMode(False)
-        else:
-            self.list.setAcceptDrops(False)
-            self.list.setDragEnabled(False)
-        
-        self.layout.addWidget(self.list)
-        
-        self.imageChangeDetected = False
-        self.imageOldSize = QSize(0, 0)
-        self.imageChangeDetectionTimer = QTimer(self.baseWidget)
-        setting = self.vs.readSetting("refreshPeriodicallyChecks")
-        self.imageChangeDetectionTimer.setInterval(
-            ODDSettings.SD["refreshPeriodicallyChecks"]["values"][convertSettingStringToValue("refreshPeriodicallyChecks", setting)]
-        )
-        self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
-        self.refreshTimer = QTimer(self.baseWidget)
-        setting = self.vs.readSetting("refreshPeriodicallyDelay")
-        self.refreshTimer.setInterval(
-            ODDSettings.SD["refreshPeriodicallyDelay"]["values"][convertSettingStringToValue("refreshPeriodicallyDelay", setting)]
-        )
-        self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
-        
-        self.viewButton.clicked.connect(self.vs.clickedViewButton)
-        self.buttonLayout.setSpacing(0)
-        self.buttonLayout.addWidget(self.loadButton)
-        self.buttonLayout.addWidget(self.viewButton)
-        self.buttonLayout.setStretch(0, 1)
-        self.buttonLayout.setStretch(1, 1)
-        self.layout.addLayout(self.buttonLayout)
-        self.vs.createPanel()
-        
-        self.layout.setSpacing(3)
-        self.baseWidget.setLayout(self.layout)
-        self.baseWidget.setMinimumWidth(32)
-        self.baseWidget.setMinimumHeight(32)
-        self.setWidget(self.baseWidget)
-        
-        self.lastSize = self.baseWidget.size()
-        self.resizeDelay = QTimer(self.baseWidget)
-        self.resizeDelay.timeout.connect(self.delayedResize)
-        
-        self.refreshAllDelay = QTimer(self.baseWidget)
-        self.refreshAllDelay.setInterval(1000)
-        self.refreshAllDelay.setSingleShot(True)
-        self.refreshAllDelay.timeout.connect(self.refreshAllDelayTimeout)
-        
-        self.itemUpdateTimer = QTimer(self.baseWidget)
-        self.itemUpdateTimer.setInterval(500)
-        self.itemUpdateTimer.timeout.connect(self.itemUpdateTimerTimeout)
-        self.itemUpdateTimer.start()
-        
-        self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
-        self.setWindowTitle(i18n("Open Documents Docker"))
-        
-        # used for doing things with the document that was current before active view changed
-        self.currentDocumentId = None
-        
-        appNotifier = Application.notifier()
-        appNotifier.setActive(True)
-        
-        appNotifier.viewClosed.connect(self.viewClosed)
-        appNotifier.imageCreated.connect(self.imageCreated)
-        appNotifier.imageClosed.connect(self.imageClosed)
-        appNotifier.imageSaved.connect(self.imageSaved)
-        
-        appNotifier.windowCreated.connect(self.windowCreated)
     
     def refreshAllDelayTimeout(self):
         self.refreshOpenDocuments(soft=True)
@@ -458,9 +359,12 @@ class ODDDocker(krita.DockWidget):
         itemCount = self.list.count()
         for i in range(itemCount):
             item = self.list.item(i)
-            doc = self.findDocumentWithItem(item)
+            doc = item.data(self.ItemDocumentRole)
             if not doc:
-                assert False, "ODD:itemUpdateTimerTimeout: can't find document for item."
+                assert False, "ODDDocker:itemUpdateTimerTimeout: can't find document for item."
+                continue
+            if doc.width() == 0 or doc.height() == 0:
+                print("ODDDocker:itemUpdateTimerTimeout: closed document still in list, skip.")
                 continue
             
             if isSettingDisplayThumbnails:
@@ -479,9 +383,12 @@ class ODDDocker(krita.DockWidget):
                     self.list.update()
             else:
                 oldName = item.text()
-                name = self.documentDisplayName(doc)
+                name = ODD.documentDisplayName(doc)
                 if oldName != name:
                     item.setText(name)
+        
+        if self.dockerStack.currentIndex() == 1:
+            self.updateLabel()
     
     tavg = 0
     def imageChangeDetectionTimerTimeout(self):
@@ -562,6 +469,7 @@ class ODDDocker(krita.DockWidget):
             self.buttonLayout.setDirection(QBoxLayout.TopToBottom)
             self.loadButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             self.viewButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+            self.infoButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             try:
                 self.list.verticalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
@@ -586,6 +494,7 @@ class ODDDocker(krita.DockWidget):
             self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
             self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            self.infoButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             try:
                 self.list.horizontalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
@@ -638,17 +547,17 @@ class ODDDocker(krita.DockWidget):
         #print("active doc:", Application.activeDocument())
         if self.imageChangeDetected:
             # flush thumbnail update for now-previous doc
-            print(" currdocid:", self.currentDocumentId)
-            if self.currentDocumentId:
-                doc = self.findDocumentWithUniqueId(self.currentDocumentId)
+            print(" currdoc:", self.currentDocument)
+            if self.currentDocument:
+                doc = self.currentDocument
                 if doc:
-                    print(" flush thumbnail update for", self.currentDocumentId, "-", self.documentDisplayName(doc))
+                    print(" flush thumbnail update for", self.currentDocument, "-", ODD.documentDisplayName(doc))
                     self.updateDocumentThumbnail(doc)
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         if Application.activeDocument():
-            self.currentDocumentId = self.documentUniqueId(Application.activeDocument())
-            print(" set currentDocumentId:", self.currentDocumentId)
+            self.currentDocument = Application.activeDocument()
+            print(" set currentDocument:", self.currentDocument)
             self.imageOldSize = Application.activeDocument().bounds().size()
         self.ensureListSelectionIsActiveDocument()
     
@@ -659,6 +568,9 @@ class ODDDocker(krita.DockWidget):
         self.restartResizeDelayTimer()
     
     def restartResizeDelayTimer(self):
+        # TODO: change init order so check not necessary
+        if not hasattr(self, "resizeDelay"):
+            return
         if self.resizeDelay.isActive():
             self.resizeDelay.stop()
         self.resizeDelay.setSingleShot(True)
@@ -702,12 +614,12 @@ class ODDDocker(krita.DockWidget):
             return
         
         if not doc:
-            doc = self.findDocumentWithItem(item)
+            doc = item.data(self.ItemDocumentRole)
         
         self.deferredItemThumbnailCount += 1
         print("DEFERRED ITEM COUNT +1, =", self.deferredItemThumbnailCount)
         item.setData(self.ItemUpdateDeferredRole, True)
-        print("mark deferred: " + self.documentDisplayName(doc) + " thumbnail update has been deferred.")
+        print("mark deferred: " + ODD.documentDisplayName(doc) + " thumbnail update has been deferred.")
     
     def unmarkDocumentThumbnailAsDeferred(self, doc=None, item=None):
         if not item.data(self.ItemUpdateDeferredRole):
@@ -720,7 +632,7 @@ class ODDDocker(krita.DockWidget):
         item.setData(self.ItemUpdateDeferredRole, False)
         self.deferredItemThumbnailCount -= 1
         print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
-        print("unmark deferred: " + self.documentDisplayName(doc) + " thumbnail update is no longer deferred.")
+        print("unmark deferred: " + ODD.documentDisplayName(doc) + " thumbnail update is no longer deferred.")
     
     def processDeferredDocumentThumbnails(self):
         if not self.dockVisible:
@@ -738,7 +650,7 @@ class ODDDocker(krita.DockWidget):
             if item.data(self.ItemUpdateDeferredRole):
                 visRect = self.list.visualItemRect(item)
                 if not viewRect.intersected(visRect).isEmpty():
-                    doc = self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
+                    doc = item.data(self.ItemDocumentRole)
                     self.updateDocumentThumbnail(doc)
                 else:
                     pass
@@ -751,31 +663,20 @@ class ODDDocker(krita.DockWidget):
             count = self.list.count()
             for i in range(count):
                 item = self.list.item(i)
-                self.updateDocumentThumbnail(self.findDocumentWithItem(item), force)
+                self.updateDocumentThumbnail(item.data(self.ItemDocumentRole), force)
         else:
             self.deferredItemThumbnailCount = 0
             print("DEFERRED ITEM COUNT = 0")
+            count = self.list.count()
+            for i in range(count):
+                item = self.list.item(i)
+                thumbKey = item.data(self.ItemThumbnailKeyRole)
+                if thumbKey:
+                    ODD.removeThumbnailUser(self, item.data(self.ItemDocumentRole), thumbKey)
             self.list.clear()
-            for i in self.documents:
-                self.addDocumentToList(i)
+            for docData in ODD.documents:
+                self.addDocumentToList(docData["document"])
         self.list.invalidateItemRectsCache()
-    
-    def debugDump(self):
-        count = len(self.documents)
-        print(" - list of all documents (count:"+str(count)+") - ")
-        for i in range(count):
-            doc = self.documents[i]
-            print("   #"+str(i)+":", doc)
-            print("    - fName:", doc.fileName())
-            print("    - uid:  ", self.documentUniqueId(doc))
-        count = self.list.count()
-        print(" - list of all list items (count:"+str(count)+") - ")
-        print("   selected: ", self.list.selectedItems())
-        for i in range(count):
-            item = self.list.item(i)
-            print("   #"+str(i)+":", item)
-            print("    - document data:", item.data(self.ItemDocumentRole))
-        print(" - end of lists - ")
     
     def ensureListSelectionIsActiveDocument(self):
         doc = Application.activeDocument()
@@ -787,15 +688,13 @@ class ODDDocker(krita.DockWidget):
         if itemCount == 0:
             return False
         
-        uid = self.documentUniqueId(doc)
-        
         if len(self.list.selectedItems()) > 0:
-            if self.list.selectedItems()[0].data(self.ItemDocumentRole) == uid:
+            if self.list.selectedItems()[0].data(self.ItemDocumentRole) == doc:
                 return True
         
         for i in range(itemCount):
             item = self.list.item(i)
-            if item.data(self.ItemDocumentRole) == uid:
+            if item.data(self.ItemDocumentRole) == doc:
                 self.list.setCurrentItem(item)
                 return True
         return False
@@ -811,6 +710,10 @@ class ODDDocker(krita.DockWidget):
     
     def updateDocumentThumbnailForced(self):
         self.updateDocumentThumbnail(doc=None, force=True)
+    
+    def toggleDockerInfoView(self):
+        self.dockerStack.setCurrentIndex(1-self.dockerStack.currentIndex())
+        self.updateLabel()
     
     def updateDocumentThumbnail(self, doc=None, force=False):
         if not doc:
@@ -828,6 +731,7 @@ class ODDDocker(krita.DockWidget):
             print("stop or cancel imageChangeDetected refresh timer.")
             self.imageChangeDetected = False
             self.refreshTimer.stop()
+            force = True # quick fix to invalidate thumbs
         
         settingDisplayThumbs = self.vs.settingValue("display") == self.vs.UI["display"]["btnThumbnails"]
         if not settingDisplayThumbs:
@@ -839,88 +743,66 @@ class ODDDocker(krita.DockWidget):
                 print("update thumb: item not currently visible or docker in text mode, update later.")
                 return
         
+        if force:
+            ODD.invalidateThumbnails(doc)
+        
         self.unmarkDocumentThumbnailAsDeferred(doc, item)
         
-        print("update thumb for", doc.fileName())#, end=" - ")
-        thumbnail = self.generateThumbnailForItem(item, doc)
-        item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
-        
+        print("update thumb for", doc.fileName())
+        self.updateItemThumbnail(item, doc)
+    
+    def updateItemThumbnail(self, item, doc):
+        if result := self.generateThumbnailForItem(item, doc):
+            oldThumbKey = item.data(self.ItemThumbnailKeyRole)
+            item.setData(Qt.DecorationRole, result[0])
+            item.setData(self.ItemThumbnailKeyRole, result[1])
+            print("oldThumbKey:", oldThumbKey, ", result[1]:", result[1])
+            if oldThumbKey != result[1]:
+                ODD.addThumbnailUser(self, doc, result[1])
+                if oldThumbKey:
+                    ODD.removeThumbnailUser(self, doc, oldThumbKey)
     
     def findItemWithDocument(self, doc):
-        uid = self.documentUniqueId(doc)
         itemCount = self.list.count()
         for i in range(itemCount):
             searchItem = self.list.item(i)
-            if searchItem.data(self.ItemDocumentRole) == uid:
+            if searchItem.data(self.ItemDocumentRole) == doc:
                 return searchItem
         return None
     
-    def findDocumentWithItem(self, item):
-        return self.findDocumentWithUniqueId(item.data(self.ItemDocumentRole))
-    
     def addDocumentToList(self, doc):
+        print("addDocumentToList:", doc)
         item = QListWidgetItem("", self.list)
-        uid = self.documentUniqueId(doc)
-        item.setData(self.ItemDocumentRole, uid)
+        item.setData(self.ItemDocumentRole, doc)
         item.setData(self.ItemDocumentSizeRole, QSize(doc.width(), doc.height()))
         item.setData(self.ItemModifiedStatusRole, doc.modified())
         if self.vs.settingValue("display") == self.vs.UI["display"]["btnThumbnails"]:
-            thumbnail = self.generateThumbnailForItem(item, doc)
-            item.setData(Qt.DecorationRole, QPixmap.fromImage(thumbnail))
+            self.updateItemThumbnail(item, doc)
         else:
-            item.setText(self.documentDisplayName(doc))
+            item.setText(ODD.documentDisplayName(doc))
         
         self.list.invalidateItemRectsCache()
         self.list.update()
         self.ensureListSelectionIsActiveDocument()
     
-    def removeDocumentFromList(self, uid):
+    def removeDocumentFromList(self, doc):
         item = None
         itemCount = self.list.count()
         for i in range(itemCount):
             searchItem = self.list.item(i)
-            if searchItem.data(self.ItemDocumentRole) == uid:
+            if searchItem.data(self.ItemDocumentRole) == doc:
                 item = self.list.takeItem(self.list.row(searchItem))
                 break
         if item:
             print("deleting item")
-            self.unmarkDocumentThumbnailAsDeferred(self.findDocumentWithItem(item), item)
+            self.unmarkDocumentThumbnailAsDeferred(item.data(self.ItemDocumentRole), item)
+            if item.data(Qt.DecorationRole):
+                ODD.removeThumbnailUser(self, doc, item.data(self.ItemThumbnailKeyRole))
             del item
             self.ensureListSelectionIsActiveDocument()
             self.list.invalidateItemRectsCache()
         else:
             print("did not find item to delete!")
-    
-    def documentUniqueId(self, doc):
-        """
-        return some value that uniquely identifies this document
-        and that can be used to retrieve the document later in
-        the session.
-        Currently this is the unique id of the image root node,
-        which is unique most of the time but is known to not always
-        be (eg. an image made with "create copy from current image"
-        will have a root node with the same id as the source image 
-        for that session).
-        This method wraps this implementation detail so it can more
-        easily be swapped out with something better in the future.
-        Update: an option allows additional identifying data to be
-        stored in the image as an annotation, which we read here.
-        """
-        #return doc.rootNode().uniqueId()
-        return [doc.rootNode().uniqueId(), QUuid(doc.annotation("ODD_extra_uid"))]
-    
-    def findDocumentWithUniqueId(self, uid, enableFallback=False):
-        for doc in self.documents:
-            if uid == self.documentUniqueId(doc):
-                return doc
-        print("ODD: could not find document with uid", str(uid))
-        if enableFallback:
-            print("ODD: falling back to best match")
-            uid[1] = QUuid()
-            for doc in self.documents:
-                if uid == self.documentUniqueId(doc):
-                    return doc
-        return None
     
     def calculateRenderSizeForItem(self, item):
         return calculateRenderSizeForThumbnail(item.data(self.ItemDocumentSizeRole))
@@ -986,19 +868,7 @@ class ODDDocker(krita.DockWidget):
                 size.setHeight(1)
         
         return size
-
-    def thumbnailGenerator(self, doc, size, useProj):
-        if type(doc) == Document and useProj:
-            i = doc.projection(0, 0, doc.width(), doc.height())
-            if i:
-                if size.width() < doc.width():
-                    return i.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-                else:
-                    return i.scaled(size, Qt.IgnoreAspectRatio, Qt.FastTransformation)
-            return i
-        else:
-            return doc.thumbnail(size.width(), size.height())
-
+    
     def generateThumbnailForItem(self, item, doc):
         # ensure the thumbnail will be complete.
         doc.waitForDone()
@@ -1006,6 +876,7 @@ class ODDDocker(krita.DockWidget):
         size = self.calculateDisplaySizeForThumbnail(item.data(self.ItemDocumentSizeRole))
         
         thumbnail = None
+        thumbKey = None
         
         settingUseProj = self.vs.readSetting("thumbUseProjectionMethod") == "true"
         
@@ -1014,7 +885,8 @@ class ODDDocker(krita.DockWidget):
         )
         
         if scaleFactor == 1:
-            thumbnail = self.thumbnailGenerator(doc, size, settingUseProj)
+            thumbKey = (size.width(), size.height(), doc.width(), doc.height())
+            thumbnail = ODD.requestThumbnail(doc, thumbKey)
         
             if thumbnail.isNull():
                 return None
@@ -1029,69 +901,103 @@ class ODDDocker(krita.DockWidget):
         
         thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
         
-        return thumbnail
+        return (thumbnail, thumbKey)
 
-
-
-class ODDExtension(Extension):
-
-    def __init__(self, parent):
-        super().__init__(parent)
-
-    def setup(self):
-        pass
-
-    def createActions(self, window):
-        actionCopyMerged = window.createAction("ODDQuickCopyMergedAction", "Quick Copy Merged", "")
-        actionCopyMerged.triggered.connect(self.quickCopyMergedAction)
-        
-        actionFileRevert = window.createAction("ODDFileRevertAction", "Revert", "")
-        actionFileRevert.triggered.connect(self.fileRevertAction)
-    
-    def quickCopyMergedAction(self):
-        print("perform ODDQuickCopyMergedAction")
+    def updateLabel(self):
         app = Application
-        app.action('select_all').trigger()
-        app.action('copy_merged').trigger()
-        app.action('edit_undo').trigger()
-        app.action('edit_undo').trigger()
-    
-    def fileRevertAction(self):
-        doc = Application.activeDocument()
-        if not doc:
+        newLine = "<br/>"
+        newText = ""
+        
+        if not self:
             return
+        if not self.parent():
+            newText += "parent: " + str(self.parent()) + newLine + "\n"
         
-        fname = doc.fileName()
-        docname = ODDDocker.documentDisplayName(self, doc, showIfModified=False)
-
-        msgBox = QMessageBox(
-                QMessageBox.Warning,
-                "Krita",
-                "Revert unsaved changes to the document <b>'"+docname+"'</b>?<br/><br/>" \
-                "Any unsaved changes will be permanently lost."
+        wins = ODD.windows
+        for w in wins:
+            newText += "WINDOW " + str(w) + " (" + w.objectName() + ")" + (newLine if w!=wins[-1] else "") + "\n"
+        
+        views = ODD.views
+        docs = ODD.documents
+        bitCountAll = 0
+        for doc in docs:
+            d = doc["document"]
+            newText += \
+                    "<div>\n" \
+                    " <ul type=none style='margin-left:-32px; -qt-list-indent:1'>\n" \
+                    "  <li style='font-weight:bold;'>DOC: {}</li>\n".format(Path(d.fileName()).name or "[not saved]")
+            newText += "  <ul type=none style='margin-left:8px; -qt-list-indent:1'>\n"
+            newText += "   <li><b>Opened</b>: {}</li>\n".format(doc["created"])
+            viewsThisWindowCount = 0
+            viewsOtherWindowsCount = 0
+            for v in views:
+                vdoc = v.document()
+                if vdoc == d:
+                    if v.window().qwindow() == self.parent():
+                        viewsThisWindowCount += 1
+                    else:
+                        viewsOtherWindowsCount += 1
+            newText += "   <li><b>Views: {}</b> ({} in this window, {} in others)</li>\n".format(
+                    viewsThisWindowCount + viewsOtherWindowsCount,
+                    viewsThisWindowCount,
+                    viewsOtherWindowsCount
+            )
+            thumbCount = len(doc["thumbnails"])
+            if thumbCount > 0:
+                bitCount = 0
+                usedThumbText = ""
+                unusedThumbTexts = []
+                for thumbKey,thumbData in doc["thumbnails"].items():
+                    pm = thumbData["pixmap"]
+                    userCount = len(thumbData["users"])
+                    size = pm.size()
+                    thumbBitCount = size.width() * size.height() * pm.depth()
+                    bitCount += thumbBitCount
+                    valid = thumbData["valid"]
+                    lastUsedMs = thumbData["lastUsed"]//1000000
+                    if userCount == 0:
+                        unusedThumbTexts.append((
+                                lastUsedMs,
+                                thumbBitCount,
+                                "    <li>{}: 0 users, {:1.2f}kb, last use: {}ms</li>\n".format(
+                                        thumbKey, thumbBitCount/8/1024, lastUsedMs
+                                )
+                        ))
+                    else:
+                        usedThumbText += "    <li><b>{}</b>: {} user{}, {:1.2f}kb{}</li>\n".format(
+                                thumbKey,
+                                userCount,
+                                "" if userCount==1 else "s",
+                                thumbBitCount/8/1024,
+                                "" if valid else "<i>, outdated</i>"
+                        )
+                
+                unusedThumbText = ""
+                unusedThumbCount = 0
+                unusedThumbOverflowBitCount = 0
+                unusedThumbTexts.sort(key=lambda textItem : textItem[0], reverse=True)
+                for textItem in unusedThumbTexts:
+                    if unusedThumbCount < 3:
+                        unusedThumbText += textItem[2]
+                    else:
+                        unusedThumbOverflowBitCount += textItem[1]
+                    unusedThumbCount += 1
+                
+                newText += "   <li><b>Thumbs: {}</b> ({:1.2f}kb)</li>\n".format(thumbCount, bitCount/8/1024)
+                newText += "   <ul type=none style='margin-left:8px; -qt-list-indent:1; font-size:small;'>\n"
+                newText += usedThumbText + unusedThumbText
+                if unusedThumbCount >= 4:
+                    newText += "    <li><i>...and {} less recently used, total {:1.2f}kb</i></li>\n".format(
+                            unusedThumbCount - 3, unusedThumbOverflowBitCount/8/1024
+                    )
+                newText += "   </ul>\n"
+                bitCountAll += bitCount
+            newText += "  </ul>\n </ul>\n</div>\n"
+        
+        self.infoLabel.setText(
+                "<html>" + \
+                "all thumbs: " + "{:1.3f}".format(bitCountAll/8/1048576) + \
+                "mb, of which unused: " + "{:1.3f}".format(ODD.unusedCacheSize/8/1048576) + \
+                "mb<br/>" + newText + \
+                "</html>"
         )
-        btnCancel = msgBox.addButton(QMessageBox.Cancel)
-        btnRevert = msgBox.addButton("Revert", QMessageBox.DestructiveRole)
-        btnRevert.setIcon(Application.icon('warning'))
-        msgBox.setDefaultButton(QMessageBox.Cancel)
-        msgBox.exec()
-        
-        if msgBox.clickedButton() == btnRevert:
-            print("Revert")
-            # suppress save prompt by telling Krita the document wasn't modified.
-            doc.setBatchmode(True)
-            doc.setModified(False)
-            
-            if ODDDocker.imageChangeDetected:
-                ODDDocker.imageChangeDetected = False
-                ODDDocker.refreshTimer.stop()
-            
-            Application.action('file_close').trigger()
-            newdoc = Application.openDocument(fname)
-            Application.activeWindow().addView(newdoc)
-
-        else:
-            print("Cancel")
-
-# And add the extension to Krita's list of extensions:
-Application.addExtension(ODDExtension(Application))

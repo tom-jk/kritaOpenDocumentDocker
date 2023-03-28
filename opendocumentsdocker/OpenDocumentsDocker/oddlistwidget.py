@@ -1,10 +1,12 @@
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import QListWidget, QScroller, QAbstractItemView
 from krita import *
+from .odd import ODD
 
 class ODDListWidget(QListWidget):
-    def __init__(self, odd):
+    def __init__(self, odd, oddDocker):
         self.odd = odd
+        self.oddDocker = oddDocker
         self.mouseEntered = False
         self.itemHovered = None
         self._itemRects = None
@@ -88,13 +90,13 @@ class ODDListWidget(QListWidget):
         if obj in (self.horizontalScrollBar(), self.verticalScrollBar()):
             if event.type() == QEvent.Enter:
                 self.itemHovered = None
-                self.odd.listToolTip.hide()
+                self.oddDocker.listToolTip.hide()
                 self.viewport().update()
         return False
     
     def resizeEvent(self, event):
-        print("ODDListWidget:resizeEvent:", event.size().width(), event.size().height())
-        self.odd.restartResizeDelayTimer()
+        #print("ODDListWidget:resizeEvent:", event.size().width(), event.size().height())
+        self.oddDocker.restartResizeDelayTimer()
     
     def enterEvent(self, event):
         self.mouseEntered = True
@@ -107,7 +109,7 @@ class ODDListWidget(QListWidget):
     def leaveEvent(self, event):
         if self.itemHovered:
             self.itemHovered = None
-            self.odd.listToolTip.hide()
+            self.oddDocker.listToolTip.hide()
         self.mouseEntered = False
         self.viewport().update()
     
@@ -116,11 +118,11 @@ class ODDListWidget(QListWidget):
         self.itemHovered = self.itemAt(event.x(), event.y())
         if not self.itemHovered:
             if oldItemHovered:
-                self.odd.listToolTip.hide()
+                self.oddDocker.listToolTip.hide()
                 self.viewport().update()
         else:
             if self.itemHovered != oldItemHovered:
-                self.odd.itemEntered(self.itemHovered)
+                self.oddDocker.itemEntered(self.itemHovered)
                 self.viewport().update()
     
     def invalidateItemRectsCache(self):
@@ -134,7 +136,7 @@ class ODDListWidget(QListWidget):
             else:
                 print("itemRectsValid but wrong count!")
         
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return None
         
         if self._doNotRecacheItemRects:
@@ -153,13 +155,13 @@ class ODDListWidget(QListWidget):
         
         isListVertical = self.flow() == QListView.TopToBottom
         
-        if self.odd.vs.readSetting("grid") == "true":
+        if self.oddDocker.vs.readSetting("grid") == "true":
             # in vertical grid mode, go right until can't fit, then go down and back left.
             # in horizontal grid mode, go down until can't fit, then go right and back up.
-            gridMode = self.odd.vs.readSetting("gridMode")
+            gridMode = self.oddDocker.vs.readSetting("gridMode")
             
-            idealSize = self.odd.calculateDisplaySizeForThumbnail(None, True)
-            checkExt = 1.0 * float(self.odd.vs.readSetting("thumbDisplayScale"))
+            idealSize = self.oddDocker.calculateDisplaySizeForThumbnail(None, True)
+            checkExt = 1.0 * float(self.oddDocker.vs.readSetting("thumbDisplayScale"))
             if isListVertical:
                 stackCount = int((float(self.viewport().width())+checkExt) / idealSize.width())
             else:
@@ -196,7 +198,7 @@ class ODDListWidget(QListWidget):
             xExt = 2
         for i in range(count):
             item = self.item(i)
-            size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole), False, True)
+            size = self.oddDocker.calculateDisplaySizeForThumbnail(item.data(self.oddDocker.ItemDocumentSizeRole), False, True)
             itemRects.append(QRect(x, y, size.width(), size.height()))
             if isListVertical:
                 y += size.height() + yExt
@@ -222,7 +224,7 @@ class ODDListWidget(QListWidget):
                 size = idealSize
                 previousSize = size
             else:
-                size = self.odd.calculateDisplaySizeForThumbnail(item.data(self.odd.ItemDocumentSizeRole))
+                size = self.oddDocker.calculateDisplaySizeForThumbnail(item.data(self.oddDocker.ItemDocumentSizeRole))
                 previousSize = QSize(max(previousSize.width(), size.width()), max(previousSize.height(), size.height()))
             itemRects.append(QRectF(x, y, size.width(), size.height()).toRect())
             if isListVertical:
@@ -243,8 +245,8 @@ class ODDListWidget(QListWidget):
         
         for i in range(count):
             item = self.item(i)
-            docSize = item.data(self.odd.ItemDocumentSizeRole)
-            itemSize = self.odd.calculateDisplaySizeForThumbnail(docSize, True, True)
+            docSize = item.data(self.oddDocker.ItemDocumentSizeRole)
+            itemSize = self.oddDocker.calculateDisplaySizeForThumbnail(docSize, True, True)
             
             if isListVertical:
                 x = stacksPos[stack]
@@ -275,7 +277,7 @@ class ODDListWidget(QListWidget):
             self.verticalScrollBar().setRange(0, 0)
     
     def indexAt(self, point):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return super().indexAt(point)
         
         itemRects = self.itemRects()
@@ -287,7 +289,7 @@ class ODDListWidget(QListWidget):
         return self.indexFromItem(None)
     
     def visualItemRect(self, item):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return super().visualItemRect(item)
         
         itemRects = self.itemRects()
@@ -297,14 +299,14 @@ class ODDListWidget(QListWidget):
                 return itemRects[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
     
     def childrenRect(self):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return super().childrenRect()
         
         self.itemRects()
         return self._childrenRect
     
     def scrollTo(self, index, hint=QAbstractItemView.EnsureVisible):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             super().scrollTo(index, hint)
             return
         
@@ -328,7 +330,7 @@ class ODDListWidget(QListWidget):
         self.viewport().update()
     
     def updateGeometries(self):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return super().updateGeometries()
         #print("ODDListWidget: updateGeometries")
         self.updateScrollBarRange()
@@ -338,20 +340,19 @@ class ODDListWidget(QListWidget):
         self.verticalScrollBar().setPageStep(128)
     
     def paintEvent(self, event):
-        if not self.odd.vs.readSetting("display") == "thumbnails":
+        if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             super().paintEvent(event)
             return
         
         activeDoc = Application.activeDocument()
-        activeUid = self.odd.documentUniqueId(activeDoc) if activeDoc else None
         #print("paintEvent:", event.rect())
         option = self.viewOptions()
         painter = QPainter(self.viewport())
         count = self.count()
-        fadeAmount = self.odd.vs.settingValue("thumbFadeAmount")
+        fadeAmount = self.oddDocker.vs.settingValue("thumbFadeAmount")
         
-        modIconPreview = self.odd.vs.previewThumbnailsShowModified
-        modIconTypeSetting = self.odd.vs.readSetting("thumbShowModified")
+        modIconPreview = self.oddDocker.vs.previewThumbnailsShowModified
+        modIconTypeSetting = self.oddDocker.vs.readSetting("thumbShowModified")
         modIconType = modIconTypeSetting if modIconPreview == "" else modIconPreview
         canShowModIcon = modIconType != "none"
         if canShowModIcon:
@@ -389,20 +390,20 @@ class ODDListWidget(QListWidget):
         opacityListHoveredActive    = 0.75 + 0.25 * baseOpacity
         opacityItemHoveredNotActive = 0.95 + 0.05 * baseOpacity
         opacityItemHoveredActive    = 1.00
-        if self.unfadeDelayTimer.isActive() or not self.odd.vs.settingValue("thumbFadeUnfade"):
+        if self.unfadeDelayTimer.isActive() or not self.oddDocker.vs.settingValue("thumbFadeUnfade"):
             opacityListHoveredNotActive = opacityItemHoveredNotActive = opacityNotHoveredNotActive
             opacityListHoveredActive = opacityItemHoveredActive = opacityNotHoveredActive
         
-        isGrid = self.odd.vs.readSetting("grid") == "true"
+        isGrid = self.oddDocker.vs.readSetting("grid") == "true"
         if isGrid:
             colorGridLine = self.palette().color(self.backgroundRole())
-            isStretchToFit = self.odd.vs.readSetting("gridMode") == "stretchToFit"
+            isStretchToFit = self.oddDocker.vs.readSetting("gridMode") == "stretchToFit"
         else:
             isStretchToFit = False
         
         for i in range(count):
             item = self.item(i)
-            isItemActiveDoc = item.data(self.odd.ItemDocumentRole) == activeUid
+            isItemActiveDoc = item.data(self.oddDocker.ItemDocumentRole) == activeDoc
             itemRect = self.itemRects()[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
             option.rect = itemRect
             option.showDecorationSelected = (item in self.selectedItems())
@@ -431,7 +432,7 @@ class ODDListWidget(QListWidget):
                     if isStretchToFit:
                         painter.drawPixmap(itemRect, pm)
                     else:
-                        aspectLimit = float(self.odd.vs.readSetting("thumbAspectLimit"))
+                        aspectLimit = float(self.oddDocker.vs.readSetting("thumbAspectLimit"))
                         cropRect = pm.rect()
                         itemRatio = h/w
                         pmRatio = pm.height()/pm.width()
@@ -440,15 +441,18 @@ class ODDListWidget(QListWidget):
                             cropWidth = w * itemToPmScale
                             cropRect.setWidth(round(cropWidth))
                             cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
+                            #print(itemRect, pm.rect(), itemToPmScale, cropRect)
                         elif pmRatio > 1.0:
                             itemToPmScale = pm.width() / w
                             cropHeight = h * itemToPmScale
                             cropRect.setHeight(round(cropHeight))
                             cropRect.moveTop(round((pm.height() - cropHeight) / 2))
+                            #print(itemRect, pm.rect(), itemToPmScale, cropRect)
                         cropRect.moveLeft(max(0, cropRect.left()))
                         cropRect.moveTop(max(0, cropRect.top()))
                         cropRect.setWidth(min(pm.width(), cropRect.width()))
                         cropRect.setHeight(min(pm.height(), cropRect.height()))
+                        #print("#"+str(i)+":", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
                         painter.drawPixmap(itemRect, pm, cropRect)
                 
                 if isItemActiveDoc:
@@ -457,7 +461,7 @@ class ODDListWidget(QListWidget):
                     painter.drawRect(x, y, w-1, h-1)
                     painter.setPen(QColor(0,0,0,127))
                     painter.drawRect(x+1, y+1, w-3, h-3)
-                if (item.data(self.odd.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
+                if (item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
                     topRight = QPoint(x + w-1, y)
                     if isModIconTypeText:
                         font = painter.font()
@@ -491,7 +495,7 @@ class ODDListWidget(QListWidget):
 
     def contextMenuEvent(self, event):
         print("ctx menu event -", event.globalPos(), event.reason())
-        self.odd.listToolTip.hide()
+        self.oddDocker.listToolTip.hide()
         
         if not self.mouseEntered:
             print("ctx menu cancelled (mouse not over list)")
@@ -512,19 +516,19 @@ class ODDListWidget(QListWidget):
             #pos = (itemRect.topLeft() + itemRect.bottomRight()) / 2
             return
         
-        doc = self.odd.findDocumentWithItem(item)
+        doc = item.data(self.oddDocker.ItemDocumentRole)
         if not doc:
             print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
         print("selected:", item, " -", doc.fileName())
-        self.odd.itemClicked(item)
+        self.oddDocker.itemClicked(item)
         app.activeDocument().waitForDone()
-        self.odd.findAndActivateView(doc)
+        ODD.findAndActivateView(doc)
         app.setActiveDocument(doc)
         doc.waitForDone()
         menu = QMenu(self)
-        menu.addAction(self.odd.documentDisplayName(doc))
+        menu.addAction(ODD.documentDisplayName(doc))
         menu.actions()[0].setEnabled(False)
         menu.addSeparator()
         menu.addAction(app.action('file_save'))
@@ -540,7 +544,6 @@ class ODDListWidget(QListWidget):
         if doc.fileName():
             menu.addAction(app.action('ODDFileRevertAction'))
         else:
-            print("disable revert")
             menu.addAction("Revert")
             menu.actions()[-1].setEnabled(False)
         menu.addAction(app.action('file_close'))

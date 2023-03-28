@@ -3,8 +3,11 @@
 #
 
 import krita
-from .odddocker import ODDDocker, ODDExtension
+from .odd import ODD
+from .odddocker import ODDDocker
 
+
+Application.addExtension(ODD(Application))
 
 Application.addDockWidgetFactory(
     krita.DockWidgetFactory("openDocumentsDocker",
