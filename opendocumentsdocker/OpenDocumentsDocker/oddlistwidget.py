@@ -351,7 +351,7 @@ class ODDListWidget(QListWidget):
         count = self.count()
         fadeAmount = self.oddDocker.vs.settingValue("thumbFadeAmount")
         
-        modIconPreview = self.oddDocker.vs.previewThumbnailsShowModified
+        modIconPreview = self.oddDocker.vs.previewThumbsShowModified
         modIconTypeSetting = self.oddDocker.vs.readSetting("thumbShowModified")
         modIconType = modIconTypeSetting if modIconPreview == "" else modIconPreview
         canShowModIcon = modIconType != "none"

@@ -562,7 +562,7 @@ class ODDSettings(QObject):
         self.startRefreshAllDelayTimer()
     
     def changedThumbDisplayScaleSlider(self, value):
-        if self.sender() == self.dockerThumbnailsDisplayScaleSlider:
+        if self.sender() == self.dockerThumbsDisplayScaleSlider:
             self.UI["thumbDisplayScale"]["slider"].setValue(value)
             return
         setting = "{:4.2f}".format(self.settingValue("thumbDisplayScale"))
@@ -578,7 +578,7 @@ class ODDSettings(QObject):
         self.oddDocker.list.viewport().update()
         self.startRefreshAllDelayTimer()
         
-        self.dockerThumbnailsDisplayScaleSlider.setValue(value)
+        self.dockerThumbsDisplayScaleSlider.setValue(value)
     
     def changedThumbRenderScaleSlider(self, value):
         setting = convertSettingValueToString("thumbRenderScale", value)
@@ -609,11 +609,11 @@ class ODDSettings(QObject):
     
     def highlightedThumbShowModified(self, index):
         setting = self.SD["thumbShowModified"]["values"][index]
-        self.previewThumbnailsShowModified = setting
+        self.previewThumbsShowModified = setting
         self.oddDocker.list.viewport().update()
     
     def unhighlightedThumbShowModified(self):
-        self.previewThumbnailsShowModified = ""
+        self.previewThumbsShowModified = ""
         self.oddDocker.list.viewport().update()
     
     def changedTooltipShow(self, state):
@@ -677,11 +677,11 @@ class ODDSettings(QObject):
         self.writeSetting("showCommonControlsInDocker", setting)
         
         if state == 2:
-            self.dockerThumbnailsDisplayScaleSlider.show()
+            self.dockerThumbsDisplayScaleSlider.show()
             self.dockerDisplayToggleButton.show()
             self.dockerRefreshPeriodicallyToggleButton.show()
         else:
-            self.dockerThumbnailsDisplayScaleSlider.hide()
+            self.dockerThumbsDisplayScaleSlider.hide()
             self.dockerDisplayToggleButton.hide()
             self.dockerRefreshPeriodicallyToggleButton.hide()
     
@@ -695,9 +695,9 @@ class ODDSettings(QObject):
     def setUiValuesForThumbUseProjectionMethod(self, setting):
         self.UI["thumbUseProjectionMethod"]["btn"].setChecked(setting == "true")
     
-    def changedThumbnailUseProjectionMethod(self, state):
+    def changedThumbUseProjectionMethod(self, state):
         setting = str(state==2).lower()
-        print("changedThumbnailUseProjectionMethod to", setting)
+        print("changedThumbUseProjectionMethod to", setting)
         self.writeSetting("thumbUseProjectionMethod", setting)
         
         self.startRefreshAllDelayTimer()
@@ -812,12 +812,12 @@ class ODDSettings(QObject):
             self.UI["gridMode"]["btn"].setItemData(i, self.SD["gridMode"]["tooltips"][i], Qt.ToolTipRole)
         self.UI["gridMode"]["btn"].activated.connect(self.changedGridMode)
         
-        self.panelThumbnailsLabel = QLabel("Thumbnails", self.panel)
+        self.panelThumbsLabel = QLabel("Thumbnails", self.panel)
         
         setting = self.readSetting("thumbUseProjectionMethod")
         self.UI["thumbUseProjectionMethod"]["btn"] = QCheckBox("Use projection method", self.panel)
         self.setUiValuesForThumbUseProjectionMethod(setting)
-        self.UI["thumbUseProjectionMethod"]["btn"].stateChanged.connect(self.changedThumbnailUseProjectionMethod)
+        self.UI["thumbUseProjectionMethod"]["btn"].stateChanged.connect(self.changedThumbUseProjectionMethod)
         self.UI["thumbUseProjectionMethod"]["btn"].setToolTip(
                 "If enabled, ODD will generate thumbnails with the projection method.\n" +
                 "If disabled, ODD will use the thumbnail method.\n" +
@@ -825,7 +825,7 @@ class ODDSettings(QObject):
         )
         
         setting = self.readSetting("thumbAspectLimit")
-        self.panelThumbnailsAspectLimitLayout, self.panelThumbnailsAspectLimitLabel = self.createPanelControlsForSetting(
+        self.panelThumbsAspectLimitLayout, self.panelThumbsAspectLimitLabel = self.createPanelControlsForSetting(
                 setting     = "thumbAspectLimit",
                 nameText    = "Aspect limit",
                 valueText   = "1:{:1.3g}".format(float(setting)),
@@ -838,7 +838,7 @@ class ODDSettings(QObject):
         )
         
         setting = self.readSetting("thumbDisplayScale")
-        self.panelThumbnailsDisplayScaleLayout, self.panelThumbnailsDisplayScaleLabel = self.createPanelControlsForSetting(
+        self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel = self.createPanelControlsForSetting(
                 setting     = "thumbDisplayScale",
                 nameText    = "Display scale",
                 valueText   = setting,
@@ -846,16 +846,16 @@ class ODDSettings(QObject):
                 value       = round((float(setting)-0.05)*100.0)
         )
         
-        self.dockerThumbnailsDisplayScaleSlider = QSlider(Qt.Horizontal)
-        self.dockerThumbnailsDisplayScaleSlider.setRange(       self.UI["thumbDisplayScale"]["slider"].minimum(),
+        self.dockerThumbsDisplayScaleSlider = QSlider(Qt.Horizontal)
+        self.dockerThumbsDisplayScaleSlider.setRange(       self.UI["thumbDisplayScale"]["slider"].minimum(),
                                                                 self.UI["thumbDisplayScale"]["slider"].maximum())
-        self.dockerThumbnailsDisplayScaleSlider.setTickPosition(self.UI["thumbDisplayScale"]["slider"].tickPosition())
-        self.dockerThumbnailsDisplayScaleSlider.setTickInterval(self.UI["thumbDisplayScale"]["slider"].tickInterval())
-        self.dockerThumbnailsDisplayScaleSlider.setPageStep(    self.UI["thumbDisplayScale"]["slider"].pageStep())
-        self.dockerThumbnailsDisplayScaleSlider.setValue(       self.UI["thumbDisplayScale"]["slider"].value())
+        self.dockerThumbsDisplayScaleSlider.setTickPosition(self.UI["thumbDisplayScale"]["slider"].tickPosition())
+        self.dockerThumbsDisplayScaleSlider.setTickInterval(self.UI["thumbDisplayScale"]["slider"].tickInterval())
+        self.dockerThumbsDisplayScaleSlider.setPageStep(    self.UI["thumbDisplayScale"]["slider"].pageStep())
+        self.dockerThumbsDisplayScaleSlider.setValue(       self.UI["thumbDisplayScale"]["slider"].value())
         
         setting = self.readSetting("thumbRenderScale")
-        self.panelThumbnailsRenderScaleLayout, self.panelThumbnailsRenderScaleLabel = self.createPanelControlsForSetting(
+        self.panelThumbsRenderScaleLayout, self.panelThumbsRenderScaleLabel = self.createPanelControlsForSetting(
                 setting     = "thumbRenderScale",
                 nameText    = "Render scale",
                 valueText   = setting,
@@ -867,7 +867,7 @@ class ODDSettings(QObject):
         )
         
         setting = self.readSetting("thumbFadeAmount")
-        self.panelThumbnailsFadeAmountLayout, self.panelThumbnailsFadeAmountLabel = self.createPanelControlsForSetting(
+        self.panelThumbsFadeAmountLayout, self.panelThumbsFadeAmountLabel = self.createPanelControlsForSetting(
                 setting     = "thumbFadeAmount",
                 nameText    = "Fade amount",
                 valueText   = setting,
@@ -875,15 +875,15 @@ class ODDSettings(QObject):
                 value       = round(float(setting)*100)
         )
         
-        self.panelThumbnailsFadeAmountControlsLayout = QHBoxLayout()
+        self.panelThumbsFadeAmountControlsLayout = QHBoxLayout()
         self.UI["thumbFadeUnfade"]["btn"] = QCheckBox(self.panel)
         self.UI["thumbFadeUnfade"]["btn"].setChecked(self.readSetting("thumbFadeUnfade") == "true")
         self.UI["thumbFadeUnfade"]["btn"].stateChanged.connect(self.changedThumbFadeUnfade)
         self.UI["thumbFadeUnfade"]["btn"].setToolTip("Un-fade on mouse hover.")
         
         setting = self.readSetting("thumbShowModified")
-        self.panelThumbnailsShowModifiedLayout = QHBoxLayout()
-        self.panelThumbnailsShowModifiedLabel = QLabel("Modified indicator", self.panel)
+        self.panelThumbsShowModifiedLayout = QHBoxLayout()
+        self.panelThumbsShowModifiedLabel = QLabel("Modified indicator", self.panel)
         self.UI["thumbShowModified"]["btn"] = QComboBox(self.panel)
         self.UI["thumbShowModified"]["btn"].addItems(self.SD["thumbShowModified"]["strings"])
         self.setUiValuesForThumbShowModified(setting)
@@ -891,7 +891,7 @@ class ODDSettings(QObject):
                 "An icon to show on modified document thumbnails.\n" +
                 "A preview will be shown as you highlight options (if there are visible thumbnails)."
         )
-        self.previewThumbnailsShowModified = ""
+        self.previewThumbsShowModified = ""
         
         self.UI["refreshOnSave"]["btn"] = QCheckBox("Refresh on save", self.panel)
         self.UI["refreshOnSave"]["btn"].setChecked(self.readSetting("refreshOnSave") == "true")
@@ -916,7 +916,7 @@ class ODDSettings(QObject):
         self.dockerRefreshPeriodicallyToggleButton.clicked.connect(self.changedRefreshPeriodically)
         
         setting = self.readSetting("refreshPeriodicallyChecks")
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout, self.panelThumbnailsRefreshPeriodicallyChecksLabel = self.createPanelControlsForSetting(
+        self.panelThumbsRefreshPeriodicallyChecksLayout, self.panelThumbsRefreshPeriodicallyChecksLabel = self.createPanelControlsForSetting(
                 setting     = "refreshPeriodicallyChecks",
                 nameText    = "Checks",
                 valueText   = self.decoratedSettingText("refreshPeriodicallyChecks", setting),
@@ -928,7 +928,7 @@ class ODDSettings(QObject):
         setting = self.readSetting("refreshPeriodicallyDelay")
         settingValue = convertSettingStringToValue("refreshPeriodicallyDelay", setting)
         settingString = convertSettingValueToString("refreshPeriodicallyDelay", settingValue)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout, self.panelThumbnailsRefreshPeriodicallyDelayLabel = self.createPanelControlsForSetting(
+        self.panelThumbsRefreshPeriodicallyDelayLayout, self.panelThumbsRefreshPeriodicallyDelayLabel = self.createPanelControlsForSetting(
                 setting     = "refreshPeriodicallyDelay",
                 nameText    = "Delay by",
                 valueText   = settingString,
@@ -945,7 +945,7 @@ class ODDSettings(QObject):
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         setting = self.readSetting("tooltipThumbLimit")
-        self.panelTooltipThumbnailLimitLayout, self.panelTooltipThumbnailLimitLabel = self.createPanelControlsForSetting(
+        self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel = self.createPanelControlsForSetting(
                 setting     = "tooltipThumbLimit",
                 nameText    = "Limit",
                 valueText   = self.decoratedSettingText("tooltipThumbLimit", setting),
@@ -954,7 +954,7 @@ class ODDSettings(QObject):
         )
         
         setting = self.readSetting("tooltipThumbSize")
-        self.panelTooltipThumbnailSizeLayout, self.panelTooltipThumbnailSizeLabel = self.createPanelControlsForSetting(
+        self.panelTooltipThumbSizeLayout, self.panelTooltipThumbSizeLabel = self.createPanelControlsForSetting(
                 setting     = "tooltipThumbSize",
                 nameText    = "Size",
                 valueText   = self.decoratedSettingText("tooltipThumbSize", setting),
@@ -1036,80 +1036,80 @@ class ODDSettings(QObject):
         self.panelDisplayLayout.addLayout(self.panelGridLayout)
         self.panelDisplayAndDirectionLayout.addLayout(self.panelDisplayLayout)
         self.panelLayout.addLayout(self.panelDisplayAndDirectionLayout)
-        self.panelLayout.addWidget(self.panelThumbnailsLabel)
+        self.panelLayout.addWidget(self.panelThumbsLabel)
         self.panelLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
-        self.panelThumbnailsAspectLimitLayout.addWidget(self.panelThumbnailsAspectLimitLabel)
-        self.panelThumbnailsAspectLimitLayout.addWidget(self.UI["thumbAspectLimit"]["value"])
-        self.panelThumbnailsAspectLimitLayout.addWidget(self.UI["thumbAspectLimit"]["slider"])
-        self.panelThumbnailsAspectLimitLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsAspectLimitLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsAspectLimitLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsAspectLimitLayout)
-        self.panelThumbnailsDisplayScaleLayout.addWidget(self.panelThumbnailsDisplayScaleLabel)
-        self.panelThumbnailsDisplayScaleLayout.addWidget(self.UI["thumbDisplayScale"]["value"])
-        self.panelThumbnailsDisplayScaleLayout.addWidget(self.UI["thumbDisplayScale"]["slider"])
-        self.panelThumbnailsDisplayScaleLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsDisplayScaleLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsDisplayScaleLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsDisplayScaleLayout)
-        self.panelThumbnailsRenderScaleLayout.addWidget(self.panelThumbnailsRenderScaleLabel)
-        self.panelThumbnailsRenderScaleLayout.addWidget(self.UI["thumbRenderScale"]["value"])
-        self.panelThumbnailsRenderScaleLayout.addWidget(self.UI["thumbRenderScale"]["slider"])
-        self.panelThumbnailsRenderScaleLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsRenderScaleLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsRenderScaleLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsRenderScaleLayout)
-        self.panelThumbnailsFadeAmountLayout.addWidget(self.panelThumbnailsFadeAmountLabel)
-        self.panelThumbnailsFadeAmountLayout.addWidget(self.UI["thumbFadeAmount"]["value"])
-        self.panelThumbnailsFadeAmountControlsLayout.addWidget(self.UI["thumbFadeAmount"]["slider"])
-        self.panelThumbnailsFadeAmountControlsLayout.addWidget(self.UI["thumbFadeUnfade"]["btn"])
-        self.panelThumbnailsFadeAmountControlsLayout.setStretch(0, 19)
-        self.panelThumbnailsFadeAmountControlsLayout.setStretch(1, 1)
-        self.panelThumbnailsFadeAmountLayout.addLayout(self.panelThumbnailsFadeAmountControlsLayout)
-        self.panelThumbnailsFadeAmountLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsFadeAmountLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsFadeAmountLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsFadeAmountLayout)
-        self.panelThumbnailsShowModifiedLayout.addWidget(self.panelThumbnailsShowModifiedLabel)
-        self.panelThumbnailsShowModifiedLayout.addWidget(self.UI["thumbShowModified"]["btn"])
-        self.panelThumbnailsShowModifiedLayout.setStretch(0, 4)
-        self.panelThumbnailsShowModifiedLayout.setStretch(1, 5)
-        self.panelLayout.addLayout(self.panelThumbnailsShowModifiedLayout)
+        self.panelThumbsAspectLimitLayout.addWidget(self.panelThumbsAspectLimitLabel)
+        self.panelThumbsAspectLimitLayout.addWidget(self.UI["thumbAspectLimit"]["value"])
+        self.panelThumbsAspectLimitLayout.addWidget(self.UI["thumbAspectLimit"]["slider"])
+        self.panelThumbsAspectLimitLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsAspectLimitLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsAspectLimitLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsAspectLimitLayout)
+        self.panelThumbsDisplayScaleLayout.addWidget(self.panelThumbsDisplayScaleLabel)
+        self.panelThumbsDisplayScaleLayout.addWidget(self.UI["thumbDisplayScale"]["value"])
+        self.panelThumbsDisplayScaleLayout.addWidget(self.UI["thumbDisplayScale"]["slider"])
+        self.panelThumbsDisplayScaleLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsDisplayScaleLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsDisplayScaleLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsDisplayScaleLayout)
+        self.panelThumbsRenderScaleLayout.addWidget(self.panelThumbsRenderScaleLabel)
+        self.panelThumbsRenderScaleLayout.addWidget(self.UI["thumbRenderScale"]["value"])
+        self.panelThumbsRenderScaleLayout.addWidget(self.UI["thumbRenderScale"]["slider"])
+        self.panelThumbsRenderScaleLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsRenderScaleLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsRenderScaleLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsRenderScaleLayout)
+        self.panelThumbsFadeAmountLayout.addWidget(self.panelThumbsFadeAmountLabel)
+        self.panelThumbsFadeAmountLayout.addWidget(self.UI["thumbFadeAmount"]["value"])
+        self.panelThumbsFadeAmountControlsLayout.addWidget(self.UI["thumbFadeAmount"]["slider"])
+        self.panelThumbsFadeAmountControlsLayout.addWidget(self.UI["thumbFadeUnfade"]["btn"])
+        self.panelThumbsFadeAmountControlsLayout.setStretch(0, 19)
+        self.panelThumbsFadeAmountControlsLayout.setStretch(1, 1)
+        self.panelThumbsFadeAmountLayout.addLayout(self.panelThumbsFadeAmountControlsLayout)
+        self.panelThumbsFadeAmountLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsFadeAmountLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsFadeAmountLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsFadeAmountLayout)
+        self.panelThumbsShowModifiedLayout.addWidget(self.panelThumbsShowModifiedLabel)
+        self.panelThumbsShowModifiedLayout.addWidget(self.UI["thumbShowModified"]["btn"])
+        self.panelThumbsShowModifiedLayout.setStretch(0, 4)
+        self.panelThumbsShowModifiedLayout.setStretch(1, 5)
+        self.panelLayout.addLayout(self.panelThumbsShowModifiedLayout)
         self.panelLayout.addWidget(self.UI["refreshOnSave"]["btn"])
         self.panelLayout.addWidget(self.UI["refreshPeriodically"]["btn"])
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyChecksLabel)
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.UI["refreshPeriodicallyChecks"]["value"])
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.addWidget(self.UI["refreshPeriodicallyChecks"]["slider"])
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsRefreshPeriodicallyChecksLayout)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.panelThumbnailsRefreshPeriodicallyDelayLabel)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.UI["refreshPeriodicallyDelay"]["value"])
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.addWidget(self.UI["refreshPeriodicallyDelay"]["slider"])
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelThumbnailsRefreshPeriodicallyDelayLayout)
+        self.panelThumbsRefreshPeriodicallyChecksLayout.addWidget(self.panelThumbsRefreshPeriodicallyChecksLabel)
+        self.panelThumbsRefreshPeriodicallyChecksLayout.addWidget(self.UI["refreshPeriodicallyChecks"]["value"])
+        self.panelThumbsRefreshPeriodicallyChecksLayout.addWidget(self.UI["refreshPeriodicallyChecks"]["slider"])
+        self.panelThumbsRefreshPeriodicallyChecksLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsRefreshPeriodicallyChecksLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsRefreshPeriodicallyChecksLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsRefreshPeriodicallyChecksLayout)
+        self.panelThumbsRefreshPeriodicallyDelayLayout.addWidget(self.panelThumbsRefreshPeriodicallyDelayLabel)
+        self.panelThumbsRefreshPeriodicallyDelayLayout.addWidget(self.UI["refreshPeriodicallyDelay"]["value"])
+        self.panelThumbsRefreshPeriodicallyDelayLayout.addWidget(self.UI["refreshPeriodicallyDelay"]["slider"])
+        self.panelThumbsRefreshPeriodicallyDelayLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelThumbsRefreshPeriodicallyDelayLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelThumbsRefreshPeriodicallyDelayLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelThumbsRefreshPeriodicallyDelayLayout)
         self.panelTooltipsHeading.addWidget(self.UI["tooltipShow"]["btn"])
         self.panelTooltipsHeading.addWidget(self.panelTooltipsHeadingLine)
         self.panelTooltipsHeading.setStretch(0, 1)
         self.panelTooltipsHeading.setStretch(1, 99)
         self.panelLayout.addLayout(self.panelTooltipsHeading)
-        self.panelTooltipThumbnailLimitLayout.addWidget(self.panelTooltipThumbnailLimitLabel)
-        self.panelTooltipThumbnailLimitLayout.addWidget(self.UI["tooltipThumbLimit"]["value"])
-        self.panelTooltipThumbnailLimitLayout.addWidget(self.UI["tooltipThumbLimit"]["slider"])
-        self.panelTooltipThumbnailLimitLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelTooltipThumbnailLimitLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelTooltipThumbnailLimitLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelTooltipThumbnailLimitLayout)
-        self.panelTooltipThumbnailSizeLayout.addWidget(self.panelTooltipThumbnailSizeLabel)
-        self.panelTooltipThumbnailSizeLayout.addWidget(self.UI["tooltipThumbSize"]["value"])
-        self.panelTooltipThumbnailSizeLayout.addWidget(self.UI["tooltipThumbSize"]["slider"])
-        self.panelTooltipThumbnailSizeLayout.setStretch(0, sliderLayoutStretchAmount[0])
-        self.panelTooltipThumbnailSizeLayout.setStretch(1, sliderLayoutStretchAmount[1])
-        self.panelTooltipThumbnailSizeLayout.setStretch(2, sliderLayoutStretchAmount[2])
-        self.panelLayout.addLayout(self.panelTooltipThumbnailSizeLayout)
+        self.panelTooltipThumbLimitLayout.addWidget(self.panelTooltipThumbLimitLabel)
+        self.panelTooltipThumbLimitLayout.addWidget(self.UI["tooltipThumbLimit"]["value"])
+        self.panelTooltipThumbLimitLayout.addWidget(self.UI["tooltipThumbLimit"]["slider"])
+        self.panelTooltipThumbLimitLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelTooltipThumbLimitLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelTooltipThumbLimitLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelTooltipThumbLimitLayout)
+        self.panelTooltipThumbSizeLayout.addWidget(self.panelTooltipThumbSizeLabel)
+        self.panelTooltipThumbSizeLayout.addWidget(self.UI["tooltipThumbSize"]["value"])
+        self.panelTooltipThumbSizeLayout.addWidget(self.UI["tooltipThumbSize"]["slider"])
+        self.panelTooltipThumbSizeLayout.setStretch(0, sliderLayoutStretchAmount[0])
+        self.panelTooltipThumbSizeLayout.setStretch(1, sliderLayoutStretchAmount[1])
+        self.panelTooltipThumbSizeLayout.setStretch(2, sliderLayoutStretchAmount[2])
+        self.panelLayout.addLayout(self.panelTooltipThumbSizeLayout)
         self.panelMiscHeading.addWidget(self.panelMiscHeadingLabel)
         self.panelMiscHeading.addWidget(self.panelMiscHeadingLine)
         self.panelMiscHeading.setStretch(0, 1)
@@ -1128,7 +1128,7 @@ class ODDSettings(QObject):
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(432)#384)
         
-        self.oddDocker.layout.insertWidget(1, self.dockerThumbnailsDisplayScaleSlider)
+        self.oddDocker.layout.insertWidget(1, self.dockerThumbsDisplayScaleSlider)
         self.dockerCommonControlsLayout = QBoxLayout(QBoxLayout.LeftToRight)
         self.dockerCommonControlsLayout.setSpacing(0)
         self.dockerCommonControlsLayout.addWidget(self.dockerDisplayToggleButton)
@@ -1148,7 +1148,7 @@ class ODDSettings(QObject):
         self.UI["refreshPeriodicallyDelay" ]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
         self.UI["excessThumbCacheLimit"    ]["slider"].valueChanged.connect(self.changedExcessThumbCacheLimitSlider)
         
-        self.dockerThumbnailsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
+        self.dockerThumbsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
         
         for setting in self.SD:
             self.updateControlsEnabledState(setting)

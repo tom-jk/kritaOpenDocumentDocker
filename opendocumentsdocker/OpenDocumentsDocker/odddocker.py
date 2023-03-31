@@ -454,8 +454,8 @@ class ODDDocker(krita.DockWidget):
         if direction == "horizontal":
             self.layout.setDirection(QBoxLayout.LeftToRight)
             self.list.setFlow(QListView.LeftToRight)
-            if hasattr(self.vs, "dockerThumbnailsDisplayScaleSlider"):
-                self.vs.dockerThumbnailsDisplayScaleSlider.setOrientation(Qt.Vertical)
+            if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
+                self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Vertical)
                 self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.TopToBottom)
                 self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
                 self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
@@ -479,8 +479,8 @@ class ODDDocker(krita.DockWidget):
         else:
             self.layout.setDirection(QBoxLayout.TopToBottom)
             self.list.setFlow(QListView.TopToBottom)
-            if hasattr(self.vs, "dockerThumbnailsDisplayScaleSlider"):
-                self.vs.dockerThumbnailsDisplayScaleSlider.setOrientation(Qt.Horizontal)
+            if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
+                self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Horizontal)
                 self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.LeftToRight)
                 self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
                 self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
