@@ -3,22 +3,41 @@ from PyQt5.QtGui import QScreen
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton
 from krita import *
 import math
+from ast import literal_eval
 
 def convertSettingStringToValue(settingName, string):
     setting = ODDSettings.SD[settingName]
-    if string in setting["strings"]:
-        return setting["strings"].index(string)
+    strings = setting["strings"]
+    if type(strings) == list:
+        if string in strings:
+            return strings.index(string)
+        else:
+            return strings.index(setting["default"])
     else:
-        return setting["strings"].index(setting["default"])
+        string = ''.join(i for i in string if i.isdigit() or i in '-./\\')
+        value = literal_eval(string)
+        values = setting["values"]
+        if value in values:
+            return values.index(value)
+        else:
+            return values.index(setting["default"])
 
 def convertSettingValueToString(settingName, value):
     setting = ODDSettings.SD[settingName]
-    if type(value) is not str and value >= 0 and value < len(setting["strings"]):
-        return setting["strings"][value]
-    elif type(value) is str and value in setting["values"]:
-        return setting["strings"][setting["values"].index(value)]
+    strings = setting["strings"]
+    if type(strings) == list:
+        if type(value) is not str and value >= 0 and value < len(setting["strings"]):
+            # value is index into strings list.
+            return setting["strings"][value]
+        elif type(value) is str and value in setting["values"]:
+            # index of value in values list is index into strings list.
+            return setting["strings"][setting["values"].index(value)]
+        else:
+            return setting["default"]
     else:
-        return setting["default"]
+        # value is index into values list.
+        values = setting["values"]
+        return strings(values[value])
 
 class ODDSettings(QObject):
     # Settings Data
@@ -68,9 +87,10 @@ class ODDSettings(QObject):
                     "flags"  :["perInstance"],
             },
             "refreshPeriodicallyChecks": {
-                    "default":"15/sec",
-                    "strings":["1/sec","2/sec","3/sec","4/sec","5/sec","8/sec","10/sec","15/sec","20/sec","30/sec"],
-                    "values" :[1000, 500, 333, 250, 200, 125, 100, 67, 50, 33],
+                    "default":"15",
+                    "strings":["1","2","3","4","5","6","8","10","12","15","20","25","30"],
+                    "suffix" :"/sec",
+                    "values" :[1000, 500, 333, 250, 200, 167, 125, 100, 83, 67, 50, 40, 33],
                     "depends": {
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
@@ -78,9 +98,9 @@ class ODDSettings(QObject):
                     "flags"  :["perInstance"],
             },
             "refreshPeriodicallyDelay": {
-                    "default":"2sec",
-                    "strings":["1/2sec", "1sec", "1.5sec", "2sec", "3sec", "4sec", "5sec", "7sec", "10sec", "20sec", "1min"],
-                    "values" :[500, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 60000],
+                    "default":2000,
+                    "strings" :lambda msec: ODDSettings.millisecondsToString(msec),
+                    "values" :[500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 15000, 20000, 30000, 45000, 60000, 120000],
                     "depends": {
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
@@ -152,8 +172,11 @@ class ODDSettings(QObject):
                     "flags"  :["perInstance"],
             },
             "tooltipThumbLimit": {
-                    "default":"≤4096px²",
-                    "strings":["never","≤128px²","≤256px²","≤512px²","≤1024px²","≤2048px²","≤4096px²","≤8192px²","≤16384px²","always"],
+                    "default":"4096",
+                    "strings":["never","128","256","512","1024","2048","4096","8192","16384","always"],
+                    "prefix" :"≤",
+                    "suffix" :"px²",
+                    "noDeco" :("never", "always"),
                     "values" :[0, 128*128, 256*256, 512*512, 1024*1024, 2048*2048, 4096*4096, 8192*8192, 16384*16384, float("inf")],
                     "depends": {
                             "dependsOn":["tooltipShow"],
@@ -162,8 +185,9 @@ class ODDSettings(QObject):
                     "initial":lambda self: self.setUiValuesForTooltipThumbLimit(self.readSetting("tooltipThumbLimit")),
             },
             "tooltipThumbSize": {
-                    "default":"128px",
-                    "strings":["64px", "96px", "128px", "160px", "192px", "256px", "384px", "512px"],
+                    "default":"128",
+                    "strings":["64", "96", "128", "160", "192", "256", "384", "512"],
+                    "suffix" :"px",
                     "values" :[64, 96, 128, 160, 192, 256, 384, 512],
                     "depends": {
                             "dependsOn":["tooltipShow", "tooltipThumbLimit"],
@@ -187,6 +211,7 @@ class ODDSettings(QObject):
                     "default":"10",
                     "min":0,
                     "max":1024,
+                    #"values":[0,0.25,0.5,1,2,4,8,12,16,24,32,48,64,96,128,192,256,384,512,640,768,1024,1280,1536,2048],
                     "initial":lambda self: self.setUiValuesForExcessThumbCacheLimit(self.readSetting("excessThumbCacheLimit")),
             },
     }
@@ -336,7 +361,7 @@ class ODDSettings(QObject):
     def readSettingFromConfig(cls, setting):
         if not setting in cls.SD:
             return None
-        return Application.readSetting("OpenDocumentsDocker", setting, cls.SD[setting]["default"])
+        return Application.readSetting("OpenDocumentsDocker", setting, str(cls.SD[setting]["default"]))
     
     def readSetting(self, setting):
         if not setting in self.SD:
@@ -394,7 +419,7 @@ class ODDSettings(QObject):
         print("write", setting, "=", value)
         if not setting in self.SD:
             return
-        Application.writeSetting("OpenDocumentsDocker", setting, value)
+        Application.writeSetting("OpenDocumentsDocker", setting, str(value))
     
     def updateControlsEnabledState(self, setting):
         if "depends" in self.SD[setting] and "dependedOnBy" in self.SD[setting]["depends"]:
@@ -432,6 +457,20 @@ class ODDSettings(QObject):
             else:
                 return ui["btn"].isChecked()
         return None
+    
+    def decoratedSettingText(self, setting, text, exceptions=None):
+        sd = self.SD[setting]
+        if exceptions == None and "noDeco" in sd:
+            exceptions = sd["noDeco"]
+        if type(exceptions) is str:
+            if text == exceptions:
+                return text
+        elif type(exceptions) is tuple:
+            if any(text == x for x in exceptions):
+                return text
+        prefix = sd["prefix"] if "prefix" in sd else ""
+        suffix = sd["suffix"] if "suffix" in sd else ""
+        return prefix + text + suffix
     
     def setUiValuesForDisplay(self, setting):
         self.UI["display"]["btnThumbnails"].setChecked(setting=="thumbnails")
@@ -589,7 +628,9 @@ class ODDSettings(QObject):
     
     def changedTooltipThumbLimitSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbLimit", value)
-        self.UI["tooltipThumbLimit"]["value"].setText(setting)
+        self.UI["tooltipThumbLimit"]["value"].setText(
+                self.decoratedSettingText("tooltipThumbLimit", setting)
+        )
         self.writeSetting("tooltipThumbLimit", setting)
     
     def setUiValuesForTooltipThumbSize(self, setting):
@@ -599,7 +640,9 @@ class ODDSettings(QObject):
     
     def changedTooltipThumbSizeSlider(self, value):
         setting = convertSettingValueToString("tooltipThumbSize", value)
-        self.UI["tooltipThumbSize"]["value"].setText(setting)
+        self.UI["tooltipThumbSize"]["value"].setText(
+                self.decoratedSettingText("tooltipThumbSize", setting)
+        )
         self.writeSetting("tooltipThumbSize", setting)
     
     def changedRefreshOnSave(self, state):
@@ -669,7 +712,9 @@ class ODDSettings(QObject):
     
     def changedRefreshPeriodicallyChecksSlider(self, value):
         setting = convertSettingValueToString("refreshPeriodicallyChecks", value)
-        self.UI["refreshPeriodicallyChecks"]["value"].setText(setting)
+        self.UI["refreshPeriodicallyChecks"]["value"].setText(
+            self.decoratedSettingText("refreshPeriodicallyChecks", setting)
+        )
         self.oddDocker.imageChangeDetectionTimer.setInterval(
                 self.settingValue("refreshPeriodicallyChecks")
         )
@@ -677,11 +722,13 @@ class ODDSettings(QObject):
     
     def changedRefreshPeriodicallyDelaySlider(self, value):
         setting = convertSettingValueToString("refreshPeriodicallyDelay", value)
-        self.UI["refreshPeriodicallyDelay"]["value"].setText(setting)
+        self.UI["refreshPeriodicallyDelay"]["value"].setText(
+            self.decoratedSettingText("refreshPeriodicallyDelay", setting)
+        )
         self.oddDocker.refreshTimer.setInterval(
                 self.settingValue("refreshPeriodicallyDelay")
         )
-        self.writeSetting("refreshPeriodicallyDelay", setting)
+        self.writeSetting("refreshPeriodicallyDelay", str(self.SD["refreshPeriodicallyDelay"]["values"][value]))
     
     def setUiValuesForExcessThumbCacheLimit(self, setting):
         self.UI["excessThumbCacheLimit"]["slider"].setValue(
@@ -864,7 +911,7 @@ class ODDSettings(QObject):
         setting = self.readSetting("refreshPeriodicallyChecks")
         self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Checks", self.panel)
-        self.UI["refreshPeriodicallyChecks"]["value"]  = QLabel(setting, self.panel)
+        self.UI["refreshPeriodicallyChecks"]["value"]  = QLabel(self.decoratedSettingText("refreshPeriodicallyChecks", setting), self.panel)
         self.UI["refreshPeriodicallyChecks"]["slider"] = QSlider(Qt.Horizontal, self.panel)
         self.UI["refreshPeriodicallyChecks"]["slider"].setRange(0, len(self.SD["refreshPeriodicallyChecks"]["values"])-1)
         self.UI["refreshPeriodicallyChecks"]["slider"].setTickPosition(QSlider.NoTicks)
@@ -875,16 +922,16 @@ class ODDSettings(QObject):
         self.UI["refreshPeriodicallyChecks"]["slider"].setToolTip("Number of times each second the image is checked for activity.")
         
         setting = self.readSetting("refreshPeriodicallyDelay")
+        settingValue = convertSettingStringToValue("refreshPeriodicallyDelay", setting)
+        settingString = convertSettingValueToString("refreshPeriodicallyDelay", settingValue)
         self.panelThumbnailsRefreshPeriodicallyDelayLayout = QHBoxLayout()
         self.panelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.panel)
-        self.UI["refreshPeriodicallyDelay"]["value" ] = QLabel(setting, self.panel)
+        self.UI["refreshPeriodicallyDelay"]["value" ] = QLabel(settingString, self.panel)
         self.UI["refreshPeriodicallyDelay"]["slider"] = QSlider(Qt.Horizontal, self.panel)
         self.UI["refreshPeriodicallyDelay"]["slider"].setRange(0, len(self.SD["refreshPeriodicallyDelay"]["values"])-1)
         self.UI["refreshPeriodicallyDelay"]["slider"].setTickPosition(QSlider.NoTicks)
         self.UI["refreshPeriodicallyDelay"]["slider"].setTickInterval(1)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setValue(
-                convertSettingStringToValue("refreshPeriodicallyDelay", setting)
-        )
+        self.UI["refreshPeriodicallyDelay"]["slider"].setValue(settingValue)
         self.UI["refreshPeriodicallyDelay"]["slider"].setToolTip("How long after the last detected change to refresh the thumbnail.")
         
         self.panelTooltipsHeading = QHBoxLayout()
@@ -897,7 +944,7 @@ class ODDSettings(QObject):
         setting = self.readSetting("tooltipThumbLimit")
         self.panelTooltipThumbnailLimitLayout = QHBoxLayout()
         self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
-        self.UI["tooltipThumbLimit"]["value" ] = QLabel(setting, self.panel)
+        self.UI["tooltipThumbLimit"]["value" ] = QLabel(self.decoratedSettingText("tooltipThumbLimit", setting), self.panel)
         self.UI["tooltipThumbLimit"]["slider"] = QSlider(Qt.Horizontal, self.panel)
         self.UI["tooltipThumbLimit"]["slider"].setRange(0, len(self.SD["tooltipThumbLimit"]["values"])-1)
         self.UI["tooltipThumbLimit"]["slider"].setTickPosition(QSlider.NoTicks)
@@ -910,7 +957,7 @@ class ODDSettings(QObject):
         setting = self.readSetting("tooltipThumbSize")
         self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
         self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
-        self.UI["tooltipThumbSize"]["value" ] = QLabel(setting, self.panel)
+        self.UI["tooltipThumbSize"]["value" ] = QLabel(self.decoratedSettingText("tooltipThumbSize", setting), self.panel)
         self.UI["tooltipThumbSize"]["slider"] = QSlider(Qt.Horizontal, self.panel)
         self.UI["tooltipThumbSize"]["slider"].setRange(0, len(self.SD["tooltipThumbSize"]["values"])-1)
         self.UI["tooltipThumbSize"]["slider"].setTickPosition(QSlider.NoTicks)
@@ -1206,7 +1253,69 @@ class ODDSettings(QObject):
                 first = False
         for setting in cls.globalSettings.items():
             print("{:<36}{}".format(setting[0], setting[1]))
+    
+    def roundToNSigFigures(v, n):
+        """
+        (tested with zero and positive integers only)
+        """
+        x = 10 ** (math.floor(math.log10(v)) - (n+1))
+        return v if v == 0 else int(round(v/x) * x)
+    
+    def millisecondsToString(msec):
+        """
+        convert time in milliseconds to a more readable string.
+        in   0   | 50   | 1000 | 30001     | 60000 | 90000   | 90500
+        out  0ms | 50ms | 1sec | 30.001sec | 1min  | 1min30s | 1min30.5s
+        """
+        hasMins = hasSecs = hasMsec = False
+        mins = secs = 0
+        if msec >= 60000:
+            mins  = msec // 60000
+            msec -= mins *  60000
+            hasMins = True
+        if msec >= 1000:
+            secs  = msec // 1000
+            msec -= secs *  1000
+            hasSecs = True
+        if msec > 0 or not (hasMins or hasSecs):
+            hasMsec = True
+        if hasMins and hasMsec and not hasSecs:
+            hasSecs = True
+        padSecs = 2 if (hasMins) else 0
+        padMsec = 3 if (hasMins or hasSecs) else 0
+        
+        if hasSecs or hasMins:
+            return "{}{}{}{}{}".format(
+                    str(mins) if hasMins else "",
+                    "min"     if hasMins else "",
+                    ("{:0>"+str(padSecs)+"}").format(str(secs)) \
+                              if hasSecs else "",
+                    (".{:0>"+str(padMsec)+"}").format(str(msec)).rstrip("0") \
+                              if hasMsec else "",
+                    "sec"     if hasSecs and not hasMins else "s" if hasSecs and hasMins else ""
+            )
+        else:
+            return str(msec) + "ms"
+    
+    @classmethod
+    def repairConfig(cls):
+        cases = {
+                "refreshPeriodicallyChecks":'/sec',
+                "refreshPeriodicallyDelay": ('sec', 'min'),
+                "tooltipThumbLimit":        ('≤', 'px²'),
+                "tooltipThumbSize":         'px',
+        }
+        for c in cases.items():
+            s = Application.readSetting("OpenDocumentsDocker", c[0], "")
+            if s == "":
+                continue
+            if type(c[1]) is str and not c[1] in s:
+                continue
+            if type(c[1]) is tuple and not any(x in s for x in c[1]):
+                continue
+            Application.writeSetting("OpenDocumentsDocker", c[0], str(cls.SD[c[0]]["default"]))
 
 # initial setup
+ODDSettings.repairConfig()
 ODDSettings.cacheSettingsDataDependencies()
 ODDSettings.setupGlobalSettings()
