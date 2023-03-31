@@ -740,7 +740,23 @@ class ODDSettings(QObject):
         self.UI["excessThumbCacheLimit"]["value"].setText(setting + "mb")
         self.writeSetting("excessThumbCacheLimit", setting)
         self.odd.evictExcessUnusedCache()
-        
+    
+    def createPanelControlsForSetting(self, setting, nameText, valueText, valRange, value=None, tooltipText=""):
+        layout = QHBoxLayout()
+        nameLabel = QLabel(nameText, self.panel)
+        self.UI[setting]["value"] = QLabel(valueText, self.panel)
+        control = QSlider(Qt.Horizontal, self.panel)
+        control.setRange(valRange[0], valRange[1])
+        control.setTickPosition(QSlider.NoTicks)
+        control.setTickInterval(1)
+        control.setToolTip(tooltipText)
+        self.UI[setting]["slider"] = control
+        if value == None:
+            self.SD[setting]["initial"](self)
+        else:
+            control.setValue(value)
+        return (layout, nameLabel)
+    
     def createPanel(self):
         app = Application
         
@@ -809,30 +825,26 @@ class ODDSettings(QObject):
         )
         
         setting = self.readSetting("thumbAspectLimit")
-        self.panelThumbnailsAspectLimitLayout = QHBoxLayout()
-        self.panelThumbnailsAspectLimitLabel = QLabel("Aspect limit", self.panel)
-        self.UI["thumbAspectLimit"]["value" ] = QLabel("1:{:1.3g}".format(float(setting)), self.panel)
-        self.UI["thumbAspectLimit"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["thumbAspectLimit"]["slider"].setRange(0, 200)
-        self.UI["thumbAspectLimit"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["thumbAspectLimit"]["slider"].setTickInterval(1)
-        self.UI["thumbAspectLimit"]["slider"].setValue(int(math.log10(float(setting))*200.0))
-        self.UI["thumbAspectLimit"]["slider"].setToolTip(
-                "The maximum deviation a document size can be from square before its thumbnail is shrunk.\n\n" +
-                "For example, 1:1 forces all thumbnails to be square, 1:2 allows thumbnails to be up to twice as long as their width.\n" +
-                "Higher values give better representation of wide/tall documents, at the cost of ease of list navigation."
+        self.panelThumbnailsAspectLimitLayout, self.panelThumbnailsAspectLimitLabel = self.createPanelControlsForSetting(
+                setting     = "thumbAspectLimit",
+                nameText    = "Aspect limit",
+                valueText   = "1:{:1.3g}".format(float(setting)),
+                valRange    = (0, 200),
+                value       = int(math.log10(float(setting))*200.0),
+                tooltipText = 
+                        "The maximum deviation a document size can be from square before its thumbnail is shrunk.\n\n" +
+                        "For example, 1:1 forces all thumbnails to be square, 1:2 allows thumbnails to be up to twice as long as their width.\n" +
+                        "Higher values give better representation of wide/tall documents, at the cost of ease of list navigation."
         )
         
         setting = self.readSetting("thumbDisplayScale")
-        self.panelThumbnailsDisplayScaleLayout = QHBoxLayout()
-        self.panelThumbnailsDisplayScaleLabel = QLabel("Display scale", self.panel)
-        self.UI["thumbDisplayScale"]["value" ] = QLabel(setting, self.panel)
-        self.UI["thumbDisplayScale"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["thumbDisplayScale"]["slider"].setRange(0, 95)
-        self.UI["thumbDisplayScale"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["thumbDisplayScale"]["slider"].setTickInterval(1)
-        self.UI["thumbDisplayScale"]["slider"].setPageStep(5)
-        self.UI["thumbDisplayScale"]["slider"].setValue(round((float(setting)-0.05)*100.0))
+        self.panelThumbnailsDisplayScaleLayout, self.panelThumbnailsDisplayScaleLabel = self.createPanelControlsForSetting(
+                setting     = "thumbDisplayScale",
+                nameText    = "Display scale",
+                valueText   = setting,
+                valRange    = (0, 95),
+                value       = round((float(setting)-0.05)*100.0)
+        )
         
         self.dockerThumbnailsDisplayScaleSlider = QSlider(Qt.Horizontal)
         self.dockerThumbnailsDisplayScaleSlider.setRange(       self.UI["thumbDisplayScale"]["slider"].minimum(),
@@ -843,30 +855,25 @@ class ODDSettings(QObject):
         self.dockerThumbnailsDisplayScaleSlider.setValue(       self.UI["thumbDisplayScale"]["slider"].value())
         
         setting = self.readSetting("thumbRenderScale")
-        self.panelThumbnailsRenderScaleLayout = QHBoxLayout()
-        self.panelThumbnailsRenderScaleLabel = QLabel("Render scale", self.panel)
-        self.UI["thumbRenderScale"]["value" ] = QLabel(setting, self.panel)
-        self.UI["thumbRenderScale"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["thumbRenderScale"]["slider"].setRange(0, len(self.SD["thumbRenderScale"]["values"])-1)
-        self.UI["thumbRenderScale"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["thumbRenderScale"]["slider"].setTickInterval(1)
-        self.UI["thumbRenderScale"]["slider"].setValue(
-                convertSettingStringToValue("thumbRenderScale", setting)
-        )
-        self.UI["thumbRenderScale"]["slider"].setToolTip(
-                "Thumbnails in the list can be generated at a reduced size then scaled up.\n" +
-                "This can improve performance when using the thumbnail method."
+        self.panelThumbnailsRenderScaleLayout, self.panelThumbnailsRenderScaleLabel = self.createPanelControlsForSetting(
+                setting     = "thumbRenderScale",
+                nameText    = "Render scale",
+                valueText   = setting,
+                valRange    = (0, len(self.SD["thumbRenderScale"]["values"])-1),
+                value       = convertSettingStringToValue("thumbRenderScale", setting),
+                tooltipText = 
+                        "Thumbnails in the list can be generated at a reduced size then scaled up.\n" +
+                        "This can improve performance when using the thumbnail method."
         )
         
         setting = self.readSetting("thumbFadeAmount")
-        self.panelThumbnailsFadeAmountLayout = QHBoxLayout()
-        self.panelThumbnailsFadeAmountLabel = QLabel("Fade amount", self.panel)
-        self.UI["thumbFadeAmount"]["value" ] = QLabel(setting, self.panel)
-        self.UI["thumbFadeAmount"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["thumbFadeAmount"]["slider"].setRange(0, 100)
-        self.UI["thumbFadeAmount"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["thumbFadeAmount"]["slider"].setTickInterval(1)
-        self.UI["thumbFadeAmount"]["slider"].setValue(round(float(setting)*100))
+        self.panelThumbnailsFadeAmountLayout, self.panelThumbnailsFadeAmountLabel = self.createPanelControlsForSetting(
+                setting     = "thumbFadeAmount",
+                nameText    = "Fade amount",
+                valueText   = setting,
+                valRange    = (0, 100),
+                value       = round(float(setting)*100)
+        )
         
         self.panelThumbnailsFadeAmountControlsLayout = QHBoxLayout()
         self.UI["thumbFadeUnfade"]["btn"] = QCheckBox(self.panel)
@@ -909,30 +916,26 @@ class ODDSettings(QObject):
         self.dockerRefreshPeriodicallyToggleButton.clicked.connect(self.changedRefreshPeriodically)
         
         setting = self.readSetting("refreshPeriodicallyChecks")
-        self.panelThumbnailsRefreshPeriodicallyChecksLayout = QHBoxLayout()
-        self.panelThumbnailsRefreshPeriodicallyChecksLabel = QLabel("Checks", self.panel)
-        self.UI["refreshPeriodicallyChecks"]["value"]  = QLabel(self.decoratedSettingText("refreshPeriodicallyChecks", setting), self.panel)
-        self.UI["refreshPeriodicallyChecks"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["refreshPeriodicallyChecks"]["slider"].setRange(0, len(self.SD["refreshPeriodicallyChecks"]["values"])-1)
-        self.UI["refreshPeriodicallyChecks"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["refreshPeriodicallyChecks"]["slider"].setTickInterval(1)
-        self.UI["refreshPeriodicallyChecks"]["slider"].setValue(
-                convertSettingStringToValue("refreshPeriodicallyChecks", setting)
+        self.panelThumbnailsRefreshPeriodicallyChecksLayout, self.panelThumbnailsRefreshPeriodicallyChecksLabel = self.createPanelControlsForSetting(
+                setting     = "refreshPeriodicallyChecks",
+                nameText    = "Checks",
+                valueText   = self.decoratedSettingText("refreshPeriodicallyChecks", setting),
+                valRange    = (0, len(self.SD["refreshPeriodicallyChecks"]["values"])-1),
+                value       = convertSettingStringToValue("refreshPeriodicallyChecks", setting),
+                tooltipText = "Number of times each second the image is checked for activity."
         )
-        self.UI["refreshPeriodicallyChecks"]["slider"].setToolTip("Number of times each second the image is checked for activity.")
         
         setting = self.readSetting("refreshPeriodicallyDelay")
         settingValue = convertSettingStringToValue("refreshPeriodicallyDelay", setting)
         settingString = convertSettingValueToString("refreshPeriodicallyDelay", settingValue)
-        self.panelThumbnailsRefreshPeriodicallyDelayLayout = QHBoxLayout()
-        self.panelThumbnailsRefreshPeriodicallyDelayLabel = QLabel("Delay by", self.panel)
-        self.UI["refreshPeriodicallyDelay"]["value" ] = QLabel(settingString, self.panel)
-        self.UI["refreshPeriodicallyDelay"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setRange(0, len(self.SD["refreshPeriodicallyDelay"]["values"])-1)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setTickInterval(1)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setValue(settingValue)
-        self.UI["refreshPeriodicallyDelay"]["slider"].setToolTip("How long after the last detected change to refresh the thumbnail.")
+        self.panelThumbnailsRefreshPeriodicallyDelayLayout, self.panelThumbnailsRefreshPeriodicallyDelayLabel = self.createPanelControlsForSetting(
+                setting     = "refreshPeriodicallyDelay",
+                nameText    = "Delay by",
+                valueText   = settingString,
+                valRange    = (0, len(self.SD["refreshPeriodicallyDelay"]["values"])-1),
+                value       = settingValue,
+                tooltipText = "How long after the last detected change to refresh the thumbnail."
+        )
         
         self.panelTooltipsHeading = QHBoxLayout()
         self.UI["tooltipShow"]["btn"] = QCheckBox("Tooltips", self.panel)
@@ -942,27 +945,21 @@ class ODDSettings(QObject):
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         setting = self.readSetting("tooltipThumbLimit")
-        self.panelTooltipThumbnailLimitLayout = QHBoxLayout()
-        self.panelTooltipThumbnailLimitLabel = QLabel("Limit", self.panel)
-        self.UI["tooltipThumbLimit"]["value" ] = QLabel(self.decoratedSettingText("tooltipThumbLimit", setting), self.panel)
-        self.UI["tooltipThumbLimit"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["tooltipThumbLimit"]["slider"].setRange(0, len(self.SD["tooltipThumbLimit"]["values"])-1)
-        self.UI["tooltipThumbLimit"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["tooltipThumbLimit"]["slider"].setTickInterval(1)
-        self.setUiValuesForTooltipThumbLimit(setting)
-        self.UI["tooltipThumbLimit"]["slider"].setToolTip(
-                "Thumbnails in tooltips will be generated for images up to the chosen size."
+        self.panelTooltipThumbnailLimitLayout, self.panelTooltipThumbnailLimitLabel = self.createPanelControlsForSetting(
+                setting     = "tooltipThumbLimit",
+                nameText    = "Limit",
+                valueText   = self.decoratedSettingText("tooltipThumbLimit", setting),
+                valRange    = (0, len(self.SD["tooltipThumbLimit"]["values"])-1),
+                tooltipText = "Thumbnails in tooltips will be generated for images up to the chosen size."
         )
         
         setting = self.readSetting("tooltipThumbSize")
-        self.panelTooltipThumbnailSizeLayout = QHBoxLayout()
-        self.panelTooltipThumbnailSizeLabel = QLabel("Size", self.panel)
-        self.UI["tooltipThumbSize"]["value" ] = QLabel(self.decoratedSettingText("tooltipThumbSize", setting), self.panel)
-        self.UI["tooltipThumbSize"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["tooltipThumbSize"]["slider"].setRange(0, len(self.SD["tooltipThumbSize"]["values"])-1)
-        self.UI["tooltipThumbSize"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["tooltipThumbSize"]["slider"].setTickInterval(1)
-        self.setUiValuesForTooltipThumbSize(setting)
+        self.panelTooltipThumbnailSizeLayout, self.panelTooltipThumbnailSizeLabel = self.createPanelControlsForSetting(
+                setting     = "tooltipThumbSize",
+                nameText    = "Size",
+                valueText   = self.decoratedSettingText("tooltipThumbSize", setting),
+                valRange    = (0, len(self.SD["tooltipThumbSize"]["values"])-1)
+        )
         
         self.panelMiscHeading = QHBoxLayout()
         self.panelMiscHeadingLabel = QLabel("Miscellaneous", self.panel)
@@ -992,19 +989,16 @@ class ODDSettings(QObject):
         self.panelThumbCacheLabel = QLabel("Thumbnail Cache", self.panel)
         
         setting = self.readSetting("excessThumbCacheLimit")
-        self.panelExcessThumbCacheLimitLayout = QHBoxLayout()
-        self.panelExcessThumbCacheLimitLabel = QLabel("Unused limit", self.panel)
-        self.UI["excessThumbCacheLimit"]["value" ] = QLabel(setting + "mb", self.panel)
-        self.UI["excessThumbCacheLimit"]["slider"] = QSlider(Qt.Horizontal, self.panel)
-        self.UI["excessThumbCacheLimit"]["slider"].setRange(0, 1024)
-        self.UI["excessThumbCacheLimit"]["slider"].setTickPosition(QSlider.NoTicks)
-        self.UI["excessThumbCacheLimit"]["slider"].setTickInterval(1)
-        self.setUiValuesForExcessThumbCacheLimit(setting)
-        self.UI["excessThumbCacheLimit"]["slider"].setToolTip(
-                "Limit the amount of memory allowed to keep unused but potentially reusable thumbnails in cache.\n\n" +
-                "Unused thumbnails remain in memory so they can be reused. This is faster than generating new ones.\n" +
-                "For example, caching the tooltip thumbnail reduces lag when hovering the mouse over the list.\n" +
-                "When the size of these unused thumbnails exceeds this limit, the least recently used ones will be discarded."
+        self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel = self.createPanelControlsForSetting(
+                setting     = "excessThumbCacheLimit",
+                nameText    = "Unused limit",
+                valueText   = setting + "mb",
+                valRange    = (0, 1024),
+                tooltipText = 
+                        "Limit the amount of memory allowed to keep unused but potentially reusable thumbnails in cache.\n\n" +
+                        "Unused thumbnails remain in memory so they can be reused. This is faster than generating new ones.\n" +
+                        "For example, caching the tooltip thumbnail reduces lag when hovering the mouse over the list.\n" +
+                        "When the size of these unused thumbnails exceeds this limit, the least recently used ones will be discarded."
         )
         
         settingDisplay = self.readSetting("display")
