@@ -14,16 +14,24 @@ def convertSettingStringToValue(settingName, string):
         else:
             return strings.index(setting["default"])
     else:
-        string = ''.join(i for i in string if i.isdigit() or i in '-./\\')
-        value = literal_eval(string)
+        numString = ''.join(i for i in string if i.isdigit() or i in '-./\\')
+        value = literal_eval(numString)
         values = setting["values"]
         if value in values:
             return values.index(value)
         else:
-            return values.index(setting["default"])
+            numString = ''.join(i for i in setting["default"] if i.isdigit() or i in '-./\\')
+            default = literal_eval(numString)
+            return values.index(default)
 
 def convertSettingValueToString(settingName, value):
+    """
+    takes the raw value of a setting and returns a string representation
+    which can be written to config on disk, or decorated and displayed.
+    """
     setting = ODDSettings.SD[settingName]
+    if not "strings" in setting:
+        return str(value)
     strings = setting["strings"]
     if type(strings) == list:
         if type(value) is not str and value >= 0 and value < len(setting["strings"]):
@@ -35,9 +43,33 @@ def convertSettingValueToString(settingName, value):
         else:
             return setting["default"]
     else:
-        # value is index into values list.
-        values = setting["values"]
-        return strings(values[value])
+        if "values" in setting:
+            # value is index into values list.
+            return strings(setting["values"][value])
+
+def mapValue(fromMin, fromMax, toMin, toMax, value):
+    fromRange = fromMax - fromMin
+    normValue = 1.0 / fromRange * (value - fromMin)
+    toRange = toMax - toMin
+    return toMin + toRange * normValue
+
+def lerpi(a,b,t):
+    return round(a+(b-a)*t)
+
+# https://stackoverflow.com/a/35833467
+import re
+def formatFloatStandardToDecimal(f):
+    s = str(f)
+    m = re.fullmatch(r'(-?)(\d)(?:\.(\d+))?e([+-]\d+)', s)
+    if not m:
+        return s
+    sign, intpart, fractpart, exponent = m.groups('')
+    exponent = int(exponent) + 1
+    digits = intpart + fractpart
+    if exponent < 0:
+        return sign + '0.' + '0'*(-exponent) + digits
+    exponent -= len(digits)
+    return sign + digits + '0'*exponent + '.0'
 
 class ODDSettings(QObject):
     # Settings Data
@@ -104,13 +136,13 @@ class ODDSettings(QObject):
             "refreshPeriodicallyDelay": {
                     "label"  :"Delay by",
                     "default":2000,
-                    "strings" :lambda msec: ODDSettings.millisecondsToString(msec),
+                    "strings":lambda msec: ODDSettings.formatMillisecondsToString(msec),
                     "values" :[500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 15000, 20000, 30000, 45000, 60000, 120000],
                     "depends": {
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
                     },
-                    "flags"  :["perInstance"],
+                    "flags"  :["perInstance", "onlyStringifyForDisplay"],
             },
             "thumbAspectLimit": {
                     "label"  :"Aspect limit",
@@ -127,13 +159,14 @@ class ODDSettings(QObject):
             "thumbDisplayScale": {
                     "label"  :"Display scale",
                     "default":"1.00",
+                    "format" :"{:4.2f}",
                     "min":0.05,
                     "max":1.00,
                     "depends": {
                         "dependsOn":["display"],
                         "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
                     },
-                    "flags"  :["perInstance"],
+                    "flags"  :["perInstance", "writeAsUndecoratedLabel"],
             },
             "thumbRenderScale": {
                     "label"  :"Render scale",
@@ -150,13 +183,14 @@ class ODDSettings(QObject):
             "thumbFadeAmount": {
                     "label"  :"Fade amount",
                     "default":"0.00",
+                    "format" :"{:4.2f}",
                     "min":0.00,
                     "max":1.00,
                     "depends": {
                         "dependsOn":["display"],
                         "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
                     },
-                    "flags"  :["perInstance"],
+                    "flags"  :["perInstance", "writeAsUndecoratedLabel"],
             },
             "thumbFadeUnfade": {
                     "default":"false",
@@ -225,11 +259,11 @@ class ODDSettings(QObject):
             },
             "excessThumbCacheLimit": {
                     "label"  :"Unused limit",
-                    "default":"10",
-                    "min":0,
-                    "max":1024,
-                    #"values":[0,0.25,0.5,1,2,4,8,12,16,24,32,48,64,96,128,192,256,384,512,640,768,1024,1280,1536,2048],
+                    "default":"16384",
+                    "strings":lambda kb: ODDSettings.formatBytesToString(kb*1024),
+                    "values":[0] + [lerpi(2**(i//2), 2**(i//2+1), 0.5*(i%2)) for i in range(0, 45)][16:45],
                     "initial":lambda self: self.setUiValuesForExcessThumbCacheLimit(self.readSetting("excessThumbCacheLimit")),
+                    "flags"  :["onlyStringifyForDisplay"]
             },
     }
     
@@ -314,9 +348,7 @@ class ODDSettings(QObject):
                 #print("setting", setting, "overriden in instance.")
     
     def settingFlag(self, setting, flag):
-        if not "flags" in self.SD[setting]:
-            return False
-        return flag in self.SD[setting]["flags"]
+        return flag in self.SD[setting]["flags"] if "flags" in self.SD[setting] else False
     
     @classmethod
     def readSettingFromConfig(cls, setting):
@@ -393,28 +425,21 @@ class ODDSettings(QObject):
     
     def settingValue(self, setting, asName=False):
         ui = self.UI[setting]
+        sd = self.SD[setting]
         if "slider" in ui:
-            if "values" in self.SD[setting]:
-                return self.SD[setting]["values"][ui["slider"].value()]
-            elif "max" in self.SD[setting]:
-                # map slider value into setting min/max range
-                sliderMin = ui["slider"].minimum()
-                sliderMax = ui["slider"].maximum()
-                sliderRange = sliderMax - sliderMin
-                sliderValue = ui["slider"].value()
-                sliderNormValue = 1.0 / sliderRange * (sliderValue - sliderMin)
-                valueRange = self.SD[setting]["max"] - self.SD[setting]["min"]
-                v = self.SD[setting]["min"] + valueRange * sliderNormValue
-                if "pow" in self.SD[setting]:
-                    v = pow(setting["pow"], v)
-                #print("settingValue:", sliderMin, sliderMax, sliderRange, sliderValue, sliderNormValue, valueRange, v)
+            if "values" in sd:
+                return sd["values"][ui["slider"].value()]
+            elif "max" in sd:
+                v = mapValue(ui["slider"].minimum(), ui["slider"].maximum(), sd["min"], sd["max"], ui["slider"].value())
+                if "pow" in sd:
+                    v = pow(setting["pow"], v) # TODO: currently unused.
                 return v
         elif "btngrp" in ui:
             btn = ui["btngrp"].checkedButton()
             return btn.objectName() if asName else btn
         elif "btn" in ui:
-            if "values" in self.SD[setting]:
-                return self.SD[setting]["values"][ui["btn"].currentIndex()]
+            if "values" in sd:
+                return sd["values"][ui["btn"].currentIndex()]
             else:
                 return ui["btn"].isChecked()
         return None
@@ -438,57 +463,34 @@ class ODDSettings(QObject):
         self.UI["display"]["btnText"      ].setChecked(setting=="text")
     
     def changedDisplay(self, checked):
-        if checked:
-            self.UI["display"]["btnThumbnails"].click()
-        else:
-            self.UI["display"]["btnText"].click()
+        self.UI["display"]["btnThumbnails" if checked else "btnText"].click()
     
     def setDisplayToThumbnails(self):
-        print("setDisplayToThumbnails")
-        self.writeSetting("display", "thumbnails")
-        self.oddDocker.setDockerDirection(self.readSetting("direction"))
-        self.oddDocker.refreshOpenDocuments()
-        self.oddDocker.updateScrollBarPolicy()
-        
-        self.dockerDisplayToggleButton.setChecked(True)
+        self._setDisplay("thumbnails", True)
     
     def setDisplayToText(self):
-        print("setDisplayToText")
-        self.writeSetting("display", "text")
+        self._setDisplay("text", False)
+    
+    def _setDisplay(self, setTo, toggleState):
+        self.writeSetting("display", setTo)
         self.oddDocker.setDockerDirection(self.readSetting("direction"))
         self.oddDocker.refreshOpenDocuments()
         self.oddDocker.updateScrollBarPolicy()
         
-        self.dockerDisplayToggleButton.setChecked(False)
+        self.dockerDisplayToggleButton.setChecked(toggleState)
     
     def setUiValuesForDirection(self, setting):
         self.UI["direction"]["btnHorizontal"].setChecked(setting=="horizontal")
         self.UI["direction"]["btnVertical"  ].setChecked(setting=="vertical")
         self.UI["direction"]["btnAuto"      ].setChecked(setting=="auto")
     
-    def setDirectionToHorizontal(self):
-        print("setDirectionToHorizontal")
-        self.writeSetting("direction", "horizontal")
-        self.oddDocker.setDockerDirection("horizontal")
+    def setDirectionTo(self, direction):
+        self.writeSetting("direction", direction)
+        self.oddDocker.setDockerDirection(direction)
     
-    def setDirectionToVertical(self):
-        print("setDirectionToVertical")
-        self.writeSetting("direction", "vertical")
-        self.oddDocker.setDockerDirection("vertical")
-    
-    def setDirectionToAuto(self):
-        print("setDirectionToAuto")
-        self.writeSetting("direction", "auto")
-        self.oddDocker.setDockerDirection("auto")
-    
-    def changedGrid(self, state):
-        setting = str(state==2).lower()
-        print("changedGrid to", setting)
-        self.writeSetting("grid", setting)
-        
+    def updateListThumbnails(self):
         if self.readSetting("display") != "thumbnails":
             return
-        
         self.oddDocker.list.invalidateItemRectsCache()
         self.oddDocker.list.updateGeometries()
         self.oddDocker.list.viewport().update()
@@ -498,14 +500,7 @@ class ODDSettings(QObject):
         setting = self.settingValue("gridMode")
         print("changedGridMode to", setting)
         self.writeSetting("gridMode", setting)
-        
-        if self.readSetting("display") != "thumbnails":
-            return
-        
-        self.oddDocker.list.invalidateItemRectsCache()
-        self.oddDocker.list.updateGeometries()
-        self.oddDocker.list.viewport().update()
-        self.startRefreshAllDelayTimer()
+        self.updateListThumbnails()
     
     def changedThumbAspectLimitSlider(self, value):
         setting = "{:1.6g}".format(pow(10, value/200.0))
@@ -514,32 +509,14 @@ class ODDSettings(QObject):
         print("changedThumbAspectLimitSlider: value, setting: ", value, setting)
         #print("find original value:", value/200.0, "->", setting, "->", "{:1.3g}".format(math.log10(float(setting))))
         
-        if self.readSetting("display") != "thumbnails":
-            return
-        
-        self.oddDocker.list.invalidateItemRectsCache()
-        self.oddDocker.list.updateGeometries()
-        self.oddDocker.list.viewport().update()
-        self.startRefreshAllDelayTimer()
+        self.updateListThumbnails()
     
     def changedThumbDisplayScaleSlider(self, value):
-        if self.sender() == self.dockerThumbsDisplayScaleSlider:
-            self.UI["thumbDisplayScale"]["slider"].setValue(value)
-            return
-        setting = "{:4.2f}".format(self.settingValue("thumbDisplayScale"))
-        self.UI["thumbDisplayScale"]["value"].setText(setting)
-        self.writeSetting("thumbDisplayScale", setting)
-        print("changedThumbDisplayScaleSlider to ", setting)
+        self.UI["thumbDisplayScale"]["slider"].setValue(value)
         
-        if self.readSetting("display") != "thumbnails":
-            return
-        
-        self.oddDocker.list.invalidateItemRectsCache()
-        self.oddDocker.list.updateGeometries()
-        self.oddDocker.list.viewport().update()
-        self.startRefreshAllDelayTimer()
-        
-        self.dockerThumbsDisplayScaleSlider.setValue(value)
+    def postchangeThumbDisplayScaleSlider(self):
+        self.updateListThumbnails()
+        self.dockerThumbsDisplayScaleSlider.setValue(self.UI["thumbDisplayScale"]["slider"].value())
     
     def changedThumbRenderScaleSlider(self, value):
         setting = convertSettingValueToString("thumbRenderScale", value)
@@ -547,17 +524,6 @@ class ODDSettings(QObject):
         self.writeSetting("thumbRenderScale", setting)
         
         self.startRefreshAllDelayTimer()
-    
-    def changedThumbFadeAmountSlider(self, value):
-        setting = "{:4.2f}".format(self.settingValue("thumbFadeAmount"))
-        self.UI["thumbFadeAmount"]["value"].setText(setting)
-        self.writeSetting("thumbFadeAmount", setting)
-        self.oddDocker.list.viewport().update()
-    
-    def changedThumbFadeUnfade(self, state):
-        setting = str(state==2).lower()
-        print("changedThumbFadeUnfade to", setting)
-        self.writeSetting("thumbFadeUnfade", setting)
     
     def setUiValuesForThumbShowModified(self, setting):
         self.UI["thumbShowModified"]["btn"].setCurrentText(convertSettingValueToString("thumbShowModified", setting))
@@ -577,130 +543,87 @@ class ODDSettings(QObject):
         self.previewThumbsShowModified = ""
         self.oddDocker.list.viewport().update()
     
-    def changedTooltipShow(self, state):
-        setting = str(state==2).lower()
-        print("changedTooltipShow to", setting)
-        self.writeSetting("tooltipShow", setting)
-    
     def setUiValuesForTooltipThumbLimit(self, setting):
         self.UI["tooltipThumbLimit"]["slider"].setValue(
                 convertSettingStringToValue("tooltipThumbLimit", setting)
         )
-    
-    def changedTooltipThumbLimitSlider(self, value):
-        setting = convertSettingValueToString("tooltipThumbLimit", value)
-        self.UI["tooltipThumbLimit"]["value"].setText(
-                self.decoratedSettingText("tooltipThumbLimit", setting)
-        )
-        self.writeSetting("tooltipThumbLimit", setting)
     
     def setUiValuesForTooltipThumbSize(self, setting):
         self.UI["tooltipThumbSize"]["slider"].setValue(
                 convertSettingStringToValue("tooltipThumbSize", setting)
         )
     
-    def changedTooltipThumbSizeSlider(self, value):
-        setting = convertSettingValueToString("tooltipThumbSize", value)
-        self.UI["tooltipThumbSize"]["value"].setText(
-                self.decoratedSettingText("tooltipThumbSize", setting)
-        )
-        self.writeSetting("tooltipThumbSize", setting)
-    
-    def changedRefreshOnSave(self, state):
-        setting = str(state==2).lower()
-        print("changedRefreshOnSave to", setting)
-        self.writeSetting("refreshOnSave", setting)
-    
     def changedRefreshPeriodically(self, state):
-        if (
-                hasattr(self, "dockerRefreshPeriodicallyToggleButton") and
-                self.sender() == self.dockerRefreshPeriodicallyToggleButton
-        ):
-            self.UI["refreshPeriodically"]["btn"].setChecked(state==1)
-        else:
-            self._changedRefreshPeriodically(state)
+        self.UI["refreshPeriodically"]["btn"].setChecked(state==1)
         
-    def _changedRefreshPeriodically(self, state):
-        setting = str(state==2).lower()
-        print("changedRefreshPeriodically to", setting)
-        self.writeSetting("refreshPeriodically", setting)
-        if state == 2:
+    def postchangeRefreshPeriodically(self):
+        state = self.readSetting("refreshPeriodically") == "true"
+        if state:
             self.oddDocker.imageChangeDetectionTimer.start()
         else:
             self.oddDocker.imageChangeDetectionTimer.stop()
             self.oddDocker.refreshTimer.stop()
         
-        self.dockerRefreshPeriodicallyToggleButton.setChecked(state==2)
+        self.dockerRefreshPeriodicallyToggleButton.setChecked(state)
     
-    def changedShowCommonControlsInDocker(self, state):
-        setting = str(state==2).lower()
-        print("changedShowCommonControlsInDocker to", setting)
-        self.writeSetting("showCommonControlsInDocker", setting)
-        
-        if state == 2:
-            self.dockerThumbsDisplayScaleSlider.show()
-            self.dockerDisplayToggleButton.show()
-            self.dockerRefreshPeriodicallyToggleButton.show()
-        else:
-            self.dockerThumbsDisplayScaleSlider.hide()
-            self.dockerDisplayToggleButton.hide()
-            self.dockerRefreshPeriodicallyToggleButton.hide()
-    
-    def changedDockerAlignButtonsToSettingsPanel(self, state):
-        setting = str(state==2).lower()
-        print("changedDockerAlignButtonsToSettingsPanel to", setting)
-        self.writeSetting("dockerAlignButtonsToSettingsPanel", setting)
-        
-        self.updatePanelPosition()
+    def postchangeShowCommonControlsInDocker(self):
+        state = self.readSetting("showCommonControlsInDocker") == "true"
+        self.dockerThumbsDisplayScaleSlider.setVisible(state)
+        self.dockerDisplayToggleButton.setVisible(state)
+        self.dockerRefreshPeriodicallyToggleButton.setVisible(state)
     
     def setUiValuesForThumbUseProjectionMethod(self, setting):
         self.UI["thumbUseProjectionMethod"]["btn"].setChecked(setting == "true")
     
-    def changedThumbUseProjectionMethod(self, state):
-        setting = str(state==2).lower()
-        print("changedThumbUseProjectionMethod to", setting)
-        self.writeSetting("thumbUseProjectionMethod", setting)
-        
-        self.startRefreshAllDelayTimer()
-        
     def startRefreshAllDelayTimer(self):
-        if not hasattr(self.oddDocker, "refreshAllDelay"):
-            return
         delay = self.oddDocker.refreshAllDelay
         if delay.isActive():
             delay.stop()
         delay.start()
     
-    def changedRefreshPeriodicallyChecksSlider(self, value):
-        setting = convertSettingValueToString("refreshPeriodicallyChecks", value)
-        self.UI["refreshPeriodicallyChecks"]["value"].setText(
-            self.decoratedSettingText("refreshPeriodicallyChecks", setting)
-        )
-        self.oddDocker.imageChangeDetectionTimer.setInterval(
-                self.settingValue("refreshPeriodicallyChecks")
-        )
-        self.writeSetting("refreshPeriodicallyChecks", setting)
+    def postchangeRefreshPeriodicallyChecksSlider(self):
+        self.oddDocker.imageChangeDetectionTimer.setInterval(self.settingValue("refreshPeriodicallyChecks"))
     
-    def changedRefreshPeriodicallyDelaySlider(self, value):
-        setting = convertSettingValueToString("refreshPeriodicallyDelay", value)
-        self.UI["refreshPeriodicallyDelay"]["value"].setText(
-            self.decoratedSettingText("refreshPeriodicallyDelay", setting)
-        )
-        self.oddDocker.refreshTimer.setInterval(
-                self.settingValue("refreshPeriodicallyDelay")
-        )
-        self.writeSetting("refreshPeriodicallyDelay", str(self.SD["refreshPeriodicallyDelay"]["values"][value]))
+    def postchangeRefreshPeriodicallyDelaySlider(self):
+        self.oddDocker.refreshTimer.setInterval(self.settingValue("refreshPeriodicallyDelay"))
     
     def setUiValuesForExcessThumbCacheLimit(self, setting):
         self.UI["excessThumbCacheLimit"]["slider"].setValue(
-                int(setting)
+                convertSettingStringToValue("excessThumbCacheLimit", setting)
         )
     
-    def changedExcessThumbCacheLimitSlider(self, value):
-        setting = str(value)
-        self.UI["excessThumbCacheLimit"]["value"].setText(setting + "mb")
-        self.writeSetting("excessThumbCacheLimit", setting)
-        self.odd.evictExcessUnusedCache()
+    def changedSettingCheckBox(self, setting, state, postCallable=None):
+        print("changedSettingCheckBox:", setting, state, self.sender(), postCallable)
+        writeValue = str(state==2).lower()
+        self.writeSetting(setting, writeValue)
+        
+        if postCallable is not None:
+            postCallable()
+    
+    def sliderValueText(self, setting, value):
+        if "strings" in self.SD[setting]:
+            if type(self.SD[setting]["strings"]) is list:
+                return convertSettingValueToString(setting, value)
+            else:
+                return self.SD[setting]["strings"](self.settingValue(setting))
+        else:
+            formatString = self.SD[setting]["format"] if "format" in self.SD[setting] else "{}"
+            return formatString.format(self.settingValue(setting))
+    
+    def changedSettingSlider(self, setting, value, valueText=None, postCallable=None):
+        print("changedSettingSlider:", setting, value, valueText, self.sender(), postCallable)
+        
+        valueText = valueText or self.sliderValueText(setting, value)
+        self.UI[setting]["value"].setText(self.decoratedSettingText(setting, valueText))
+        
+        if self.settingFlag(setting, "writeAsUndecoratedLabel"):
+            writeValue = valueText
+        else:
+            writeValue = str(self.settingValue(setting)) if self.settingFlag(setting, "onlyStringifyForDisplay") else convertSettingValueToString(setting, value)
+        self.writeSetting(setting, writeValue)
+        
+        if postCallable is not None:
+            postCallable()
     
     def createPanelCheckBoxControlsForSetting(self, setting, labelText=None, state=None, stateChanged=None, tooltipText=""):
         self.UI[setting]["btn"] = QCheckBox(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
@@ -714,10 +637,10 @@ class ODDSettings(QObject):
         self.UI[setting]["btn"].stateChanged.connect(stateChanged)
         self.UI[setting]["btn"].setToolTip(tooltipText)
     
-    def createPanelSliderControlsForSetting(self, setting, valueText, valRange=None, labelText=None, value=None, tooltipText=""):
+    def createPanelSliderControlsForSetting(self, setting, valueText=None, valRange=None, labelText=None, value=None, tooltipText=""):
+        print("cPSCFS: {} vt:{} vr:{} lt:{}, v:{}".format(setting, valueText, valRange, labelText, value))
         layout = QHBoxLayout()
         label = QLabel(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
-        self.UI[setting]["value"] = QLabel(valueText, self.panel)
         control = QSlider(Qt.Horizontal, self.panel)
         if valRange == None:
             control.setRange(0, len(self.SD[setting]["values"])-1)
@@ -729,8 +652,11 @@ class ODDSettings(QObject):
         self.UI[setting]["slider"] = control
         if value == None:
             self.SD[setting]["initial"](self)
+            value = self.UI[setting]["slider"].value()
         else:
             control.setValue(value)
+        valueText = valueText or self.sliderValueText(setting, value)
+        self.UI[setting]["value"] = QLabel(self.decoratedSettingText(setting, valueText), self.panel)
         return (layout, label)
     
     def createPanel(self):
@@ -772,7 +698,7 @@ class ODDSettings(QObject):
         self.panelGridLayout = QHBoxLayout()
         self.createPanelCheckBoxControlsForSetting(
                 setting = "grid",
-                stateChanged = self.changedGrid,
+                stateChanged = lambda state: self.changedSettingCheckBox("grid", state, postCallable=self.updateListThumbnails),
                 tooltipText = 
                         "Lay thumbnails out in a grid if possible.\n\n" +
                         "Thumbnail display scale must be 0.5 or less.\n" +
@@ -792,7 +718,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting = "thumbUseProjectionMethod",
-                stateChanged = self.changedThumbUseProjectionMethod,
+                stateChanged = lambda state: self.changedSettingCheckBox("thumbUseProjectionMethod", state, postCallable=self.startRefreshAllDelayTimer),#self.changedThumbUseProjectionMethod,
                 tooltipText = 
                         "If enabled, ODD will generate thumbnails with the projection method.\n" +
                         "If disabled, ODD will use the thumbnail method.\n" +
@@ -814,7 +740,6 @@ class ODDSettings(QObject):
         setting = self.readSetting("thumbDisplayScale")
         self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel = self.createPanelSliderControlsForSetting(
                 setting     = "thumbDisplayScale",
-                valueText   = setting,
                 valRange    = (0, 95),
                 value       = round((float(setting)-0.05)*100.0)
         )
@@ -830,7 +755,6 @@ class ODDSettings(QObject):
         setting = self.readSetting("thumbRenderScale")
         self.panelThumbsRenderScaleLayout, self.panelThumbsRenderScaleLabel = self.createPanelSliderControlsForSetting(
                 setting     = "thumbRenderScale",
-                valueText   = setting,
                 value       = convertSettingStringToValue("thumbRenderScale", setting),
                 tooltipText = 
                         "Thumbnails in the list can be generated at a reduced size then scaled up.\n" +
@@ -840,7 +764,6 @@ class ODDSettings(QObject):
         setting = self.readSetting("thumbFadeAmount")
         self.panelThumbsFadeAmountLayout, self.panelThumbsFadeAmountLabel = self.createPanelSliderControlsForSetting(
                 setting      = "thumbFadeAmount",
-                valueText    = setting,
                 valRange     = (0, 100),
                 value        = round(float(setting)*100)
         )
@@ -848,7 +771,7 @@ class ODDSettings(QObject):
         self.panelThumbsFadeAmountControlsLayout = QHBoxLayout()
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "thumbFadeUnfade",
-                stateChanged = self.changedThumbFadeUnfade,
+                stateChanged = lambda state: self.changedSettingCheckBox("thumbFadeUnfade", state),
                 tooltipText  = "Un-fade on mouse hover."
         )
         
@@ -866,13 +789,13 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "refreshOnSave",
-                stateChanged = self.changedRefreshOnSave,
+                stateChanged = lambda state: self.changedSettingCheckBox("refreshOnSave", state),
                 tooltipText  = "When you save an image, refresh its thumbnail automatically."
         )
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "refreshPeriodically",
-                stateChanged = self.changedRefreshPeriodically,
+                stateChanged = lambda state: self.changedSettingCheckBox("refreshPeriodically", state, postCallable=self.postchangeRefreshPeriodically),#self.changedRefreshPeriodically,
                 tooltipText  = 
                         "Automatically refresh the thumbnail for the active image if a change is detected.\n\n" + 
                         "Checks for changes to the image so-many times each second.\n" +
@@ -890,25 +813,22 @@ class ODDSettings(QObject):
         setting = self.readSetting("refreshPeriodicallyChecks")
         self.panelThumbsRefreshPeriodicallyChecksLayout, self.panelThumbsRefreshPeriodicallyChecksLabel = self.createPanelSliderControlsForSetting(
                 setting     = "refreshPeriodicallyChecks",
-                valueText   = self.decoratedSettingText("refreshPeriodicallyChecks", setting),
                 value       = convertSettingStringToValue("refreshPeriodicallyChecks", setting),
                 tooltipText = "Number of times each second the image is checked for activity."
         )
         
         setting = self.readSetting("refreshPeriodicallyDelay")
         settingValue = convertSettingStringToValue("refreshPeriodicallyDelay", setting)
-        settingString = convertSettingValueToString("refreshPeriodicallyDelay", settingValue)
         self.panelThumbsRefreshPeriodicallyDelayLayout, self.panelThumbsRefreshPeriodicallyDelayLabel = self.createPanelSliderControlsForSetting(
                 setting     = "refreshPeriodicallyDelay",
-                valueText   = settingString,
-                value       = settingValue,
+                value       = convertSettingStringToValue("refreshPeriodicallyDelay", setting),
                 tooltipText = "How long after the last detected change to refresh the thumbnail."
         )
         
         self.panelTooltipsHeading = QHBoxLayout()
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "tooltipShow",
-                stateChanged = self.changedTooltipShow,
+                stateChanged = lambda state: self.changedSettingCheckBox("tooltipShow", state),
         )
         self.panelTooltipsHeadingLine = QLabel("", self.panel)
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
@@ -916,14 +836,12 @@ class ODDSettings(QObject):
         setting = self.readSetting("tooltipThumbLimit")
         self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel = self.createPanelSliderControlsForSetting(
                 setting     = "tooltipThumbLimit",
-                valueText   = self.decoratedSettingText("tooltipThumbLimit", setting),
                 tooltipText = "Thumbnails in tooltips will be generated for images up to the chosen size."
         )
         
         setting = self.readSetting("tooltipThumbSize")
         self.panelTooltipThumbSizeLayout, self.panelTooltipThumbSizeLabel = self.createPanelSliderControlsForSetting(
                 setting     = "tooltipThumbSize",
-                valueText   = self.decoratedSettingText("tooltipThumbSize", setting),
         )
         
         self.panelMiscHeading = QHBoxLayout()
@@ -933,7 +851,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "showCommonControlsInDocker",
-                stateChanged = self.changedShowCommonControlsInDocker,
+                stateChanged = lambda state: self.changedSettingCheckBox("showCommonControlsInDocker", state, postCallable=self.postchangeShowCommonControlsInDocker),#self.changedShowCommonControlsInDocker,
                 tooltipText  =
                         "Make some of the most-used of these settings adjustable in the docker itself.\n\n" +
                         "Included are a slider for the list thumbnail display scale,\n" +
@@ -942,7 +860,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "dockerAlignButtonsToSettingsPanel",
-                stateChanged = self.changedDockerAlignButtonsToSettingsPanel,
+                stateChanged = lambda state: self.changedSettingCheckBox("dockerAlignButtonsToSettingsPanel", state, postCallable=self.updatePanelPosition),#self.changedDockerAlignButtonsToSettingsPanel,
                 tooltipText  =
                         "Allow the docker buttons to move around the docker so that the settings button will be close to the settings panel.\n\n" +
                         "This panel will try to appear in a place that obscures the docker list as little as possible.\n" +
@@ -956,9 +874,6 @@ class ODDSettings(QObject):
         setting = self.readSetting("excessThumbCacheLimit")
         self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel = self.createPanelSliderControlsForSetting(
                 setting     = "excessThumbCacheLimit",
-                # ~ nameText    = "Unused limit",
-                valueText   = setting + "mb",
-                valRange    = (0, 1024),
                 tooltipText = 
                         "Limit the amount of memory allowed to keep unused but potentially reusable thumbnails in cache.\n\n" +
                         "Unused thumbnails remain in memory so they can be reused. This is faster than generating new ones.\n" +
@@ -975,9 +890,9 @@ class ODDSettings(QObject):
         self.UI["direction"]["btngrp"       ].addButton(self.UI["direction"]["btnVertical"  ])
         self.UI["direction"]["btngrp"       ].addButton(self.UI["direction"]["btnAuto"      ])
         self.setUiValuesForDirection(self.readSetting("direction"))
-        self.UI["direction"]["btnHorizontal"].clicked.connect(self.setDirectionToHorizontal)
-        self.UI["direction"]["btnVertical"  ].clicked.connect(self.setDirectionToVertical)
-        self.UI["direction"]["btnAuto"      ].clicked.connect(self.setDirectionToAuto)
+        self.UI["direction"]["btnHorizontal"].clicked.connect(lambda : self.setDirectionTo("horizontal"))
+        self.UI["direction"]["btnVertical"  ].clicked.connect(lambda : self.setDirectionTo("vertical"))
+        self.UI["direction"]["btnAuto"      ].clicked.connect(lambda : self.setDirectionTo("auto"))
                 
         def addHeadingToPanel(layout, label, line):
             layout.addWidget(label)
@@ -1052,17 +967,33 @@ class ODDSettings(QObject):
         self.oddDocker.buttonLayout.insertLayout(1, self.dockerCommonControlsLayout)
         
         self.UI["thumbAspectLimit"         ]["slider"].valueChanged.connect(self.changedThumbAspectLimitSlider)
-        self.UI["thumbDisplayScale"        ]["slider"].valueChanged.connect(self.changedThumbDisplayScaleSlider)
-        self.UI["thumbRenderScale"         ]["slider"].valueChanged.connect(self.changedThumbRenderScaleSlider)
-        self.UI["thumbFadeAmount"          ]["slider"].valueChanged.connect(self.changedThumbFadeAmountSlider)
+        self.UI["thumbDisplayScale"        ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("thumbDisplayScale", value, postCallable=self.postchangeThumbDisplayScaleSlider)
+        )
+        self.UI["thumbRenderScale"         ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("thumbRenderScale", value, postCallable=self.startRefreshAllDelayTimer)
+        )
+        self.UI["thumbFadeAmount"          ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("thumbFadeAmount", value, postCallable=self.oddDocker.list.viewport().update)
+        )
         self.UI["thumbShowModified"        ]["btn"   ].activated.connect(self.changedThumbShowModified)
         self.UI["thumbShowModified"        ]["btn"   ].highlighted.connect(self.highlightedThumbShowModified)
         self.UI["thumbShowModified"        ]["btn"   ].installEventFilter(self)
-        self.UI["tooltipThumbLimit"        ]["slider"].valueChanged.connect(self.changedTooltipThumbLimitSlider)
-        self.UI["tooltipThumbSize"         ]["slider"].valueChanged.connect(self.changedTooltipThumbSizeSlider)
-        self.UI["refreshPeriodicallyChecks"]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyChecksSlider)
-        self.UI["refreshPeriodicallyDelay" ]["slider"].valueChanged.connect(self.changedRefreshPeriodicallyDelaySlider)
-        self.UI["excessThumbCacheLimit"    ]["slider"].valueChanged.connect(self.changedExcessThumbCacheLimitSlider)
+        self.UI["tooltipThumbLimit"        ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("tooltipThumbLimit", value)
+        )
+        self.UI["tooltipThumbSize"         ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("tooltipThumbSize", value)
+        )
+        self.UI["refreshPeriodicallyChecks"]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("refreshPeriodicallyChecks", value, postCallable=self.postchangeRefreshPeriodicallyChecksSlider)
+        )
+        self.UI["refreshPeriodicallyDelay" ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("refreshPeriodicallyDelay", value, postCallable=self.postchangeRefreshPeriodicallyDelaySlider)
+        )
+        self.UI["excessThumbCacheLimit"    ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("excessThumbCacheLimit", value, postCallable=self.odd.evictExcessUnusedCache)
+        )
         
         self.dockerThumbsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
         
@@ -1085,7 +1016,6 @@ class ODDSettings(QObject):
         direction = self._updatePanelPosition()
         if self.readSetting("dockerAlignButtonsToSettingsPanel") == "false":
             direction = 0
-        #print("updatePanelPosition: direction =", direction)
         if self.oddDocker.list.flow() == QListView.TopToBottom:
             self.oddDocker.layout.setDirection(QBoxLayout.TopToBottom if not direction == 1 else QBoxLayout.BottomToTop)
             self.oddDocker.buttonLayout.setDirection(QBoxLayout.LeftToRight if not direction == 3 else QBoxLayout.RightToLeft)
@@ -1165,13 +1095,11 @@ class ODDSettings(QObject):
             print("{:<36}{}".format(setting[0], setting[1]))
     
     def roundToNSigFigures(v, n):
-        """
-        (tested with zero and positive integers only)
-        """
+        """(tested with zero and positive integers only)"""
         x = 10 ** (math.floor(math.log10(v)) - (n+1))
         return v if v == 0 else int(round(v/x) * x)
     
-    def millisecondsToString(msec):
+    def formatMillisecondsToString(msec):
         """
         convert time in milliseconds to a more readable string.
         in   0   | 50   | 1000 | 30001     | 60000 | 90000   | 90500
@@ -1206,6 +1134,41 @@ class ODDSettings(QObject):
             )
         else:
             return str(msec) + "ms"
+    
+    def formatBytesToString(By):
+        """
+        convert size in bytes to a more readable string.
+        in   0      | 512       | 1024  | 1025     | 524288  | 1048575     | 1048576  | 1073741824  | 1073741825
+        out  0 bytes| 512 bytes | 1 kb  | 1.001 kb | 512 kb  | 1023.999 kb | 1 mb     | 1 gb        | 1.000000001 gb
+        """
+        if type(By) is float:
+            By  = round(By)
+            
+        bytesPerGb = 1073741824
+        if By >= bytesPerGb:
+            Gb  = By // bytesPerGb
+            By -= Gb *  bytesPerGb
+            if By > 0:
+                return "{}.{} gb".format(Gb, formatFloatStandardToDecimal(By/bytesPerGb)[2:12].rstrip("0"))
+            else:
+                return "{} gb".format(Gb)
+        bytesPerMb = 1048576
+        if By >= bytesPerMb:
+            Mb  = By // bytesPerMb
+            By -= Mb *  bytesPerMb
+            if By > 0:
+                return "{}.{} mb".format(Mb, formatFloatStandardToDecimal(By/bytesPerMb)[2:8].rstrip("0"))
+            else:
+                return "{} mb".format(Mb)
+        bytesPerKb = 1024
+        if By >= bytesPerKb:
+            Kb  = By // bytesPerKb
+            By -= Kb *  bytesPerKb
+            if By > 0:
+                return "{}.{} kb".format(Kb, formatFloatStandardToDecimal(By/bytesPerKb)[2:6].rstrip("0"))
+            else:
+                return "{} kb".format(Kb)
+        return "{} bytes".format(By)
     
     @classmethod
     def repairConfig(cls):
