@@ -259,7 +259,7 @@ class ODD(Extension):
     @classmethod
     def evictExcessUnusedCache(cls, maxSize=-1):
         if maxSize == -1:
-            maxSize = int(ODDSettings.globalSettings["excessThumbCacheLimit"]) * 8388608 #1024*1024*8
+            maxSize = int(ODDSettings.globalSettings["excessThumbCacheLimit"]) * 8192 #1024*8
         if cls.unusedCacheSize-maxSize <= 0:
             return
         
