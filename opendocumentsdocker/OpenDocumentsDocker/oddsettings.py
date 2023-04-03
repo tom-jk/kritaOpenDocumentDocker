@@ -114,11 +114,19 @@ class ODDSettings(QObject):
             "refreshOnSave": {
                     "label"  :"Refresh on save",
                     "default":"true",
+                    "depends": {
+                            "dependsOn":["display"],
+                            "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
                     "flags"  :["perInstance"],
             },
             "refreshPeriodically": {
                     "label"  :"Refresh periodically (experimental)",
                     "default":"false",
+                    "depends": {
+                            "dependsOn":["display"],
+                            "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                    },
                     "flags"  :["perInstance"],
             },
             "refreshPeriodicallyChecks": {
@@ -420,8 +428,12 @@ class ODDSettings(QObject):
                 enable = self.SD[i]["depends"]["evaluator"](self)
                 if "btn" in self.UI[i]:
                     self.UI[i]["btn"].setEnabled(enable)
+                    if i == "refreshPeriodically":
+                        self.dockerRefreshPeriodicallyToggleButton.setEnabled(enable)
                 elif "slider" in self.UI[i]:
                     self.UI[i]["slider"].setEnabled(enable)
+                    if i == "thumbDisplayScale":
+                        self.dockerThumbsDisplayScaleSlider.setEnabled(enable)
     
     def settingValue(self, setting, asName=False):
         ui = self.UI[setting]
@@ -718,7 +730,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting = "thumbUseProjectionMethod",
-                stateChanged = lambda state: self.changedSettingCheckBox("thumbUseProjectionMethod", state, postCallable=self.startRefreshAllDelayTimer),#self.changedThumbUseProjectionMethod,
+                stateChanged = lambda state: self.changedSettingCheckBox("thumbUseProjectionMethod", state, postCallable=self.startRefreshAllDelayTimer),
                 tooltipText = 
                         "If enabled, ODD will generate thumbnails with the projection method.\n" +
                         "If disabled, ODD will use the thumbnail method.\n" +
@@ -795,7 +807,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "refreshPeriodically",
-                stateChanged = lambda state: self.changedSettingCheckBox("refreshPeriodically", state, postCallable=self.postchangeRefreshPeriodically),#self.changedRefreshPeriodically,
+                stateChanged = lambda state: self.changedSettingCheckBox("refreshPeriodically", state, postCallable=self.postchangeRefreshPeriodically),
                 tooltipText  = 
                         "Automatically refresh the thumbnail for the active image if a change is detected.\n\n" + 
                         "Checks for changes to the image so-many times each second.\n" +
@@ -851,7 +863,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "showCommonControlsInDocker",
-                stateChanged = lambda state: self.changedSettingCheckBox("showCommonControlsInDocker", state, postCallable=self.postchangeShowCommonControlsInDocker),#self.changedShowCommonControlsInDocker,
+                stateChanged = lambda state: self.changedSettingCheckBox("showCommonControlsInDocker", state, postCallable=self.postchangeShowCommonControlsInDocker),
                 tooltipText  =
                         "Make some of the most-used of these settings adjustable in the docker itself.\n\n" +
                         "Included are a slider for the list thumbnail display scale,\n" +
@@ -860,7 +872,7 @@ class ODDSettings(QObject):
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "dockerAlignButtonsToSettingsPanel",
-                stateChanged = lambda state: self.changedSettingCheckBox("dockerAlignButtonsToSettingsPanel", state, postCallable=self.updatePanelPosition),#self.changedDockerAlignButtonsToSettingsPanel,
+                stateChanged = lambda state: self.changedSettingCheckBox("dockerAlignButtonsToSettingsPanel", state, postCallable=self.updatePanelPosition),
                 tooltipText  =
                         "Allow the docker buttons to move around the docker so that the settings button will be close to the settings panel.\n\n" +
                         "This panel will try to appear in a place that obscures the docker list as little as possible.\n" +
@@ -996,6 +1008,7 @@ class ODDSettings(QObject):
         )
         
         self.dockerThumbsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
+        self.postchangeShowCommonControlsInDocker()
         
         for setting in self.SD:
             self.updateControlsEnabledState(setting)
