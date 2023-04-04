@@ -421,76 +421,78 @@ class ODDListWidget(QListWidget):
             inView = (not (itemRect.bottom() < 0 or itemRect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
                     else (not (itemRect.right() < 0 or itemRect.x() > self.viewport().width()))
             
-            if inView:
-                pm = item.data(Qt.DecorationRole)
-                x = itemRect.x()
-                y = itemRect.y()
-                w = itemRect.width()
-                h = itemRect.height()
-                
-                if pm:
-                    if isStretchToFit:
-                        painter.drawPixmap(itemRect, pm)
-                    else:
-                        aspectLimit = float(self.oddDocker.vs.readSetting("thumbAspectLimit"))
-                        cropRect = pm.rect()
-                        itemRatio = h/w
-                        pmRatio = pm.height()/pm.width()
-                        if pmRatio < 1.0:
-                            itemToPmScale = pm.height() / h
-                            cropWidth = w * itemToPmScale
-                            cropRect.setWidth(round(cropWidth))
-                            cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
-                            #print(itemRect, pm.rect(), itemToPmScale, cropRect)
-                        elif pmRatio > 1.0:
-                            itemToPmScale = pm.width() / w
-                            cropHeight = h * itemToPmScale
-                            cropRect.setHeight(round(cropHeight))
-                            cropRect.moveTop(round((pm.height() - cropHeight) / 2))
-                            #print(itemRect, pm.rect(), itemToPmScale, cropRect)
-                        cropRect.moveLeft(max(0, cropRect.left()))
-                        cropRect.moveTop(max(0, cropRect.top()))
-                        cropRect.setWidth(min(pm.width(), cropRect.width()))
-                        cropRect.setHeight(min(pm.height(), cropRect.height()))
-                        #print("#"+str(i)+":", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
-                        painter.drawPixmap(itemRect, pm, cropRect)
-                
-                if isItemActiveDoc:
-                    painter.setBrush(Qt.NoBrush)
-                    painter.setPen(QColor(255,255,255,127))
-                    painter.drawRect(x, y, w-1, h-1)
-                    painter.setPen(QColor(0,0,0,127))
-                    painter.drawRect(x+1, y+1, w-3, h-3)
-                if (item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
-                    topRight = QPoint(x + w-1, y)
-                    if isModIconTypeText:
-                        font = painter.font()
-                        font.setWeight(QFont.ExtraBold)
-                        painter.setFont(font)
-                        pos = topRight + posOffset
-                        painter.setPen(QColor(16,16,16))
-                        painter.drawText(pos + dropShadowOffset, "*")
-                        font.setWeight(QFont.Normal)
-                        painter.setFont(font)
-                        painter.setPen(QColor(239,239,239))
-                        painter.drawText(pos, "*")
-                    else:
-                        brush = painter.brush()
-                        brush.setStyle(Qt.SolidPattern)
-                        brush.setColor(colorModIconFill)
-                        painter.setBrush(brush)
-                        painter.setPen(colorModIconLine)
-                        if isModIconTypeCorner:
-                            painter.drawConvexPolygon(cornerPoly.translated(topRight))
-                        elif isModIconTypeSquare:
-                            painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
-                        elif isModIconTypeCircle:
-                            painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
-                if isGrid:
-                    painter.setBrush(Qt.NoBrush)
-                    painter.setPen(colorGridLine)
-                    painter.drawLine(x, y+h-1, x+w-1, y+h-1)
-                    painter.drawLine(x+w-1, y, x+w-1, y+h-1)
+            if not inView:
+                continue
+            
+            pm = item.data(Qt.DecorationRole)
+            x = itemRect.x()
+            y = itemRect.y()
+            w = itemRect.width()
+            h = itemRect.height()
+            
+            if pm:
+                if isStretchToFit:
+                    painter.drawPixmap(itemRect, pm)
+                else:
+                    aspectLimit = float(self.oddDocker.vs.readSetting("thumbAspectLimit"))
+                    cropRect = pm.rect()
+                    itemRatio = h/w
+                    pmRatio = pm.height()/pm.width()
+                    if pmRatio < 1.0:
+                        itemToPmScale = pm.height() / h
+                        cropWidth = w * itemToPmScale
+                        cropRect.setWidth(round(cropWidth))
+                        cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
+                        #print(itemRect, pm.rect(), itemToPmScale, cropRect)
+                    elif pmRatio > 1.0:
+                        itemToPmScale = pm.width() / w
+                        cropHeight = h * itemToPmScale
+                        cropRect.setHeight(round(cropHeight))
+                        cropRect.moveTop(round((pm.height() - cropHeight) / 2))
+                        #print(itemRect, pm.rect(), itemToPmScale, cropRect)
+                    cropRect.moveLeft(max(0, cropRect.left()))
+                    cropRect.moveTop(max(0, cropRect.top()))
+                    cropRect.setWidth(min(pm.width(), cropRect.width()))
+                    cropRect.setHeight(min(pm.height(), cropRect.height()))
+                    #print("#"+str(i)+":", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
+                    painter.drawPixmap(itemRect, pm, cropRect)
+            
+            if isItemActiveDoc:
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QColor(255,255,255,127))
+                painter.drawRect(x, y, w-1, h-1)
+                painter.setPen(QColor(0,0,0,127))
+                painter.drawRect(x+1, y+1, w-3, h-3)
+            if (item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
+                topRight = QPoint(x + w-1, y)
+                if isModIconTypeText:
+                    font = painter.font()
+                    font.setWeight(QFont.ExtraBold)
+                    painter.setFont(font)
+                    pos = topRight + posOffset
+                    painter.setPen(QColor(16,16,16))
+                    painter.drawText(pos + dropShadowOffset, "*")
+                    font.setWeight(QFont.Normal)
+                    painter.setFont(font)
+                    painter.setPen(QColor(239,239,239))
+                    painter.drawText(pos, "*")
+                else:
+                    brush = painter.brush()
+                    brush.setStyle(Qt.SolidPattern)
+                    brush.setColor(colorModIconFill)
+                    painter.setBrush(brush)
+                    painter.setPen(colorModIconLine)
+                    if isModIconTypeCorner:
+                        painter.drawConvexPolygon(cornerPoly.translated(topRight))
+                    elif isModIconTypeSquare:
+                        painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+                    elif isModIconTypeCircle:
+                        painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+            if isGrid:
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(colorGridLine)
+                painter.drawLine(x, y+h-1, x+w-1, y+h-1)
+                painter.drawLine(x+w-1, y, x+w-1, y+h-1)
         painter.end()
 
     def contextMenuEvent(self, event):
