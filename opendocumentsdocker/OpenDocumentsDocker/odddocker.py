@@ -118,6 +118,11 @@ class ODDDocker(krita.DockWidget):
         self.resizeDelay = QTimer(self.baseWidget)
         self.resizeDelay.timeout.connect(self.delayedResize)
         
+        self.winGeoChangeResponseDelay = QTimer(self.baseWidget)
+        self.winGeoChangeResponseDelay.setInterval(500)
+        self.winGeoChangeResponseDelay.setSingleShot(True)
+        self.winGeoChangeResponseDelay.timeout.connect(self.vs.updatePanelPosition)
+        
         self.refreshAllDelay = QTimer(self.baseWidget)
         self.refreshAllDelay.setInterval(1000)
         self.refreshAllDelay.setSingleShot(True)

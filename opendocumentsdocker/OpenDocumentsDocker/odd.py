@@ -31,7 +31,7 @@ class ODD(Extension):
         
         appNotifier.viewClosed.connect(cls.viewClosed)
         appNotifier.viewCreated.connect(cls.viewCreated)
-        appNotifier.windowIsBeingCreated.connect(cls.windowIsBeingCreated)
+        appNotifier.windowIsBeingCreated.connect(self.windowIsBeingCreated)
 
     def setup(self):
         print("ODD:__setup__")
@@ -328,10 +328,20 @@ class ODD(Extension):
             tModi = ""
         return (fName if fName else "[not saved]") + tModi
     
-    @classmethod
-    def windowIsBeingCreated(cls, window):
+    def windowIsBeingCreated(self, window):
+        cls = self.__class__
         print("window being created:", window, "(" + window.qwindow().objectName() + ")")
+        window.qwindow().installEventFilter(self)
         window.qwindow().destroyed.connect(cls.windowDestroyed)
+    
+    @classmethod
+    def eventFilter(cls, obj, event):
+        if type(obj) == QMainWindow:
+            if event.type() in (QEvent.Resize, QEvent.Move):
+                for d in cls.dockers:
+                    if d.parent() == obj:
+                        d.winGeoChangeResponseDelay.start()
+        return False
     
     @classmethod
     def windowDestroyed(cls, obj):
