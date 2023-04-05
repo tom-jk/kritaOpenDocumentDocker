@@ -525,7 +525,8 @@ class ODDListWidget(QListWidget):
         
         print("selected:", item, " -", doc.fileName())
         self.oddDocker.itemClicked(item)
-        app.activeDocument().waitForDone()
+        if app.activeDocument():
+            app.activeDocument().waitForDone()
         ODD.findAndActivateView(doc)
         app.setActiveDocument(doc)
         doc.waitForDone()
