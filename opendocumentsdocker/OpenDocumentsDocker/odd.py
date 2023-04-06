@@ -31,6 +31,7 @@ class ODD(Extension):
         
         appNotifier.viewClosed.connect(cls.viewClosed)
         appNotifier.viewCreated.connect(cls.viewCreated)
+        appNotifier.windowCreated.connect(self.windowCreated)
         appNotifier.windowIsBeingCreated.connect(self.windowIsBeingCreated)
 
     def setup(self):
@@ -157,7 +158,6 @@ class ODD(Extension):
     def updateDocsAndWins(cls):
         docStillExists = [False] * len(cls.documents)
         
-        cls.windows = []
         for view in cls.views:
             doc = view.document()
             if not doc:
@@ -176,9 +176,6 @@ class ODD(Extension):
                 })
                 for docker in cls.dockers:
                     docker.documentCreated(doc)
-            win = view.window().qwindow()
-            if not win in cls.windows:
-                cls.windows.append(win)
         
         print("docStillExists:")
         for i in enumerate(docStillExists):
@@ -378,6 +375,22 @@ class ODD(Extension):
         window.qwindow().installEventFilter(self)
         window.qwindow().destroyed.connect(cls.windowDestroyed)
     
+    def windowCreated(self):
+        cls = self.__class__
+        
+        appWins = Application.windows()
+        for win in appWins:
+            if win in cls.windows:
+                print("existing win:", win)
+            else:
+                print("new win:", win)
+                cls.windows.append(win)
+        window = cls.windows[-1]
+        print("window created:", window)
+        docker = cls.dockers[-1]
+        print("connect window", window, "activeViewChanged to", docker)
+        window.activeViewChanged.connect(docker.activeViewChanged)
+    
     @classmethod
     def eventFilter(cls, obj, event):
         if type(obj) == QMainWindow:
@@ -390,6 +403,22 @@ class ODD(Extension):
     @classmethod
     def windowDestroyed(cls, obj):
         print("window destroyed:", obj)
+        
+        closedWins = []
+        appWins = Application.windows()
+        for win in cls.windows:
+            if win in appWins:
+                print("kept win", win)
+                pass
+            else:
+                print("closed win:", win)
+                closedWins.append(win)
+        for win in closedWins:
+            cls.windows.remove(win)
+            
+        print(" - wins - ")
+        for i in enumerate(cls.windows):
+            print(i[0], ":", i[1])
         
         # ~ print("-pre-")
         # ~ for i in range(len(cls.dockers)):

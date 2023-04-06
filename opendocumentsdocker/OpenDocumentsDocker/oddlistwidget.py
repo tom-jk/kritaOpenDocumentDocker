@@ -523,32 +523,86 @@ class ODDListWidget(QListWidget):
             print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
+        views = []
+        for view in self.odd.views:
+            if view.document() == doc:
+                views.append(view)
+        wins = []
+        for view in views:
+            win = view.window()
+            if win not in wins:
+                wins.append(win)
+        
+        clickedActionName = None
+        
+        def setClickedActionName(actionName):
+            nonlocal clickedActionName
+            clickedActionName = actionName
+        
+        def addDeferredAction(menu, actionName):
+            menu.addAction(app.action(actionName).text(), lambda : setClickedActionName(actionName), app.action(actionName).shortcut())
+        
         print("selected:", item, " -", doc.fileName())
-        self.oddDocker.itemClicked(item)
-        if app.activeDocument():
-            app.activeDocument().waitForDone()
-        ODD.findAndActivateView(doc)
-        app.setActiveDocument(doc)
-        doc.waitForDone()
+        
         menu = QMenu(self)
         menu.addAction(ODD.documentDisplayName(doc))
         menu.actions()[0].setEnabled(False)
         menu.addSeparator()
-        menu.addAction(app.action('file_save'))
-        menu.addAction(app.action('file_save_as'))
-        menu.addAction(app.action('file_export_file'))
-        menu.addAction(app.action('create_copy'))
+        viewMenu = menu#menu.addMenu("Views")
+        for win in wins:
+            a = viewMenu.addAction("View in " + win.qwindow().objectName())
+            a.setData(("goToViewInWin", win))
+        a = viewMenu.addAction("New View in This Window")
+        a.setData(("newViewInWin", Application.activeWindow()))
         menu.addSeparator()
-        menu.addAction(app.action('file_documentinfo'))
-        menu.addAction(app.action('image_properties'))
+        addDeferredAction(menu, 'file_save')
+        addDeferredAction(menu, 'file_save_as')
+        addDeferredAction(menu, 'file_export_file')
+        addDeferredAction(menu, 'create_copy')
         menu.addSeparator()
-        menu.addAction(app.action('ODDQuickCopyMergedAction'))
+        addDeferredAction(menu, 'file_documentinfo')
+        addDeferredAction(menu, 'image_properties')
+        menu.addSeparator()
+        addDeferredAction(menu, 'ODDQuickCopyMergedAction')
         menu.addSeparator()
         if doc.fileName():
-            menu.addAction(app.action('ODDFileRevertAction'))
+            addDeferredAction(menu, 'ODDFileRevertAction')
         else:
             menu.addAction("Revert")
             menu.actions()[-1].setEnabled(False)
-        menu.addAction(app.action('file_close'))
+        addDeferredAction(menu, 'file_close')
         
-        menu.exec(pos)
+        action = menu.exec(pos)
+        
+        if not action:
+            print("ctx menu exited without selection")
+            menu.deleteLater()
+            return
+        
+        aData = action.data()
+        if aData:
+            if aData[0] == "goToViewInWin":
+                print("go to view in win", aData[1].qwindow().objectName())
+                win = aData[1]
+                for view in win.views():
+                    if view.document() == doc:
+                        win.activate()
+                        win.showView(view)
+                        view.setVisible()
+                        break
+            elif aData[0] == "newViewInWin":
+                print("new view in win", aData[1].qwindow().objectName())
+                newview = Application.activeWindow().addView(doc)
+                pass
+        else:
+            # switch to view on document before running actions on it.
+            if app.activeDocument():
+                app.activeDocument().waitForDone()
+            self.oddDocker.itemClicked(item)
+            #app.setActiveDocument(doc)
+            doc.waitForDone()
+            
+            print("do action", clickedActionName)
+            app.action(clickedActionName).trigger()
+        
+        menu.deleteLater()

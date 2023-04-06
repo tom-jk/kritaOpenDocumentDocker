@@ -540,15 +540,10 @@ class ODDDocker(krita.DockWidget):
         self.processDeferredDocumentThumbnails()
     
     def windowCreated(self):
-        print("windowCreated", end=" ")
-        winlist = Application.windows()
-        print("(count:", str(len(winlist)) + str(")"))
-        for win in winlist:
-            print("window:", win)
-            win.activeViewChanged.connect(self.activeViewChanged)
+        pass
     
     def activeViewChanged(self):
-        print("active view changed")
+        print("active view changed -", self)
         #print("active doc:", Application.activeDocument())
         if self.imageChangeDetected:
             # flush thumbnail update for now-previous doc
@@ -920,7 +915,7 @@ class ODDDocker(krita.DockWidget):
         
         wins = ODD.windows
         for w in wins:
-            newText += "WINDOW " + str(w) + " (" + w.objectName() + ")" + (newLine if w!=wins[-1] else "") + "\n"
+            newText += "WINDOW " + str(w) + " (" + w.qwindow().objectName() + ")" + (newLine if w!=wins[-1] else "") + "\n"
         
         views = ODD.views
         docs = ODD.documents
