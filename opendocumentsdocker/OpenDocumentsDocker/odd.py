@@ -58,13 +58,14 @@ class ODD(Extension):
             return
         
         fname = doc.fileName()
-        docname = ODDDocker.documentDisplayName(self, doc, showIfModified=False)
+        docname = ODD.documentDisplayName(doc, showIfModified=False)
 
         msgBox = QMessageBox(
                 QMessageBox.Warning,
                 "Krita",
                 "Revert unsaved changes to the document <b>'"+docname+"'</b>?<br/><br/>" \
-                "Any unsaved changes will be permanently lost."
+                "Any unsaved changes will be permanently lost.",
+                parent = Application.activeWindow().qwindow()
         )
         btnCancel = msgBox.addButton(QMessageBox.Cancel)
         btnRevert = msgBox.addButton("Revert", QMessageBox.DestructiveRole)
@@ -78,38 +79,78 @@ class ODD(Extension):
             doc.setBatchmode(True)
             doc.setModified(False)
             
-            if ODDDocker.imageChangeDetected:
-                ODDDocker.imageChangeDetected = False
-                ODDDocker.refreshTimer.stop()
+            oddDocker = self.dockers[0].__class__
+            if oddDocker.imageChangeDetected:
+                oddDocker.imageChangeDetected = False
+                oddDocker.refreshTimer.stop()
             
-            Application.action('file_close').trigger()
-            newdoc = Application.openDocument(fname)
-            Application.activeWindow().addView(newdoc)
-
+            self.revertedDocFileName = fname
+            if not hasattr(self, "revertDelay"):
+                self.revertDelay = QTimer(self)
+                self.revertDelay.setInterval(0)
+                self.revertDelay.setSingleShot(True)
+                self.revertDelay.timeout.connect(self.postRevert)
+            
+            doc.close()
+            self.revertDelay.start()
         else:
             print("Cancel")
     
+    def postRevert(self):
+        fname = self.revertedDocFileName
+        if fname is None:
+            assert False, "ODD:PostRevert: called without a filename."
+            return
+        self.revertedDocFileName = None
+        print("postRevert for", fname)
+        newdoc = Application.openDocument(fname)
+        newdoc.waitForDone()
+        newview = Application.activeWindow().addView(newdoc)
+        print("postRevert finished.")
+    
     @classmethod
-    def viewCreated(cls, view):
-        d = view.document()
-        print("ODD:viewCreated:", view, (str(d) + Path(d.fileName()).name) if d else "")
-        cls.views = Application.views()
+    def viewCreated(cls):
+        print("ODD:viewCreated")
+        
+        appViews = Application.views()
+        for view in appViews:
+            if view in cls.views:
+                print("existing view", view)
+            else:
+                print("new view:", view)
+                cls.views.append(view)
+        print(" - views - ")
+        for i in enumerate(cls.views):
+            print(i[0], ":", i[1])
+        
         cls.updateDocsAndWins()
     
-    closedView = None
     @classmethod
     def viewClosed(cls, view):
         # must wait a little for krita to remove closed view from it's list of views.
         d = view.document()
         print("viewClosed", view, (str(d) + Path(d.fileName()).name) if d else "")
-        cls.closedView = view
         cls.viewClosedDelay.start()
     
     @classmethod
     def _viewClosed(cls):
-        view = cls.closedView
-        print("_viewClosed", view)
-        cls.views = Application.views()
+        print("_viewClosed")
+        
+        closedViews = []
+        appViews = Application.views()
+        for view in cls.views:
+            if view in appViews:
+                #print("kept view", view)
+                pass
+            else:
+                print("closed view:", view)
+                closedViews.append(view)
+        for view in closedViews:
+            cls.views.remove(view)
+        print(" - views - ")
+        for i in enumerate(cls.views):
+            print(i[0], ":", i[1])
+        
         cls.updateDocsAndWins()
     
     @classmethod
@@ -119,6 +160,9 @@ class ODD(Extension):
         cls.windows = []
         for view in cls.views:
             doc = view.document()
+            if not doc:
+                print("UpdateDocsAndWins: no doc for view")
+                continue
             if matchList := [i for i in enumerate(cls.documents) if i[1]["document"] == doc]:
                 knownDoc = matchList[0]
                 print("existing doc:", knownDoc[1]["document"])
