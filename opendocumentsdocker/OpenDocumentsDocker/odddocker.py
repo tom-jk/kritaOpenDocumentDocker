@@ -330,18 +330,20 @@ class ODDDocker(krita.DockWidget):
     
     def imageSaved(self, filename):
         # unnecessary? the document just saved should be the active one
-        doc = None
-        docCount = len(ODDDocker.documents)
-        for i in range(docCount):
-            if ODDDocker.documents[i].fileName() == filename:
-                doc = ODDDocker.documents[i]
-                break
+        # OR: since we track doc modified status, see which doc just
+        # became unmodified? (consider effects of export, save copy, etc. though)
+        # doc = None
+        # for d in ODD.documents:
+            # if d.fileName() == filename:
+                # doc = d
+                # break
+        doc = Application.activeDocument()
         print("image saved -", filename, "(doc", str(doc) + ")")
         if self.vs.settingValue("refreshOnSave"):
             if self.imageChangeDetected:
                 self.imageChangeDetected = False
                 self.refreshTimer.stop()
-            self.updateDocumentThumbnail()
+            self.updateDocumentThumbnail(force=True)
     
     def moveEvent(self, event):
         #print("moveEvent:", event.pos(), self.pos(), self.baseWidget.mapToGlobal(self.baseWidget.pos()))
