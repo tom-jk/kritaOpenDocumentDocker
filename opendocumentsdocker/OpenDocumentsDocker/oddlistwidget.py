@@ -162,10 +162,7 @@ class ODDListWidget(QListWidget):
             
             idealSize = self.oddDocker.calculateDisplaySizeForThumbnail(None, True)
             checkExt = 1.0 * float(self.oddDocker.vs.readSetting("thumbDisplayScale"))
-            if isListVertical:
-                stackCount = int((float(self.viewport().width())+checkExt) / idealSize.width())
-            else:
-                stackCount = int((float(self.viewport().height())+checkExt) / idealSize.height())
+            stackCount = int(self.oddDocker.vs.readSetting("thumbDisplayScaleGrid"))
             if stackCount == 0:
                 print("note: stackCount == 0")
                 stackCount = 1

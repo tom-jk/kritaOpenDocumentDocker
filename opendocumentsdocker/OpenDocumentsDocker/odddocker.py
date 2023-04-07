@@ -82,6 +82,7 @@ class ODDDocker(krita.DockWidget):
         self.dockerStack.addWidget(self.list)
         self.dockerStack.addWidget(self.infoScrollArea)
         self.layout.addLayout(self.dockerStack)
+        self.layout.setStretch(0, 1)
         
         self.imageChangeDetected = False
         self.imageOldSize = QSize(0, 0)
@@ -465,6 +466,7 @@ class ODDDocker(krita.DockWidget):
             self.list.setFlow(QListView.LeftToRight)
             if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
                 self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Vertical)
+                self.vs.dockerThumbsDisplayScaleGridSlider.setOrientation(Qt.Vertical)
                 self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.TopToBottom)
                 self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
                 self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
@@ -490,6 +492,7 @@ class ODDDocker(krita.DockWidget):
             self.list.setFlow(QListView.TopToBottom)
             if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
                 self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Horizontal)
+                self.vs.dockerThumbsDisplayScaleGridSlider.setOrientation(Qt.Horizontal)
                 self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.LeftToRight)
                 self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
                 self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -835,8 +838,9 @@ class ODDDocker(krita.DockWidget):
                 docRatio = 1.0/aspectLimit
         
         size = None
-        scale = float(self.vs.readSetting("thumbDisplayScale"))
-
+        isGrid = self.vs.readSetting("grid") == "true"
+        scale = float(1/int(self.vs.readSetting("thumbDisplayScaleGrid"))) if isGrid else float(self.vs.readSetting("thumbDisplayScale"))
+        
         # keep size from getting too big and slowing things down
         # (but don't kick in too soon, or many users might wonder why
         # thumb refuses to fill area, even after setting scale to 1.00).

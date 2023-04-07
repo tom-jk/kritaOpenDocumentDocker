@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QScreen
-from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton, QStackedLayout
 from krita import *
 import math
 from ast import literal_eval
@@ -171,8 +171,19 @@ class ODDSettings(QObject):
                     "min":0.05,
                     "max":1.00,
                     "depends": {
-                        "dependsOn":["display"],
-                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                        "dependsOn":["display", "grid"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails" and not self.settingValue("grid"),
+                    },
+                    "flags"  :["perInstance", "writeAsUndecoratedLabel"],
+            },
+            "thumbDisplayScaleGrid": {
+                    "label"  :"Display across",
+                    "default":"2",
+                    "strings":[str(i) for i in range(16, 0, -1)],
+                    "values":[1/i for i in range(16, 0, -1)],
+                    "depends": {
+                        "dependsOn":["display", "grid"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails" and self.settingValue("grid"),
                     },
                     "flags"  :["perInstance", "writeAsUndecoratedLabel"],
             },
@@ -308,6 +319,7 @@ class ODDSettings(QObject):
                 "refreshPeriodicallyDelay":         {"value":None, "slider":None},
                 "thumbAspectLimit":                 {"value":None, "slider":None},
                 "thumbDisplayScale":                {"value":None, "slider":None},
+                "thumbDisplayScaleGrid":            {"value":None, "slider":None},
                 "thumbRenderScale":                 {"value":None, "slider":None},
                 "thumbFadeAmount":                  {"value":None, "slider":None},
                 "thumbFadeUnfade":                  {"btn":None},
@@ -530,6 +542,13 @@ class ODDSettings(QObject):
         self.updateListThumbnails()
         self.dockerThumbsDisplayScaleSlider.setValue(self.UI["thumbDisplayScale"]["slider"].value())
     
+    def changedThumbDisplayScaleGridSlider(self, value):
+        self.UI["thumbDisplayScaleGrid"]["slider"].setValue(value)
+        
+    def postchangeThumbDisplayScaleGridSlider(self):
+        self.updateListThumbnails()
+        self.dockerThumbsDisplayScaleGridSlider.setValue(self.UI["thumbDisplayScaleGrid"]["slider"].value())
+    
     def changedThumbRenderScaleSlider(self, value):
         setting = convertSettingValueToString("thumbRenderScale", value)
         self.UI["thumbRenderScale"]["value"].setText(setting)
@@ -578,9 +597,16 @@ class ODDSettings(QObject):
         
         self.dockerRefreshPeriodicallyToggleButton.setChecked(state)
     
+    def postchangeGrid(self):
+        setting = self.readSetting("grid")
+        self.panelThumbsDisplayScaleStack.setCurrentIndex(1 if setting == "true" else 0)
+        self.dockerThumbsDisplayScaleStack.setCurrentIndex(1 if setting == "true" else 0)
+        self.updateListThumbnails()
+    
     def postchangeShowCommonControlsInDocker(self):
         state = self.readSetting("showCommonControlsInDocker") == "true"
         self.dockerThumbsDisplayScaleSlider.setVisible(state)
+        self.dockerThumbsDisplayScaleGridSlider.setVisible(state)
         self.dockerDisplayToggleButton.setVisible(state)
         self.dockerRefreshPeriodicallyToggleButton.setVisible(state)
     
@@ -710,7 +736,7 @@ class ODDSettings(QObject):
         self.panelGridLayout = QHBoxLayout()
         self.createPanelCheckBoxControlsForSetting(
                 setting = "grid",
-                stateChanged = lambda state: self.changedSettingCheckBox("grid", state, postCallable=self.updateListThumbnails),
+                stateChanged = lambda state: self.changedSettingCheckBox("grid", state, postCallable=self.postchangeGrid),
                 tooltipText = 
                         "Lay thumbnails out in a grid if possible.\n\n" +
                         "Thumbnail display scale must be 0.5 or less.\n" +
@@ -749,12 +775,19 @@ class ODDSettings(QObject):
                         "Higher values give better representation of wide/tall documents, at the cost of ease of list navigation."
         )
         
+        self.panelThumbsDisplayScaleStack = QStackedLayout()
+        self.dockerThumbsDisplayScaleStack = QStackedLayout()
+        
         setting = self.readSetting("thumbDisplayScale")
         self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel = self.createPanelSliderControlsForSetting(
                 setting     = "thumbDisplayScale",
                 valRange    = (0, 95),
                 value       = round((float(setting)-0.05)*100.0)
         )
+        self.panelThumbsDisplayScaleLayout.setContentsMargins(0,0,0,0)
+        self.panelThumbsDisplayScaleWidget = QWidget(self.panel)
+        self.panelThumbsDisplayScaleWidget.setLayout(self.panelThumbsDisplayScaleLayout)
+        self.panelThumbsDisplayScaleStack.addWidget(self.panelThumbsDisplayScaleWidget)
         
         self.dockerThumbsDisplayScaleSlider = QSlider(Qt.Horizontal)
         self.dockerThumbsDisplayScaleSlider.setRange(       self.UI["thumbDisplayScale"]["slider"].minimum(),
@@ -763,6 +796,37 @@ class ODDSettings(QObject):
         self.dockerThumbsDisplayScaleSlider.setTickInterval(self.UI["thumbDisplayScale"]["slider"].tickInterval())
         self.dockerThumbsDisplayScaleSlider.setPageStep(    self.UI["thumbDisplayScale"]["slider"].pageStep())
         self.dockerThumbsDisplayScaleSlider.setValue(       self.UI["thumbDisplayScale"]["slider"].value())
+        self.dockerThumbsDisplayScaleLayout = QBoxLayout(QBoxLayout.LeftToRight)
+        self.dockerThumbsDisplayScaleLayout.setContentsMargins(0,0,0,0)
+        self.dockerThumbsDisplayScaleWidget = QWidget(self.panel)
+        self.dockerThumbsDisplayScaleWidget.setLayout(self.dockerThumbsDisplayScaleLayout)
+        self.dockerThumbsDisplayScaleStack.addWidget(self.dockerThumbsDisplayScaleWidget)
+        
+        setting = self.readSetting("thumbDisplayScaleGrid")
+        self.panelThumbsDisplayScaleGridLayout, self.panelThumbsDisplayScaleGridLabel = self.createPanelSliderControlsForSetting(
+                setting     = "thumbDisplayScaleGrid",
+                value       = convertSettingStringToValue("thumbDisplayScaleGrid", setting)
+        )
+        self.panelThumbsDisplayScaleGridLayout.setContentsMargins(0,0,0,0)
+        self.panelThumbsDisplayScaleGridWidget = QWidget(self.panel)
+        self.panelThumbsDisplayScaleGridWidget.setLayout(self.panelThumbsDisplayScaleGridLayout)
+        self.panelThumbsDisplayScaleStack.addWidget(self.panelThumbsDisplayScaleGridWidget)
+        
+        self.dockerThumbsDisplayScaleGridSlider = QSlider(Qt.Horizontal)
+        self.dockerThumbsDisplayScaleGridSlider.setRange(       self.UI["thumbDisplayScaleGrid"]["slider"].minimum(),
+                                                                self.UI["thumbDisplayScaleGrid"]["slider"].maximum())
+        self.dockerThumbsDisplayScaleGridSlider.setTickPosition(self.UI["thumbDisplayScaleGrid"]["slider"].tickPosition())
+        self.dockerThumbsDisplayScaleGridSlider.setTickInterval(self.UI["thumbDisplayScaleGrid"]["slider"].tickInterval())
+        self.dockerThumbsDisplayScaleGridSlider.setPageStep(    self.UI["thumbDisplayScaleGrid"]["slider"].pageStep())
+        self.dockerThumbsDisplayScaleGridSlider.setValue(       self.UI["thumbDisplayScaleGrid"]["slider"].value())
+        self.dockerThumbsDisplayScaleGridLayout = QBoxLayout(QBoxLayout.LeftToRight)
+        self.dockerThumbsDisplayScaleGridLayout.setContentsMargins(0,0,0,0)
+        self.dockerThumbsDisplayScaleGridWidget = QWidget(self.panel)
+        self.dockerThumbsDisplayScaleGridWidget.setLayout(self.dockerThumbsDisplayScaleGridLayout)
+        self.dockerThumbsDisplayScaleStack.addWidget(self.dockerThumbsDisplayScaleGridWidget)
+        
+        self.panelThumbsDisplayScaleStack.setCurrentIndex( 1 if self.readSetting("grid") == "true" else 0)
+        self.dockerThumbsDisplayScaleStack.setCurrentIndex(1 if self.readSetting("grid") == "true" else 0)
         
         setting = self.readSetting("thumbRenderScale")
         self.panelThumbsRenderScaleLayout, self.panelThumbsRenderScaleLabel = self.createPanelSliderControlsForSetting(
@@ -913,7 +977,7 @@ class ODDSettings(QObject):
             layout.setStretch(1, 99)
             self.panelLayout.addLayout(layout)
         
-        def addSliderSettingToPanel(settingLayout, nameLabel, setting, extraLayout=None, extraSetting=None):
+        def addSliderSettingToPanel(settingLayout, nameLabel, setting, extraLayout=None, extraSetting=None, targetLayout=self.panelLayout):
             settingLayout.addWidget(nameLabel)
             settingLayout.addWidget(self.UI[setting]["value"])
             if extraLayout == None:
@@ -926,7 +990,8 @@ class ODDSettings(QObject):
                 settingLayout.addLayout(extraLayout)
             for i in range(0, 3):
                 settingLayout.setStretch(i, (4,4,10)[i])
-            self.panelLayout.addLayout(settingLayout)
+            if targetLayout:
+                targetLayout.addLayout(settingLayout)
         
         addHeadingToPanel(self.panelListHeading, self.panelListHeadingLabel, self.panelListHeadingLine)
         self.panelDirectionLayout.addWidget(self.panelDirectionLabel)
@@ -945,7 +1010,9 @@ class ODDSettings(QObject):
         self.panelLayout.addWidget(self.panelThumbsLabel)
         self.panelLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
         addSliderSettingToPanel(self.panelThumbsAspectLimitLayout, self.panelThumbsAspectLimitLabel, "thumbAspectLimit")
-        addSliderSettingToPanel(self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel, "thumbDisplayScale")
+        addSliderSettingToPanel(self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel, "thumbDisplayScale", targetLayout=None)
+        addSliderSettingToPanel(self.panelThumbsDisplayScaleGridLayout, self.panelThumbsDisplayScaleGridLabel, "thumbDisplayScaleGrid", targetLayout=None)
+        self.panelLayout.addLayout(self.panelThumbsDisplayScaleStack)
         addSliderSettingToPanel(self.panelThumbsRenderScaleLayout, self.panelThumbsRenderScaleLabel, "thumbRenderScale")
         addSliderSettingToPanel(
                 self.panelThumbsFadeAmountLayout, self.panelThumbsFadeAmountLabel, "thumbFadeAmount",
@@ -971,7 +1038,11 @@ class ODDSettings(QObject):
         self.panel.setLayout(self.panelLayout)
         self.panel.setMinimumWidth(432)
         
-        self.oddDocker.layout.insertWidget(1, self.dockerThumbsDisplayScaleSlider)
+        self.dockerThumbsDisplayScaleLayout.addWidget(self.dockerThumbsDisplayScaleSlider)
+        self.dockerThumbsDisplayScaleGridLayout.addWidget(self.dockerThumbsDisplayScaleGridSlider)
+        
+        self.oddDocker.layout.insertLayout(1, self.dockerThumbsDisplayScaleStack)
+        self.oddDocker.layout.setStretch(1, 0)
         self.dockerCommonControlsLayout = QBoxLayout(QBoxLayout.LeftToRight)
         self.dockerCommonControlsLayout.setSpacing(0)
         self.dockerCommonControlsLayout.addWidget(self.dockerDisplayToggleButton)
@@ -981,6 +1052,9 @@ class ODDSettings(QObject):
         self.UI["thumbAspectLimit"         ]["slider"].valueChanged.connect(self.changedThumbAspectLimitSlider)
         self.UI["thumbDisplayScale"        ]["slider"].valueChanged.connect(
                 lambda value: self.changedSettingSlider("thumbDisplayScale", value, postCallable=self.postchangeThumbDisplayScaleSlider)
+        )
+        self.UI["thumbDisplayScaleGrid"    ]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("thumbDisplayScaleGrid", value, postCallable=self.postchangeThumbDisplayScaleGridSlider)
         )
         self.UI["thumbRenderScale"         ]["slider"].valueChanged.connect(
                 lambda value: self.changedSettingSlider("thumbRenderScale", value, postCallable=self.startRefreshAllDelayTimer)
@@ -1008,6 +1082,7 @@ class ODDSettings(QObject):
         )
         
         self.dockerThumbsDisplayScaleSlider.valueChanged.connect(self.changedThumbDisplayScaleSlider)
+        self.dockerThumbsDisplayScaleGridSlider.valueChanged.connect(self.changedThumbDisplayScaleGridSlider)
         self.postchangeShowCommonControlsInDocker()
         
         for setting in self.SD:
