@@ -931,12 +931,11 @@ class ODDDocker(krita.DockWidget):
                 return None
         else:
             scaledSize = QSize(int(size.width() * scaleFactor), int(size.height() * scaleFactor))
-            thumbnail = doc.thumbnail(scaledSize.width(), scaledSize.height())
+            thumbKey = (scaledSize.width(), scaledSize.height(), doc.width(), doc.height())
+            thumbnail = ODD.requestThumbnail(doc, thumbKey)
         
             if thumbnail.isNull():
                 return None
-            
-            thumbnail = thumbnail.scaled(size)
         
         thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
         
