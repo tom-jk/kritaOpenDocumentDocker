@@ -492,7 +492,7 @@ class ODDListWidget(QListWidget):
                 painter.drawLine(x+w-1, y, x+w-1, y+h-1)
         painter.end()
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event, viewOptionsOnly=False):
         print("ctx menu event -", event.globalPos(), event.reason())
         self.oddDocker.listToolTip.hide()
         
@@ -548,26 +548,29 @@ class ODDListWidget(QListWidget):
         viewMenu = menu#menu.addMenu("Views")
         for win in wins:
             a = viewMenu.addAction("View in " + win.qwindow().objectName())
+            if win == Application.activeWindow() and win.activeView().document() == doc:
+                a.setEnabled(False)
             a.setData(("goToViewInWin", win))
         a = viewMenu.addAction("New View in This Window")
         a.setData(("newViewInWin", Application.activeWindow()))
-        menu.addSeparator()
-        addDeferredAction(menu, 'file_save')
-        addDeferredAction(menu, 'file_save_as')
-        addDeferredAction(menu, 'file_export_file')
-        addDeferredAction(menu, 'create_copy')
-        menu.addSeparator()
-        addDeferredAction(menu, 'file_documentinfo')
-        addDeferredAction(menu, 'image_properties')
-        menu.addSeparator()
-        addDeferredAction(menu, 'ODDQuickCopyMergedAction')
-        menu.addSeparator()
-        if doc.fileName():
-            addDeferredAction(menu, 'ODDFileRevertAction')
-        else:
-            menu.addAction("Revert")
-            menu.actions()[-1].setEnabled(False)
-        addDeferredAction(menu, 'file_close')
+        if not viewOptionsOnly:
+            menu.addSeparator()
+            addDeferredAction(menu, 'file_save')
+            addDeferredAction(menu, 'file_save_as')
+            addDeferredAction(menu, 'file_export_file')
+            addDeferredAction(menu, 'create_copy')
+            menu.addSeparator()
+            addDeferredAction(menu, 'file_documentinfo')
+            addDeferredAction(menu, 'image_properties')
+            menu.addSeparator()
+            addDeferredAction(menu, 'ODDQuickCopyMergedAction')
+            menu.addSeparator()
+            if doc.fileName():
+                addDeferredAction(menu, 'ODDFileRevertAction')
+            else:
+                menu.addAction("Revert")
+                menu.actions()[-1].setEnabled(False)
+            addDeferredAction(menu, 'file_close')
         
         action = menu.exec(pos)
         

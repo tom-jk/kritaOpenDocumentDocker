@@ -169,7 +169,10 @@ class ODDDocker(krita.DockWidget):
                         viewsOtherWindowsCount += 1
             
             if viewsThisWindowCount == 0:
-                ODD.findAndActivateView(doc)
+                self.list.contextMenuEvent(
+                        QContextMenuEvent(QContextMenuEvent.Mouse, self.list.mapFromGlobal(QCursor.pos())),
+                        viewOptionsOnly=True
+                )
             else:
                 if activeViewThisWindow is not None:
                     view = viewsThisWindow[
