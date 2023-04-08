@@ -159,8 +159,9 @@ class ODDSettings(QObject):
                     "max": 10.0,
                     "pow":10,
                     "depends": {
-                        "dependsOn":["display"],
-                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
+                        "dependsOn":["display", "grid", "gridMode"],
+                        "evaluator":lambda self: self.settingValue("display", True) == "thumbnails" and \
+                                                 not (self.settingValue("grid") and self.settingValue("gridMode") != "masonry"),
                     },
                     "flags"  :["perInstance"],
             },
