@@ -457,9 +457,10 @@ class ODDListWidget(QListWidget):
             if isItemActiveDoc:
                 painter.setBrush(Qt.NoBrush)
                 painter.setPen(QColor(255,255,255,127))
-                painter.drawRect(x, y, w-1, h-1)
+                o = int(isGrid)
+                painter.drawRect(x, y, w-1-o, h-1-o)
                 painter.setPen(QColor(0,0,0,127))
-                painter.drawRect(x+1, y+1, w-3, h-3)
+                painter.drawRect(x+1, y+1, w-3-o, h-3-o)
             if (item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
                 topRight = QPoint(x + w-1, y)
                 if isModIconTypeText:
