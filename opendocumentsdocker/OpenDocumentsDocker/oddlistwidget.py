@@ -581,12 +581,13 @@ class ODDListWidget(QListWidget):
             if aData[0] == "goToViewInWin":
                 print("go to view in win", aData[1].qwindow().objectName())
                 win = aData[1]
-                for view in win.views():
-                    if view.document() == doc:
-                        win.activate()
-                        win.showView(view)
-                        view.setVisible()
-                        break
+                win.activate()
+                if win.activeView().document() != doc:
+                    for view in win.views():
+                        if view.document() == doc:
+                            win.showView(view)
+                            view.setVisible()
+                            break
             elif aData[0] == "newViewInWin":
                 print("new view in win", aData[1].qwindow().objectName())
                 newview = Application.activeWindow().addView(doc)
