@@ -25,6 +25,7 @@ class ODDDocker(krita.DockWidget):
         super(ODDDocker, self).__init__()
         
         ODD.dockers.append(self)
+        self._window = None
         self.vs = ODDSettings(ODD.instance, self)
         
         self.dockLocation = None
@@ -45,6 +46,11 @@ class ODDDocker(krita.DockWidget):
         self.viewButton.setIcon(Application.icon('view-choose'))
         self.infoButton = QPushButton()
         self.infoButton.setIcon(Application.icon('selection-info'))
+        self.infoButton.setCheckable(True)
+        self.filtButton = QPushButton()
+        self.filtButton.setIcon(Application.icon('view-filter'))
+        self.filtButton.setCheckable(True)
+        self.filtButton.setToolTip("Filter out documents with no views in this window.")
         
         self.setDockerDirection(self.vs.readSetting("direction"))
         self.list.setMovement(QListView.Free)
@@ -104,6 +110,7 @@ class ODDDocker(krita.DockWidget):
         self.buttonLayout.addWidget(self.loadButton)
         self.buttonLayout.addWidget(self.viewButton)
         self.buttonLayout.addWidget(self.infoButton)
+        self.buttonLayout.addWidget(self.filtButton)
         self.buttonLayout.setStretch(0, 1)
         self.buttonLayout.setStretch(1, 1)
         self.layout.addLayout(self.buttonLayout)
@@ -136,6 +143,7 @@ class ODDDocker(krita.DockWidget):
         
         self.loadButton.clicked.connect(self.updateDocumentThumbnailForced)
         self.infoButton.clicked.connect(self.toggleDockerInfoView)
+        self.filtButton.clicked.connect(self.toggleDockerFiltering)
         self.setWindowTitle(i18n("Open Documents Docker"))
         
         # used for doing things with the document that was current before active view changed
@@ -149,6 +157,11 @@ class ODDDocker(krita.DockWidget):
         appNotifier.imageSaved.connect(self.imageSaved)
         
         appNotifier.windowCreated.connect(self.windowCreated)
+    
+    def window(self):
+        if not self._window:
+            self._window = ODD.windowFromQWindow(self.parent())
+        return self._window
     
     def itemClicked(self, item):
         doc = item.data(self.ItemDocumentRole)
@@ -340,6 +353,10 @@ class ODDDocker(krita.DockWidget):
         print("document created -", doc)
         fName = doc.fileName()
         print(" name:", (fName if fName else "[not saved]"))
+        
+        if self.filtButton.isChecked():
+            if not ODD.documentHasViewsInWindow(doc, self.window()):
+                return
         
         self.addDocumentToList(doc)
     
@@ -752,6 +769,36 @@ class ODDDocker(krita.DockWidget):
     def toggleDockerInfoView(self):
         self.dockerStack.setCurrentIndex(1-self.dockerStack.currentIndex())
         self.updateLabel()
+    
+    def toggleDockerFiltering(self):
+        enabled = self.filtButton.isChecked()
+        if enabled:
+            docsToRemove = []
+            win = Application.activeWindow()
+            count = self.list.count()
+            for i in range(count):
+                item = self.list.item(i)
+                doc = item.data(self.ItemDocumentRole)
+                if not ODD.documentHasViewsInWindow(doc, win):
+                    docsToRemove.append(doc)
+            for doc in docsToRemove:
+                self.removeDocumentFromList(doc)
+        else:
+            docsToAdd = []
+            count = self.list.count()
+            for docData in ODD.documents:
+                doc = docData["document"]
+                isInList = False
+                for i in range(count):
+                    item = self.list.item(i)
+                    if item.data(self.ItemDocumentRole) == doc:
+                        isInList = True
+                        break
+                if not isInList:
+                    docsToAdd.append(doc)
+            for doc in docsToAdd:
+                self.addDocumentToList(doc)
+                
     
     def updateDocumentThumbnail(self, doc=None, force=False):
         if not doc:

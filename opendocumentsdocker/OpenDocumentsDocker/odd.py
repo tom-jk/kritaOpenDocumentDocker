@@ -343,18 +343,18 @@ class ODD(Extension):
                     view.setVisible()
                     return
     
-    def documentHasViews(doc, exception):
-        """
-        returns true if at least one open view shows this document
-        (any view besides exception, if provided).
-        """
-        # TODO ...
-        for win in Application.windows():
-            for view in win.views():
-                if view != exception:
-                    if ODD.documentUniqueId(view.document()) == ODD.documentUniqueId(doc):
-                        return True
+    def documentHasViewsInWindow(doc, win):
+        for view in win.views():
+                if view.document() == doc:
+                    return True
         return False
+    
+    @classmethod
+    def windowFromQWindow(cls, qwin):
+        for win in cls.windows:
+            if win.qwindow() == qwin:
+                return win
+        return None
     
     def thumbnailKey(thumbWidth, thumbHeight, regionWidth, regionHeight):
         return (thumbWidth, thumbHeight, regionWidth, regionHeight)
