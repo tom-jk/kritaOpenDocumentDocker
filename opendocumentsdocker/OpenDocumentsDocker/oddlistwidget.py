@@ -649,6 +649,8 @@ class ODDListWidget(QListWidget):
                 newwin.showView(newview)
                 newview.setVisible()
                 newwin.qwindow().show()
+        elif clickedActionName  == "file_close":
+            self.tryToCloseDocument(doc)
         else:
             # switch to view on document before running actions on it.
             if app.activeDocument():
@@ -661,3 +663,119 @@ class ODDListWidget(QListWidget):
             app.action(clickedActionName).trigger()
         
         menu.deleteLater()
+    
+    documentCloser = None
+    def tryToCloseDocument(self, doc=None):
+        if not hasattr(self, "tryToCloseDocStepTimer"):
+            self.tryToCloseDocStepTimer = QTimer(self)
+            self.tryToCloseDocStepTimer.setInterval(0)
+            self.tryToCloseDocStepTimer.setSingleShot(True)
+            self.tryToCloseDocStepTimer.timeout.connect(self.tryToCloseDocument)
+        
+        if not self.documentCloser:
+            self.documentCloser = self._tryToCloseDocument(doc)
+            self.tryToCloseDocStepTimer.start()
+            return
+        
+        try:
+            print(" @@ tryToCloseDocument: step.")
+            next(self.documentCloser)
+            print("    start timer for next step")
+            self.tryToCloseDocStepTimer.start()
+        except StopIteration:
+            self.documentCloser = None
+            print(" @@ tryToCloseDocument: finished.")
+        
+    def _tryToCloseDocument(self, doc):
+        app = Application
+        print("begin _tryToCloseDocument for", str(doc)[-15:-1])
+        
+        viewcount = 0
+        for v in self.odd.views:
+            if v.document() == doc:
+                viewcount += 1
+                if viewcount > 1:
+                    break
+        
+        if viewcount > 1:
+            msgBox = QMessageBox(
+                    QMessageBox.Warning,
+                    "Krita",
+                    "All but one view on the document <b>'{}'</b> will be closed{}<br/><br/>Are you sure?".format(
+                            self.odd.__class__.documentDisplayName(doc, False, 'Untitled'),
+                            ", then you'll be asked if you wish to save." if doc.modified() else "."
+                    ),
+                    parent = Application.activeWindow().qwindow()
+            )
+            btnCancel = msgBox.addButton(QMessageBox.Cancel)
+            btnYes    = msgBox.addButton(QMessageBox.Yes)
+            msgBox.setDefaultButton(QMessageBox.Yes)
+            print("prompt to close views", str(doc)[-15:-1])
+            msgBox.exec()
+            if msgBox.clickedButton() == btnCancel:
+                print("close cancelled for", str(doc)[-15:-1])
+                return
+        
+        print(" ! begin close process ! ", str(doc)[-15:-1])
+        
+        Application.setBatchmode(True)
+        doc.setBatchmode(True)
+        wasModified = doc.modified()
+        doc.setModified(False)
+        
+        oddDocker = self.odd.dockers[0].__class__
+        if oddDocker.imageChangeDetected:
+            oddDocker.imageChangeDetected = False
+            oddDocker.refreshTimer.stop()
+        
+        while True:
+            viewcount = 0
+            views = Application.views()
+            print("views:", [str(v)[-15:-1] for v in views])
+            print("  doc:", [str(v.document())[-15:-1] for v in views])
+            view = None
+            for v in views:
+                print("compare", str(v.document())[-15:-1], "with", str(doc)[-15:-1], end="... ")
+                if v.document() == doc:
+                    print("true")
+                    if not view:
+                        view = v
+                    viewcount += 1
+                else:
+                    print("false")
+            
+            if viewcount == 1:
+                if wasModified:
+                    # prompt user to save/cancel before closing last view on doc.
+                    doc.setModified(True)
+                    Application.setBatchmode(False)
+                    doc.setBatchmode(False)
+            elif viewcount == 0:
+                return
+            
+            print("close view {} on doc {} ({}) in window {} ...".format(str(view)[-15:-1], str(view.document())[-15:-1], view.document().fileName(), str(view.window())[-15:-1]))
+        
+            Application.setActiveDocument(doc)
+            view.window().activate()
+            view.window().showView(view)
+            view.setVisible()
+            
+            yield
+            yield
+            
+            assert Application.activeWindow().activeView().document() == doc, "ODDListWidget:_tryToCloseDocument: sanity check (view doc == doc to close) failed."
+            print("closing view on ", str(doc)[-15:-1], "now ...", end=" ")
+            if viewcount != 1:
+                Application.action('file_close').trigger()
+            else:
+                print("(this is last view)")
+                yield
+                print("...")
+                Application.action('file_close').trigger()
+                yield
+                print("done.")
+                return
+            doc.waitForDone()
+            print("done.")
+            
+            yield
