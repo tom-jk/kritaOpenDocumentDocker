@@ -359,7 +359,7 @@ class ODD(Extension):
     def thumbnailKey(thumbWidth, thumbHeight, regionWidth, regionHeight):
         return (thumbWidth, thumbHeight, regionWidth, regionHeight)
     
-    def documentDisplayName(doc, showIfModified=True):
+    def documentDisplayName(doc, showIfModified=True, unsavedName="[not saved]"):
         if doc:
             fPath = doc.fileName()
             fName = Path(fPath).name
@@ -367,7 +367,7 @@ class ODD(Extension):
         else:
             fName = "[no document]"
             tModi = ""
-        return (fName if fName else "[not saved]") + tModi
+        return (fName if fName else unsavedName) + tModi
     
     def windowIsBeingCreated(self, window):
         cls = self.__class__
