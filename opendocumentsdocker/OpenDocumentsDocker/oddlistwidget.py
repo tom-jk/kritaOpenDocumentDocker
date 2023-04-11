@@ -554,6 +554,8 @@ class ODDListWidget(QListWidget):
             a.setData(("goToViewInWin", win))
         a = viewMenu.addAction("New View in This Window")
         a.setData(("newViewInWin", Application.activeWindow()))
+        a = viewMenu.addAction("New View in a New Window")
+        a.setData(("newViewInNewWin", None))
         if not viewOptionsOnly:
             menu.addSeparator()
             addDeferredAction(menu, 'file_save')
@@ -596,6 +598,14 @@ class ODDListWidget(QListWidget):
                 print("new view in win", aData[1].qwindow().objectName())
                 newview = Application.activeWindow().addView(doc)
                 pass
+            elif aData[0] == "newViewInNewWin":
+                print("new view in new win")
+                newwin = Application.openWindow()
+                newview = newwin.addView(doc)
+                newwin.activate()
+                newwin.showView(newview)
+                newview.setVisible()
+                newwin.qwindow().show()
         else:
             # switch to view on document before running actions on it.
             if app.activeDocument():
