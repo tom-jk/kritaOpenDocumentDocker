@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, QPointF
 from PyQt5.QtWidgets import QListWidget, QScroller, QAbstractItemView
 from krita import *
 from .odd import ODD
@@ -340,7 +340,7 @@ class ODDListWidget(QListWidget):
         if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             super().paintEvent(event)
             return
-        
+                
         activeDoc = Application.activeDocument()
         #print("paintEvent:", event.rect())
         option = self.viewOptions()
@@ -398,6 +398,16 @@ class ODDListWidget(QListWidget):
         else:
             isStretchToFit = False
         
+        noViewsIconPolyBox = [
+            QPointF(2/30, 0.2), QPointF(28/30, 0.2), QPointF(28/30, 1/3),   QPointF(1.0, 1/3),
+            QPointF(1.0, 0.0),  QPointF(0.0, 0.0),   QPointF(0.0, 0.8),     QPointF(1.0, 0.8),
+            QPointF(1.0, 0.6),  QPointF(28/30, 0.6), QPointF(28/30, 22/30), QPointF(2/30, 22/30),
+        ]
+        noViewsIconPolyArrow = [
+            QPointF(32/30, 0.4),   QPointF(26/30, 0.4),   QPointF(26/30, 8/30),  QPointF(16/30, 14/30),
+            QPointF(26/30, 20/30), QPointF(26/30, 16/30), QPointF(32/30, 16/30),
+        ]
+        
         for i in range(count):
             item = self.item(i)
             isItemActiveDoc = item.data(self.oddDocker.ItemDocumentRole) == activeDoc
@@ -420,6 +430,17 @@ class ODDListWidget(QListWidget):
             
             if not inView:
                 continue
+            
+            doc = item.data(self.oddDocker.ItemDocumentRole)
+            viewsThisWindowCount = 0
+            viewsOtherWindowsCount = 0
+            for v in self.odd.views:
+                vdoc = v.document()
+                if vdoc == doc:
+                    if v.window().qwindow() == self.oddDocker.parent():
+                        viewsThisWindowCount += 1
+                    else:
+                        viewsOtherWindowsCount += 1
             
             pm = item.data(Qt.DecorationRole)
             x = itemRect.x()
@@ -491,6 +512,28 @@ class ODDListWidget(QListWidget):
                 painter.setPen(colorGridLine)
                 painter.drawLine(x, y+h-1, x+w-1, y+h-1)
                 painter.drawLine(x+w-1, y, x+w-1, y+h-1)
+            
+            if viewsThisWindowCount == 0:
+                
+                brush = painter.brush()
+                brush.setStyle(Qt.SolidPattern)
+                brush.setColor(QColor(239,239,239,80))
+                painter.setBrush(brush)
+                painter.setPen(Qt.NoPen)
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                painter.setCompositionMode(QPainter.CompositionMode_Difference)
+                
+                s = min(24, min(w, h))
+                
+                poly = [i*s + QPointF(x+2, y+2) for i in noViewsIconPolyBox]
+                painter.drawPolygon(poly, len(poly))
+                
+                poly = [i*s + QPointF(x+2, y+1.8) for i in noViewsIconPolyArrow]
+                painter.drawPolygon(poly, len(poly))
+                
+                painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+                painter.setRenderHint(QPainter.Antialiasing, False)
+        
         painter.end()
 
     def contextMenuEvent(self, event, viewOptionsOnly=False):
