@@ -363,6 +363,14 @@ class ODD(Extension):
                 return win
         return None
     
+    @classmethod
+    def findDockerWithWindow(cls, win):
+        qwin = win.qwindow()
+        for docker in cls.dockers:
+            if docker.parent() == qwin:
+                return docker
+        return None
+    
     def thumbnailKey(thumbWidth, thumbHeight, regionWidth, regionHeight):
         return (thumbWidth, thumbHeight, regionWidth, regionHeight)
     

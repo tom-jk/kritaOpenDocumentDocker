@@ -362,10 +362,14 @@ class ODDSettings(QObject):
             #print("setting", setting, "=", cls.globalSettings[setting])
     
     def setupInstanceSettings(self):
+        fromWindow = Application.activeWindow()
+        print("setupInstanceSettings: fromWindow:", fromWindow, "(", fromWindow.qwindow().objectName() if fromWindow else "", ")")
+        fromDocker = self.odd.findDockerWithWindow(fromWindow) if fromWindow else None
+        settingsSource = fromDocker.vs.settings if fromDocker else self.globalSettings
         self.settings = {}
         for setting in self.SD:
             if self.settingFlag(setting, "perInstance"):
-                self.settings[setting] = self.globalSettings[setting]
+                self.settings[setting] = settingsSource[setting]
                 #print("setting", setting, "overriden in instance.")
     
     def settingFlag(self, setting, flag):
