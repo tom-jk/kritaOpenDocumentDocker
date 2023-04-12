@@ -9,7 +9,8 @@ from .odddocker import ODDDocker
 
 Application.addExtension(ODD(Application))
 
-Application.addDockWidgetFactory(
-    krita.DockWidgetFactory("openDocumentsDocker",
-                            krita.DockWidgetFactoryBase.DockLeft,
-                            ODDDocker))
+if ODD.instance:
+    Application.addDockWidgetFactory(
+        krita.DockWidgetFactory("openDocumentsDocker",
+                                krita.DockWidgetFactoryBase.DockLeft,
+                                ODDDocker))

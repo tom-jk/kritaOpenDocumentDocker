@@ -17,6 +17,13 @@ class ODD(Extension):
         super().__init__(parent)
         cls = self.__class__
         
+        if len(Application.windows()) > 0:
+            if len(self.dockers) > 0:
+                print("ODD: reactivated.\n     should be safe to continue.")
+            else:
+                print("ODD: activated mid-krita session.\n     please restart krita.")
+            return
+        
         if not cls.instance:
             cls.viewClosedDelay = QTimer(None)
             cls.viewClosedDelay.setInterval(0)
