@@ -358,6 +358,18 @@ class ODDDocker(krita.DockWidget):
             if not ODD.documentHasViewsInWindow(doc, self.window()):
                 return
         
+        if not hasattr(self, "docCreatedDelay"):
+            self.docCreatedDelay = QTimer(self.baseWidget)
+            self.docCreatedDelay.setSingleShot(True)
+            self.docCreatedDelay.setInterval(0)
+            self.docCreatedDelay.timeout.connect(self._documentCreated)
+        self.createdDoc = doc
+        self.docCreatedDelay.start()
+        
+    def _documentCreated(self):
+        doc = self.createdDoc
+        self.createdDoc = None
+        print("_documentCreated -", doc)
         self.addDocumentToList(doc)
     
     def documentClosed(self, doc):
