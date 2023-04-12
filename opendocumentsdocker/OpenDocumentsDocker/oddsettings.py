@@ -695,6 +695,8 @@ class ODDSettings(QObject):
             control.setRange(0, len(self.SD[setting]["values"])-1)
         else:
             control.setRange(valRange[0], valRange[1])
+        rangeDiff = control.maximum() - control.minimum()
+        control.setPageStep(max(1, round(rangeDiff/50)))
         control.setTickPosition(QSlider.NoTicks)
         control.setTickInterval(1)
         control.setToolTip(tooltipText)
