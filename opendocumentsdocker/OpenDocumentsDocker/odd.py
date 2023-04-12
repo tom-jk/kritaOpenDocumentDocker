@@ -442,7 +442,9 @@ class ODD(Extension):
                             removeUserBuffer.append((d, t[0]))
                 for ru in removeUserBuffer:
                     cls.removeThumbnailUser(docker, ru[0], ru[1])
-                    
+                
+                ODDSettings.instances.remove(docker.vs)
+                
                 cls.dockers[i] = None
                 
         # ~ print("-mid-")
