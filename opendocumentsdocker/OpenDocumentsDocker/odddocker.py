@@ -779,8 +779,10 @@ class ODDDocker(krita.DockWidget):
         self.updateDocumentThumbnail(doc=None, force=True)
     
     def toggleDockerInfoView(self):
-        self.dockerStack.setCurrentIndex(1-self.dockerStack.currentIndex())
-        self.updateLabel()
+        toIndex = 1-self.dockerStack.currentIndex()
+        self.dockerStack.setCurrentIndex(toIndex)
+        if toIndex == 1:
+            self.updateLabel()
     
     def toggleDockerFiltering(self):
         enabled = self.filtButton.isChecked()
