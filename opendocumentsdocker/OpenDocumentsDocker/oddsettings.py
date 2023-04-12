@@ -631,7 +631,9 @@ class ODDSettings(QObject):
                 convertSettingStringToValue("excessThumbCacheLimit", setting)
         )
     
-    def changedSettingCheckBox(self, setting, state, postCallable=None):
+    def changedSettingCheckBox(self, setting, state=None, postCallable=None):
+        if not state:
+            state = self.UI[setting]["btn"].isChecked()
         print("changedSettingCheckBox:", setting, state, self.sender(), postCallable)
         writeValue = str(state==2).lower()
         self.writeSetting(setting, writeValue)
@@ -664,8 +666,13 @@ class ODDSettings(QObject):
         if postCallable is not None:
             postCallable()
     
-    def createPanelCheckBoxControlsForSetting(self, setting, labelText=None, state=None, stateChanged=None, tooltipText=""):
-        self.UI[setting]["btn"] = QCheckBox(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
+    def createPanelCheckBoxControlsForSetting(self, setting, labelText=None, state=None, stateChanged=None, tooltipText="", icon=None):
+        if icon:
+            self.UI[setting]["btn"] = QPushButton(self.panel)
+            self.UI[setting]["btn"].setIcon(icon)
+            self.UI[setting]["btn"].setCheckable(True)
+        else:
+            self.UI[setting]["btn"] = QCheckBox(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
         if state == None:
             if "initial" in self.SD[setting]:
                 self.SD[setting]["initial"](self)
@@ -673,7 +680,10 @@ class ODDSettings(QObject):
                 self.UI[setting]["btn"].setChecked(self.readSetting(setting) == "true")
         else:
             self.UI[setting]["btn"].setChecked(state)
-        self.UI[setting]["btn"].stateChanged.connect(stateChanged)
+        if icon:
+            self.UI[setting]["btn"].clicked.connect(stateChanged)
+        else:
+            self.UI[setting]["btn"].stateChanged.connect(stateChanged)
         self.UI[setting]["btn"].setToolTip(tooltipText)
     
     def createPanelSliderControlsForSetting(self, setting, valueText=None, valRange=None, labelText=None, value=None, tooltipText=""):
@@ -848,8 +858,9 @@ class ODDSettings(QObject):
         self.panelThumbsFadeAmountControlsLayout = QHBoxLayout()
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "thumbFadeUnfade",
-                stateChanged = lambda state: self.changedSettingCheckBox("thumbFadeUnfade", state),
-                tooltipText  = "Un-fade on mouse hover."
+                stateChanged = lambda : self.changedSettingCheckBox("thumbFadeUnfade"),
+                tooltipText  = "Un-fade on mouse hover.",
+                icon         = Application.icon('onionOn')
         )
         
         setting = self.readSetting("thumbShowModified")
