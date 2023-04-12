@@ -1009,12 +1009,16 @@ class ODDDocker(krita.DockWidget):
         
         if not self:
             return
-        if not self.parent():
-            newText += "parent: " + str(self.parent()) + newLine + "\n"
         
         wins = ODD.windows
+        thisWin = ODD.windowFromQWindow(self.parent()) if self.parent() else None
         for w in wins:
-            newText += "WINDOW " + str(w) + " (" + w.qwindow().objectName() + ")" + (newLine if w!=wins[-1] else "") + "\n"
+            newText += "WINDOW {} ({}) {}{}\n".format(
+                    str(w),
+                    w.qwindow().objectName(),
+                    "&lt;--" if w == thisWin else "",
+                    newLine if w != wins[-1] else ""
+            )
         
         views = ODD.views
         docs = ODD.documents
