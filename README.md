@@ -1,7 +1,8 @@
-# Open Document Docker
-A Krita docker that provides a compact vertical list of your open images and can switch between them.
+# Open Documents Docker
+A Krita docker that provides a compact list of your open images and can switch between them.
 
-![krita_odd_githubimage0](https://user-images.githubusercontent.com/64640811/212569158-785d579b-5790-4389-b6cb-7abc17b00edd.png)
+![krita_odd_githubimage1](https://user-images.githubusercontent.com/64640811/231816347-bcdac35d-2373-4128-b70f-a27925daa606.png)
+
 
 # Motivation
 When you have many images open, the horizontal tab bar can become cramped and awkward to navigate.
@@ -14,8 +15,6 @@ Left-click on the thumbnail of an image to switch to it.
 Right-click for a menu of common file actions: save, save as, export, etc.
 
 The list will automatically add and remove items as files are created, opened and closed.
-
-The list will not automatically update thumbnails as you edit images, but you can manually with the refresh button.
 
 # Status
 Pre-release, expect quirks
