@@ -443,7 +443,10 @@ class ODDSettings(QObject):
         if "depends" in self.SD[setting] and "dependedOnBy" in self.SD[setting]["depends"]:
             for i in self.SD[setting]["depends"]["dependedOnBy"]:
                 enable = self.SD[i]["depends"]["evaluator"](self)
-                if "btn" in self.UI[i]:
+                if "btngrp" in self.UI[i]:
+                    for btn in self.UI[i]["btngrp"].buttons():
+                        btn.setEnabled(enable)
+                elif "btn" in self.UI[i]:
                     self.UI[i]["btn"].setEnabled(enable)
                     if i == "refreshPeriodically":
                         self.dockerRefreshPeriodicallyToggleButton.setEnabled(enable)
