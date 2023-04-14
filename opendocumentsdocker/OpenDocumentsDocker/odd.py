@@ -194,6 +194,13 @@ class ODD(Extension):
                 print("doc removed:", cls.documents[i])
                 for docker in cls.dockers:
                     docker.documentClosed(cls.documents[i]["document"])
+                # account for any leftover thumbs.
+                for thumbKey,thumbData in cls.documents[i]["thumbnails"].items():
+                    pm = thumbData["pixmap"]
+                    print("doc {}: removing thumb {} with size {}".format(
+                        cls.documents[i]["document"], thumbKey, pm.width() * pm.height() * pm.depth()
+                    ))
+                    cls.unusedCacheSize -= pm.width() * pm.height() * pm.depth()
                 del cls.documents[i]
                 del docStillExists[i]
             else:
