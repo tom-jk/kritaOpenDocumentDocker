@@ -236,6 +236,14 @@ class ODDSettings(QObject):
                     "default":"true",
                     "flags"  :["perInstance"],
             },
+            "tooltipSizeMode": {
+                    "default":"large",
+                    "depends": {
+                            "dependsOn":["tooltipShow"],
+                            "evaluator": lambda self: self.settingValue("tooltipShow"),
+                    },
+                    "initial":lambda self: self.setUiValuesForTooltipSizeMode(self.readSetting("tooltipSizeMode")),
+            },
             "tooltipThumbLimit": {
                     "label"  :"Limit",
                     "default":"4096",
@@ -326,6 +334,7 @@ class ODDSettings(QObject):
                 "thumbFadeUnfade":                  {"btn":None},
                 "thumbShowModified":                {"btn":None},
                 "tooltipShow":                      {"btn":None},
+                "tooltipSizeMode":                  {"btngrp":None, "btnSmall":None, "btnNormal":None, "btnLarge":None},
                 "tooltipThumbLimit":                {"value":None, "slider":None},
                 "tooltipThumbSize":                 {"value":None, "slider":None},
                 "showCommonControlsInDocker":       {"btn":None},
@@ -581,6 +590,14 @@ class ODDSettings(QObject):
     def unhighlightedThumbShowModified(self):
         self.previewThumbsShowModified = ""
         self.oddDocker.list.viewport().update()
+    
+    def setUiValuesForTooltipSizeMode(self, setting):
+        self.UI["tooltipSizeMode"]["btnSmall" ].setChecked(setting=="small")
+        self.UI["tooltipSizeMode"]["btnNormal"].setChecked(setting=="normal")
+        self.UI["tooltipSizeMode"]["btnLarge" ].setChecked(setting=="large")
+        
+    def setTooltipSizeModeTo(self, sizeMode):
+        self.writeSetting("tooltipSizeMode", sizeMode)
     
     def setUiValuesForTooltipThumbLimit(self, setting):
         self.UI["tooltipThumbLimit"]["slider"].setValue(
@@ -930,6 +947,23 @@ class ODDSettings(QObject):
         self.panelTooltipsHeadingLine = QLabel("", self.panel)
         self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
+        self.UI["tooltipSizeMode"]["btngrp"   ] = QButtonGroup(self.panel)
+        
+        self.panelTooltipSizeLayout = QHBoxLayout()
+        self.panelTooltipSizeLabel = QLabel("Size Mode", self.panel)
+        self.panelTooltipSizeSubLayout = QHBoxLayout()
+        self.UI["tooltipSizeMode"]["btnSmall" ] = QRadioButton("Small", self.panel)
+        self.UI["tooltipSizeMode"]["btnSmall" ].setObjectName("small")
+        self.UI["tooltipSizeMode"]["btnNormal"] = QRadioButton("Normal", self.panel)
+        self.UI["tooltipSizeMode"]["btnNormal"].setObjectName("normal")
+        self.UI["tooltipSizeMode"]["btnLarge" ] = QRadioButton("Large", self.panel)
+        self.UI["tooltipSizeMode"]["btnLarge" ].setObjectName("large")
+        self.panelTooltipSizeSubLayout.addWidget(self.UI["tooltipSizeMode"]["btnSmall" ])
+        self.panelTooltipSizeSubLayout.addWidget(self.UI["tooltipSizeMode"]["btnNormal"])
+        self.panelTooltipSizeSubLayout.addWidget(self.UI["tooltipSizeMode"]["btnLarge" ])
+        
+        self.panelTooltipThumbLabel = QLabel("Thumbnail", self.panel)
+        
         setting = self.readSetting("tooltipThumbLimit")
         self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel = self.createPanelSliderControlsForSetting(
                 setting     = "tooltipThumbLimit",
@@ -983,6 +1017,7 @@ class ODDSettings(QObject):
         self.setUiValuesForDisplay(self.readSetting("display"))
         self.UI["display"  ]["btnThumbnails"].clicked.connect(self.setDisplayToThumbnails)
         self.UI["display"  ]["btnText"      ].clicked.connect(self.setDisplayToText)
+        
         self.UI["direction"]["btngrp"       ].addButton(self.UI["direction"]["btnHorizontal"])
         self.UI["direction"]["btngrp"       ].addButton(self.UI["direction"]["btnVertical"  ])
         self.UI["direction"]["btngrp"       ].addButton(self.UI["direction"]["btnAuto"      ])
@@ -990,6 +1025,15 @@ class ODDSettings(QObject):
         self.UI["direction"]["btnHorizontal"].clicked.connect(lambda : self.setDirectionTo("horizontal"))
         self.UI["direction"]["btnVertical"  ].clicked.connect(lambda : self.setDirectionTo("vertical"))
         self.UI["direction"]["btnAuto"      ].clicked.connect(lambda : self.setDirectionTo("auto"))
+        
+        self.UI["tooltipSizeMode"]["btngrp"   ].addButton(self.UI["tooltipSizeMode"]["btnSmall"])
+        self.UI["tooltipSizeMode"]["btngrp"   ].addButton(self.UI["tooltipSizeMode"]["btnNormal"])
+        self.UI["tooltipSizeMode"]["btngrp"   ].addButton(self.UI["tooltipSizeMode"]["btnLarge"])
+        self.setUiValuesForTooltipSizeMode(self.readSetting("tooltipSizeMode"))
+        self.UI["tooltipSizeMode"]["btnSmall" ].clicked.connect(lambda : self.setTooltipSizeModeTo("small"))
+        self.UI["tooltipSizeMode"]["btnNormal"].clicked.connect(lambda : self.setTooltipSizeModeTo("normal"))
+        self.UI["tooltipSizeMode"]["btnLarge" ].clicked.connect(lambda : self.setTooltipSizeModeTo("large"))
+        
                 
         def addHeadingToPanel(layout, label, line):
             layout.addWidget(label)
@@ -1049,6 +1093,14 @@ class ODDSettings(QObject):
         addSliderSettingToPanel(self.panelThumbsRefreshPeriodicallyChecksLayout, self.panelThumbsRefreshPeriodicallyChecksLabel, "refreshPeriodicallyChecks")
         addSliderSettingToPanel(self.panelThumbsRefreshPeriodicallyDelayLayout, self.panelThumbsRefreshPeriodicallyDelayLabel, "refreshPeriodicallyDelay")
         addHeadingToPanel(self.panelTooltipsHeading, self.UI["tooltipShow"]["btn"], self.panelTooltipsHeadingLine)
+        
+        self.panelTooltipSizeLayout.addWidget(self.panelTooltipSizeLabel)
+        self.panelTooltipSizeLayout.addLayout(self.panelTooltipSizeSubLayout)
+        self.panelTooltipSizeLayout.setStretch(0, 4)
+        self.panelTooltipSizeLayout.setStretch(1, 5)
+        self.panelLayout.addLayout(self.panelTooltipSizeLayout)
+        self.panelLayout.addWidget(self.panelTooltipThumbLabel)
+        
         addSliderSettingToPanel(self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel, "tooltipThumbLimit")
         addSliderSettingToPanel(self.panelTooltipThumbSizeLayout, self.panelTooltipThumbSizeLabel, "tooltipThumbSize")
         addHeadingToPanel(self.panelMiscHeading, self.panelMiscHeadingLabel, self.panelMiscHeadingLine)

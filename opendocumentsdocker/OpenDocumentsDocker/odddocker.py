@@ -208,13 +208,18 @@ class ODDDocker(krita.DockWidget):
         doc = item.data(self.ItemDocumentRole)
         if not doc:
             return
-        
+
         fPath = doc.fileName()
-        ttText = ""
         
-        ttText += "<table border='0' style='margin:16px; padding:16px'><tr>"
+        sizeMode = self.vs.settingValue("tooltipSizeMode", True)
+        isSmall = sizeMode == "small"
+        isLarge = sizeMode == "large"
+        pad = 0 if isSmall else 16 if isLarge else 4
+        
+        ttText = "<table border='0' style='margin:{}px; padding:{}px'><tr>\n".format(pad, pad)
         
         # From answer to "Use a picture or image in a QToolTip": https://stackoverflow.com/a/34300771
+        imgHtml = ""
         pxCount = doc.width() * doc.height()
         if pxCount <= self.vs.settingValue("tooltipThumbLimit"):
             settingSize = self.vs.settingValue("tooltipThumbSize")
@@ -229,15 +234,24 @@ class ODDDocker(krita.DockWidget):
             buffer = QBuffer(data)
             img.save(buffer, "PNG", 100)
             imgHtml = "<img src='data:image/png;base64, " + str(data.toBase64()).split("'")[1] + "'>"
-        else:
-            imgHtml = "(image too big)"
         
-        ttText += "<td><table border='1'><tr><td>" + imgHtml + "</td></tr></table></td>"
-        ttText += "<td style='padding-left: 8px'><h2 style='margin-bottom:0px'>" + ODD.documentDisplayName(doc) + "</h2>"
-        ttText += "<p style='white-space:pre; margin-top:0px'><small>" + fPath + "</small></p>"
-        ttText += "<p style='margin-top:0px'><small>" + str(doc.width()) + " x " + str(doc.height()) + "</small></p>"
-        ttText += "</td>"
-        ttText += "</tr></table>"
+        if imgHtml:
+            s = " style='margin:0px; padding:0px'" if not isLarge else ""
+            ttText += "<td{}>\n<table border='{}'><tr><td{}>{}</td></tr></table>\n</td>\n".format(s, "0" if isSmall else "1", s, imgHtml)
+        if isSmall:
+            ttText += "<td valign=middle>"
+            ttText += "<b>{}</b>{}\n".format(ODD.documentDisplayName(doc), "&nbsp;"*3)
+            ttText += "<small>{}</small>{}\n".format(fPath, "&nbsp;"*3)
+            ttText += "<small>{} x {}</small>\n".format(doc.width(), doc.height())
+            ttText += "</td></tr></table>\n"
+        else:
+            h = "h2" if isLarge else "h3"
+            ttText += "<td style='padding-left:{}px'>\n<{} style='margin:0px'>{}</{}>\n".format(
+                    pad//2, h, ODD.documentDisplayName(doc), h
+            )
+            ttText += "<p style='white-space:pre; margin:0px'><small>{}</small></p>\n".format(fPath)
+            ttText += "<p style='margin:0px'><small>{} x {}</small></p>\n".format(doc.width(), doc.height())
+            ttText += "</td></tr></table>"
         
         self.listToolTip.setText(ttText)
         
