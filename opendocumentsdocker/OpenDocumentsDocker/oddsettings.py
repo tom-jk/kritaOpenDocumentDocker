@@ -253,9 +253,9 @@ class ODDSettings(QObject):
             "tooltipThumbSize": {
                     "label"  :"Size",
                     "default":"128",
-                    "strings":["64", "96", "128", "160", "192", "256", "384", "512"],
+                    "strings":["24", "32", "64", "96", "128", "160", "192", "256", "384", "512"],
                     "suffix" :"px",
-                    "values" :[64, 96, 128, 160, 192, 256, 384, 512],
+                    "values" :[24, 32, 64, 96, 128, 160, 192, 256, 384, 512],
                     "depends": {
                             "dependsOn":["tooltipShow", "tooltipThumbLimit"],
                             "evaluator": lambda self: self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0,
