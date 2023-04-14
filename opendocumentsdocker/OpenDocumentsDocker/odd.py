@@ -131,7 +131,7 @@ class ODD(Extension):
         for i in enumerate(cls.views):
             print(i[0], ":", i[1])
         
-        cls.updateDocsAndWins()
+        cls.updateDocumentsFromViews()
     
     @classmethod
     def viewClosed(cls, view):
@@ -159,10 +159,10 @@ class ODD(Extension):
         for i in enumerate(cls.views):
             print(i[0], ":", i[1])
         
-        cls.updateDocsAndWins()
+        cls.updateDocumentsFromViews()
     
     @classmethod
-    def updateDocsAndWins(cls):
+    def updateDocumentsFromViews(cls):
         docStillExists = [False] * len(cls.documents)
         
         for view in cls.views:
