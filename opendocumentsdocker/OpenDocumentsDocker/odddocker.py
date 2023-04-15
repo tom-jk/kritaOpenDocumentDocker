@@ -165,41 +165,42 @@ class ODDDocker(krita.DockWidget):
     
     def itemClicked(self, item):
         doc = item.data(self.ItemDocumentRole)
-        if doc:
-            activeViewThisWindow = None
-            viewsThisWindow = []
-            viewsThisWindowCount = 0
-            viewsOtherWindowsCount = 0
-            for v in ODD.views:
-                vdoc = v.document()
-                if vdoc == doc:
-                    if v.window().qwindow() == self.parent():
-                        viewsThisWindow.append(v)
-                        viewsThisWindowCount += 1
-                        if v.window().activeView() == v:
-                            activeViewThisWindow = v
-                    else:
-                        viewsOtherWindowsCount += 1
-            
-            if viewsThisWindowCount == 0:
-                self.list.contextMenuEvent(
-                        QContextMenuEvent(QContextMenuEvent.Mouse, self.list.mapFromGlobal(QCursor.pos())),
-                        viewOptionsOnly=True
-                )
-            else:
-                if activeViewThisWindow is not None:
-                    view = viewsThisWindow[
-                            (viewsThisWindow.index(activeViewThisWindow) + 1) % len(viewsThisWindow)
-                    ]
-                else:
-                    view = viewsThisWindow[0]
-                    
-                win = view.window()
-                win.activate()
-                win.showView(view)
-                view.setVisible()
-        else:
+        if not doc:
             print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
+            return
+        
+        activeViewThisWindow = None
+        viewsThisWindow = []
+        viewsThisWindowCount = 0
+        viewsOtherWindowsCount = 0
+        for v in ODD.views:
+            vdoc = v.document()
+            if vdoc == doc:
+                if v.window().qwindow() == self.parent():
+                    viewsThisWindow.append(v)
+                    viewsThisWindowCount += 1
+                    if v.window().activeView() == v:
+                        activeViewThisWindow = v
+                else:
+                    viewsOtherWindowsCount += 1
+        
+        if viewsThisWindowCount == 0:
+            self.list.contextMenuEvent(
+                    QContextMenuEvent(QContextMenuEvent.Mouse, self.list.mapFromGlobal(QCursor.pos())),
+                    viewOptionsOnly=True
+            )
+        else:
+            if activeViewThisWindow is not None:
+                view = viewsThisWindow[
+                        (viewsThisWindow.index(activeViewThisWindow) + 1) % len(viewsThisWindow)
+                ]
+            else:
+                view = viewsThisWindow[0]
+                
+            win = view.window()
+            win.activate()
+            win.showView(view)
+            view.setVisible()
     
     def itemEntered(self, item):
         if not self.vs.settingValue("tooltipShow"):
