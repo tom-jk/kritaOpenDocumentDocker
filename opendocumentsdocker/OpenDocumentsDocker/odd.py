@@ -161,28 +161,50 @@ class ODD(Extension):
         for i in enumerate(cls.views):
             print(i[0], ":", i[1])
         
+        for docData in cls.documents:
+            for k,v in docData["lastViewInWindow"].items():
+                print(v)
+                if v not in cls.views:
+                    print("a closed view was latest active view on doc", docData["document"], "in its window")
+                    docData["lastViewInWindow"][k] = None
+        
         cls.updateDocumentsFromViews()
     
     @classmethod
     def updateDocumentsFromViews(cls):
         docStillExists = [False] * len(cls.documents)
         
+        for docData in cls.documents:
+            for w in docData["viewCountPerWindow"]:
+                docData["viewCountPerWindow"][w] = 0
+        
         for view in cls.views:
             doc = view.document()
+            qwin = view.window().qwindow()
             if not doc:
                 print("UpdateDocsAndWins: no doc for view")
                 continue
             if matchList := [i for i in enumerate(cls.documents) if i[1]["document"] == doc]:
                 knownDoc = matchList[0]
-                print("existing doc:", knownDoc[1]["document"])
                 docStillExists[knownDoc[0]] = True
+                docData = knownDoc[1]
+                if qwin in docData["viewCountPerWindow"]:
+                    docData["viewCountPerWindow"][qwin] += 1
+                else:
+                    docData["viewCountPerWindow"][qwin] = 1
+                print("existing doc {} has {} views in {}".format(docData["document"], docData["viewCountPerWindow"][qwin], qwin.objectName()))
             else:
                 print("new doc:", doc)
                 cls.documents.append({
                     "document": doc,
                     "thumbnails": {},
                     "created": datetime.now(),
+                    "lastViewInWindow": {win.qwindow():None for win in cls.windows},
+                    "viewCountPerWindow": {win.qwindow():0 for win in cls.windows},
                 })
+                cls.documents[-1]["lastViewInWindow"  ][qwin] = view
+                cls.documents[-1]["viewCountPerWindow"][qwin] = 1
+                print("\n".join("  {}: {}".format(k, v) for k,v in cls.documents[-1].items()))
                 for docker in cls.dockers:
                     docker.documentCreated(doc)
         
@@ -193,7 +215,7 @@ class ODD(Extension):
         i = 0
         while i < len(docStillExists):
             if not docStillExists[i]:
-                print("doc removed:", cls.documents[i])
+                print("doc removed:", cls.documents[i]["document"])
                 for docker in cls.dockers:
                     docker.documentClosed(cls.documents[i]["document"])
                 # account for any leftover thumbs.
@@ -360,10 +382,8 @@ class ODD(Extension):
                     return
     
     def documentHasViewsInWindow(doc, win):
-        for view in win.views():
-                if view.document() == doc:
-                    return True
-        return False
+        docData = ODD.docDataFromDocument(doc)
+        return docData["viewCountPerWindow"][win.qwindow()] > 0
     
     @classmethod
     def windowFromQWindow(cls, qwin):
@@ -479,7 +499,16 @@ class ODD(Extension):
             if cls.dockers[i] == None:
                 #print("deleting ref to docker", i, ":", cls.dockers[i])
                 del cls.dockers[i]
-                
+        
+        for docData in cls.documents:
+            for win in closedWins:
+                qwin = win.qwindow()
+                print("remove closed qwin", qwin, "data from docData of", docData["document"])
+                if qwin in docData["lastViewInWindow"]:
+                    del docData["lastViewInWindow"][qwin]
+                if qwin in docData["viewCountPerWindow"]:
+                    del docData["viewCountPerWindow"][qwin]
+        
         # ~ print("-post-")
         # ~ for i in range(len(cls.dockers)):
             # ~ print("docker", i, ":", cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")

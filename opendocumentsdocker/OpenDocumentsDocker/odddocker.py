@@ -169,6 +169,7 @@ class ODDDocker(krita.DockWidget):
             print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
+        qwin = self.parent()
         activeViewThisWindow = None
         viewsThisWindow = []
         viewsThisWindowCount = 0
@@ -176,7 +177,7 @@ class ODDDocker(krita.DockWidget):
         for v in ODD.views:
             vdoc = v.document()
             if vdoc == doc:
-                if v.window().qwindow() == self.parent():
+                if v.window().qwindow() == qwin:
                     viewsThisWindow.append(v)
                     viewsThisWindowCount += 1
                     if v.window().activeView() == v:
@@ -195,8 +196,12 @@ class ODDDocker(krita.DockWidget):
                         (viewsThisWindow.index(activeViewThisWindow) + 1) % len(viewsThisWindow)
                 ]
             else:
-                view = viewsThisWindow[0]
-                
+                docData = ODD.docDataFromDocument(doc)
+                if qwin in docData["lastViewInWindow"]:
+                    view = docData["lastViewInWindow"][qwin]
+                if not view:
+                    view = viewsThisWindow[0]
+            
             win = view.window()
             win.activate()
             win.showView(view)
@@ -637,10 +642,16 @@ class ODDDocker(krita.DockWidget):
                     self.updateDocumentThumbnail(doc)
             self.imageChangeDetected = False
             self.refreshTimer.stop()
-        if Application.activeDocument():
+        doc = Application.activeDocument()
+        if doc:
             self.currentDocument = Application.activeDocument()
             print(" set currentDocument:", self.currentDocument)
             self.imageOldSize = Application.activeDocument().bounds().size()
+            docData = ODD.docDataFromDocument(doc)
+            qwin = self.parent()
+            win = ODD.windowFromQWindow(qwin)
+            docData["lastViewInWindow"][qwin] = win.activeView()
+            print("last view on {} in {} set to {}".format(doc, qwin.objectName(), docData["lastViewInWindow"][self.parent()]))
         self.ensureListSelectionIsActiveDocument()
     
     def canvasChanged(self, canvas):
@@ -1025,6 +1036,8 @@ class ODDDocker(krita.DockWidget):
         if not self:
             return
         
+        qwin = self.parent()
+        
         wins = ODD.windows
         thisWin = ODD.windowFromQWindow(self.parent()) if self.parent() else None
         for w in wins:
@@ -1046,15 +1059,8 @@ class ODDDocker(krita.DockWidget):
                     "  <li style='font-weight:bold;'>DOC: {}</li>\n".format(Path(d.fileName()).name or "[not saved]")
             newText += "  <ul type=none style='margin-left:8px; -qt-list-indent:1'>\n"
             newText += "   <li><b>Opened</b>: {}</li>\n".format(doc["created"])
-            viewsThisWindowCount = 0
-            viewsOtherWindowsCount = 0
-            for v in views:
-                vdoc = v.document()
-                if vdoc == d:
-                    if v.window().qwindow() == self.parent():
-                        viewsThisWindowCount += 1
-                    else:
-                        viewsOtherWindowsCount += 1
+            viewsThisWindowCount = doc["viewCountPerWindow"][qwin] if qwin in doc["viewCountPerWindow"] else 0
+            viewsOtherWindowsCount = sum(0 if k == qwin else v for k,v in doc["viewCountPerWindow"].items())
             newText += "   <li><b>Views: {}</b> ({} in this window, {} in others)</li>\n".format(
                     viewsThisWindowCount + viewsOtherWindowsCount,
                     viewsThisWindowCount,

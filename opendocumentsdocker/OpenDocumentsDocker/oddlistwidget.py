@@ -340,7 +340,8 @@ class ODDListWidget(QListWidget):
         if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             super().paintEvent(event)
             return
-                
+        
+        qwin = self.oddDocker.parent()
         activeDoc = Application.activeDocument()
         #print("paintEvent:", event.rect())
         option = self.viewOptions()
@@ -432,15 +433,9 @@ class ODDListWidget(QListWidget):
                 continue
             
             doc = item.data(self.oddDocker.ItemDocumentRole)
-            viewsThisWindowCount = 0
-            viewsOtherWindowsCount = 0
-            for v in self.odd.views:
-                vdoc = v.document()
-                if vdoc == doc:
-                    if v.window().qwindow() == self.oddDocker.parent():
-                        viewsThisWindowCount += 1
-                    else:
-                        viewsOtherWindowsCount += 1
+            viewCountPerWindow = self.odd.docDataFromDocument(doc)["viewCountPerWindow"]
+            viewsThisWindowCount = viewCountPerWindow[qwin] if qwin in viewCountPerWindow else 0
+            viewsOtherWindowsCount = sum(0 if k == qwin else v for k,v in viewCountPerWindow.items())
             
             pm = item.data(Qt.DecorationRole)
             x = itemRect.x()
@@ -631,12 +626,18 @@ class ODDListWidget(QListWidget):
                 print("go to view in win", aData[1].qwindow().objectName())
                 win = aData[1]
                 win.activate()
-                if win.activeView().document() != doc:
-                    for view in win.views():
-                        if view.document() == doc:
-                            win.showView(view)
-                            view.setVisible()
-                            break
+                qwin = win.qwindow()
+                docData = self.odd.docDataFromDocument(doc)
+                toView = docData["lastViewInWindow"][qwin]
+                if not toView:
+                    if win.activeView().document() != doc:
+                        for view in win.views():
+                            if view.document() == doc:
+                                toView = view
+                                break
+                if toView:
+                    win.showView(toView)
+                    toView.setVisible()
             elif aData[0] == "newViewInWin":
                 print("new view in win", aData[1].qwindow().objectName())
                 newview = Application.activeWindow().addView(doc)
