@@ -24,6 +24,8 @@ class ODD(Extension):
                 print("ODD: activated mid-krita session.\n     please restart krita.")
             return
         
+        cls.winForQWin = {}
+        
         if not cls.instance:
             cls.viewClosedDelay = QTimer(None)
             cls.viewClosedDelay.setInterval(0)
@@ -365,9 +367,9 @@ class ODD(Extension):
     
     @classmethod
     def windowFromQWindow(cls, qwin):
-        for win in cls.windows:
-            if win.qwindow() == qwin:
-                return win
+        if qwin in cls.winForQWin:
+            return cls.winForQWin[qwin]
+        print("warning: windowFromQWindow called before window ready.")
         return None
     
     @classmethod
@@ -407,11 +409,13 @@ class ODD(Extension):
             else:
                 print("new win:", win)
                 cls.windows.append(win)
-        window = cls.windows[-1]
-        print("window created:", window)
-        docker = cls.dockers[-1]
-        print("connect window", window, "activeViewChanged to", docker)
-        window.activeViewChanged.connect(docker.activeViewChanged)
+                qwin = win.qwindow()
+                print("add winForQWin entry", qwin, "->", win)
+                cls.winForQWin[qwin] = win
+                dockercls = cls.dockers[0].__class__
+                docker = qwin.findChild(dockercls)
+                print("connect window", win, "activeViewChanged to", docker)
+                win.activeViewChanged.connect(docker.activeViewChanged)
     
     @classmethod
     def eventFilter(cls, obj, event):
@@ -436,8 +440,13 @@ class ODD(Extension):
                 print("closed win:", win)
                 closedWins.append(win)
         for win in closedWins:
+            for k,v in cls.winForQWin.items():
+                if v == win:
+                    qwin = k
+            print("remove winForQWin entry", qwin, "->", win)
+            del cls.winForQWin[qwin]
             cls.windows.remove(win)
-            
+        
         print(" - wins - ")
         for i in enumerate(cls.windows):
             print(i[0], ":", i[1])
