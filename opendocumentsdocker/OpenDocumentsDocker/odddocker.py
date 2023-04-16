@@ -879,10 +879,10 @@ class ODDDocker(krita.DockWidget):
     def updateItemThumbnail(self, item, doc):
         if result := self.generateThumbnailForItem(item, doc):
             oldThumbKey = item.data(self.ItemThumbnailKeyRole)
-            item.setData(Qt.DecorationRole, result[0])
-            item.setData(self.ItemThumbnailKeyRole, result[1])
-            print("oldThumbKey:", oldThumbKey, ", result[1]:", result[1])
             if oldThumbKey != result[1]:
+                item.setData(Qt.DecorationRole, result[0])
+                item.setData(self.ItemThumbnailKeyRole, result[1])
+                print("oldThumbKey:", oldThumbKey, ", result[1]:", result[1])
                 ODD.addThumbnailUser(self, doc, result[1])
                 if oldThumbKey:
                     ODD.removeThumbnailUser(self, doc, oldThumbKey)

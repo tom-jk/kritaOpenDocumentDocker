@@ -255,6 +255,8 @@ class ODD(Extension):
         if thumb["valid"]:
             return thumb["pixmap"]
         
+        oldPm = thumb["pixmap"]
+        
         pm = QPixmap.fromImage(cls.generateThumbnail(docData["document"], thumbKey[0], thumbKey[1], thumbKey[2], thumbKey[3]))
         thumb["pixmap"] = pm
         thumb["valid"] = True
@@ -265,7 +267,22 @@ class ODD(Extension):
         if isNew:
             cls.unusedCacheSize += pm.width() * pm.height() * pm.depth()
         
-        # tell docker instances to redraw with new thumbnail?
+        # tell docker instances to use new pixmap if using old one.
+        if oldPm:
+            oldPmCacheKey = oldPm.cacheKey()
+            for docker in cls.dockers:
+                if docker.vs.settingValue("display", True) != "thumbnails":
+                    continue
+                for i in range(docker.list.count()):
+                    item = docker.list.item(i)
+                    itemPm = item.data(Qt.DecorationRole)
+                    if not itemPm:
+                        continue
+                    itemPmCacheKey = itemPm.cacheKey()
+                    print(i, item, ": compare", itemPmCacheKey, "with", oldPmCacheKey)
+                    if itemPmCacheKey == oldPmCacheKey:
+                        print("update docker", docker, "item", item, "with updated thumb.")
+                        item.setData(Qt.DecorationRole, pm)
         
         return thumb["pixmap"]
     
