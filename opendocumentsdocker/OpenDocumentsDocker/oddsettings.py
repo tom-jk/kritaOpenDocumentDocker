@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import QPoint
 from PyQt5.QtGui import QScreen
 from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton, QStackedLayout
 from krita import *
