@@ -628,7 +628,12 @@ class ODDListWidget(QListWidget):
                 win.activate()
                 qwin = win.qwindow()
                 docData = self.odd.docDataFromDocument(doc)
-                toView = docData["lastViewInWindow"][qwin]
+                toView = None
+                if qwin in docData["lastViewInWindow"]:
+                    toView = docData["lastViewInWindow"][qwin]
+                else:
+                    print("ctx menu: tried to go to view in win on doc with no lastViewInWindow for that win.\n" \
+                          "          you might have asked for a window that was still being created?")
                 if not toView:
                     if win.activeView().document() != doc:
                         for view in win.views():

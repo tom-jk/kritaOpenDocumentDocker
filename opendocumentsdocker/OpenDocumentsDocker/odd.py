@@ -453,6 +453,13 @@ class ODD(Extension):
                 docker = qwin.findChild(dockercls)
                 print("connect window", win, "activeViewChanged to", docker)
                 win.activeViewChanged.connect(docker.activeViewChanged)
+                for docData in cls.documents:
+                    if not qwin in docData["lastViewInWindow"]:
+                        #print("{} was missing lastViewInWindow   for {}".format(docData["document"], qwin.objectName()))
+                        docData["lastViewInWindow"][qwin] = None
+                    if not qwin in docData["viewCountPerWindow"]:
+                        #print("{} was missing viewCountPerWindow for {}".format(docData["document"], qwin.objectName()))
+                        docData["viewCountPerWindow"][qwin] = sum(v.document()==docData["document"] for v in win.views())
     
     @classmethod
     def eventFilter(cls, obj, event):
