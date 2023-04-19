@@ -645,11 +645,11 @@ class ODDListWidget(QListWidget):
             elif aData[0] == "newViewInNewWin":
                 print("new view in new win")
                 newwin = Application.openWindow()
+                newwin.qwindow().show()
                 newview = newwin.addView(doc)
                 newwin.activate()
                 newwin.showView(newview)
                 newview.setVisible()
-                newwin.qwindow().show()
         elif clickedActionName  == "file_close":
             self.tryToCloseDocument(doc)
         else:
