@@ -658,13 +658,12 @@ class ODDListWidget(QListWidget):
                 newview.setVisible()
         elif clickedActionName  == "file_close":
             self.docCloser = ODDViewProcessor(
+                operation = lambda : Application.action('file_close').trigger(),
+                selectionCondition = lambda view : view.document() == doc,
+                finishedCallback = lambda: self.docCloserFinished(),
                 preprocessCallbackForMultipleViews = lambda : self.closeDocWithManyViewsPrompt(doc),
                 preprocessCallback = lambda: self.prepareToCloseDoc(doc),
-                selectionCondition = lambda view : view.document() == doc,
-                switchToView = True,
-                operation = lambda : Application.action('file_close').trigger(),
-                lastViewPreProcessCallback = lambda: self.prepareToCloseLastViewOnDoc(doc),
-                finishedCallback = lambda: self.docCloserFinished()
+                lastViewPreProcessCallback = lambda: self.prepareToCloseLastViewOnDoc(doc)
             )
             self.docCloser.targetDoc = doc
             self.docCloser.start()

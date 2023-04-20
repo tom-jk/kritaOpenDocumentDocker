@@ -2,8 +2,16 @@ from krita import *
 from .odd import ODD
 
 class ODDViewProcessor(QObject):
-    def __init__(self, preprocessCallbackForMultipleViews, preprocessCallback,
-                 selectionCondition, switchToView, operation, lastViewPreProcessCallback, finishedCallback):
+    def __init__(
+            self,
+            operation,
+            selectionCondition,
+            finishedCallback,
+            switchToView=True,
+            preprocessCallbackForMultipleViews=None,
+            preprocessCallback=None,
+            lastViewPreProcessCallback=None
+    ):
         super(ODDViewProcessor, self).__init__()
         print("ODDViewProcessor: init", self)
         # ~ print(" - preprocessCallbackForMultipleViews", preprocessCallbackForMultipleViews)
