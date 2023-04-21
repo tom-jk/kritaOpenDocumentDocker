@@ -446,6 +446,10 @@ class ODDDocker(krita.DockWidget):
         
         isSettingDisplayThumbnails = self.vs.readSetting("display") == "thumbnails"
         
+        if hasattr(ODD.instance, "fileReverter"):
+            print("reverting, skip")
+            return
+        
         itemCount = self.list.count()
         for i in range(itemCount):
             item = self.list.item(i)
@@ -454,9 +458,8 @@ class ODDDocker(krita.DockWidget):
                 assert False, "ODDDocker:itemUpdateTimerTimeout: can't find document for item."
                 continue
             if doc.width() == 0 or doc.height() == 0:
-                print("ODDDocker:itemUpdateTimerTimeout: closed document still in list, skip.")
+                print("ODDDocker:itemUpdateTimerTimeout: closed document still in list at item", i+1, "/", itemCount, ", skip.")
                 continue
-            
             if isSettingDisplayThumbnails:
                 oldModified = item.data(self.ItemModifiedStatusRole)
                 modified = doc.modified()

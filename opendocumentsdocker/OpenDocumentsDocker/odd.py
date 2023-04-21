@@ -62,6 +62,51 @@ class ODD(Extension):
         app.action('edit_undo').trigger()
         app.action('edit_undo').trigger()
     
+    def fileRevertInPlaceCondition(self, view, doc):
+        if not self.fileReverter.cleanupPhase:
+            return view.document() == doc
+        else:
+            return view == self.fileReverter.tempView
+    
+    def fileRevertInPlaceOperation(self):
+        if not self.fileReverter.cleanupPhase:
+            print("fileRevertInPlaceOperation:", self.fileReverter, self.fileReverter.targetDoc, "->", self.fileReverter.newDoc)
+            view = Application.activeWindow().activeView()
+            
+            canvas = view.canvas()
+            canvasMirror = canvas.mirror()
+            canvasRotation = canvas.rotation()
+            canvasWrapAroundMode = canvas.wrapAroundMode()
+            canvasLevelOfDetailMode = canvas.levelOfDetailMode()
+            
+            view.setDocument(self.fileReverter.newDoc)
+            
+            canvas = view.canvas()
+            canvas.setMirror(canvasMirror)
+            canvas.setRotation(canvasRotation)
+            canvas.setWrapAroundMode(canvasWrapAroundMode)
+            canvas.setLevelOfDetailMode(canvasLevelOfDetailMode)
+            
+            if self.fileReverter.aboutToEnterCleanupPhase:
+                self.fileReverter.cleanupPhase = True
+        else:
+            print("fileRevertInPlaceOperation (cleanup temp view):", self.fileReverter)
+            Application.action('file_close').trigger()
+    
+    def fileRevertInPlaceLastViewPreProcess(self):
+        if not self.fileReverter.cleanupPhase:
+            self.fileReverter.aboutToEnterCleanupPhase = True
+            return False
+        else:
+            self.fileReverter.targetDoc = self.fileReverter.newDoc
+            return True
+    
+    def fileRevertInPlaceFinished(self):
+        print("fileRevertInPlaceFinished: deleting fileReverter")
+        self.fileReverter.deleteLater()
+        del self.fileReverter
+        Application.setBatchmode(False)
+    
     def fileRevertAction(self):
         doc = Application.activeDocument()
         if not doc:
@@ -79,30 +124,62 @@ class ODD(Extension):
         )
         btnCancel = msgBox.addButton(QMessageBox.Cancel)
         btnRevert = msgBox.addButton("Revert", QMessageBox.DestructiveRole)
+        btnDoInPlace = QCheckBox("Reuse current views", msgBox)
+        btnDoInPlace.setChecked(True)
+        msgBox.setCheckBox(btnDoInPlace)
         btnRevert.setIcon(Application.icon('warning'))
         msgBox.setDefaultButton(QMessageBox.Cancel)
         msgBox.exec()
         
         if msgBox.clickedButton() == btnRevert:
-            print("Revert")
-            # suppress save prompt by telling Krita the document wasn't modified.
-            doc.setBatchmode(True)
-            doc.setModified(False)
-            
-            oddDocker = self.dockers[0].__class__
-            if oddDocker.imageChangeDetected:
-                oddDocker.imageChangeDetected = False
-                oddDocker.refreshTimer.stop()
-            
-            self.revertedDocFileName = fname
-            if not hasattr(self, "revertDelay"):
-                self.revertDelay = QTimer(self)
-                self.revertDelay.setInterval(0)
-                self.revertDelay.setSingleShot(True)
-                self.revertDelay.timeout.connect(self.postRevert)
-            
-            doc.close()
-            self.revertDelay.start()
+            if btnDoInPlace.isChecked():
+                print("Revert (place into current views)")
+                newDoc = Application.openDocument(fname)
+                if not newDoc:
+                    print("cancel: the revert-to document was not opened.")
+                    return
+                newDoc.waitForDone()
+                newView = Application.activeWindow().addView(newDoc)
+                print("newDoc ready. newView =", newView)
+                self.fileReverter = ODDViewProcessor(
+                    operation = lambda: self.fileRevertInPlaceOperation(),
+                    selectionCondition = lambda v: self.fileRevertInPlaceCondition(v, doc),
+                    finishedCallback = lambda: self.fileRevertInPlaceFinished(),
+                    lastViewPreProcessCallback = lambda: self.fileRevertInPlaceLastViewPreProcess()
+                )
+                self.fileReverter.targetDoc = doc
+                self.fileReverter.oldDoc = doc
+                self.fileReverter.newDoc = newDoc
+                self.fileReverter.tempView = newView
+                self.fileReverter.aboutToEnterCleanupPhase = False
+                self.fileReverter.cleanupPhase = False
+                print("old:", doc, ", new:", newDoc)
+                Application.setBatchmode(True)
+                doc.setBatchmode(True)
+                doc.setModified(False)
+                self.fileReverter.start()
+            else:
+                print("Revert (open in single view)")
+                
+                # suppress save prompt by telling Krita the document wasn't modified.
+                # --> set Application batch mode here?
+                doc.setBatchmode(True)
+                doc.setModified(False)
+                
+                oddDocker = self.dockers[0].__class__
+                if oddDocker.imageChangeDetected:
+                    oddDocker.imageChangeDetected = False
+                    oddDocker.refreshTimer.stop()
+                
+                self.revertedDocFileName = fname
+                if not hasattr(self, "revertDelay"):
+                    self.revertDelay = QTimer(self)
+                    self.revertDelay.setInterval(0)
+                    self.revertDelay.setSingleShot(True)
+                    self.revertDelay.timeout.connect(self.postRevert)
+                
+                doc.close()
+                self.revertDelay.start()
         else:
             print("Cancel")
     
@@ -180,7 +257,10 @@ class ODD(Extension):
         
         for view in cls.views:
             doc = view.document()
-            qwin = view.window().qwindow()
+            win = view.window()
+            if not win:
+                continue
+            qwin = win.qwindow()
             if not doc:
                 print("UpdateDocsAndWins: no doc for view")
                 continue
@@ -544,3 +624,6 @@ class ODD(Extension):
             return who.windowHandle().screen()
         if who.parent() and who.parent().windowHandle():
             return who.parent().windowHandle().screen()
+
+
+from .oddviewprocessor import ODDViewProcessor
