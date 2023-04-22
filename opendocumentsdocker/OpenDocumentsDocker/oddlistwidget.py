@@ -560,6 +560,9 @@ class ODDListWidget(QListWidget):
             print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
+        docData = ODD.docDataFromDocument(doc)
+        activeWin = Application.activeWindow()
+        
         views = []
         for view in self.odd.views:
             if view.document() == doc:
@@ -588,14 +591,23 @@ class ODDListWidget(QListWidget):
         viewMenu = menu#menu.addMenu("Views")
         for win in wins:
             a = viewMenu.addAction("View in " + win.qwindow().objectName())
-            if win == Application.activeWindow() and win.activeView().document() == doc:
+            if win == activeWin and win.activeView().document() == doc:
                 a.setEnabled(False)
             a.setData(("goToViewInWin", win))
         a = viewMenu.addAction("New View in This Window")
-        a.setData(("newViewInWin", Application.activeWindow()))
+        a.setData(("newViewInWin", activeWin))
         a = viewMenu.addAction("New View in a New Window")
         a.setData(("newViewInNewWin", None))
         if not viewOptionsOnly:
+            menu.addSeparator()
+            a = menu.addAction("Close Views in This Window")
+            if docData["viewCountPerWindow"][activeWin.qwindow()] == 0 or len(wins) == 1:
+                a.setEnabled(False)
+            a.setData(("closeViewsInThisWin", None))
+            a = menu.addAction("Close Views in All Other Windows")
+            if docData["viewCountPerWindow"][activeWin.qwindow()] == 0 or len(wins) == 1:
+                a.setEnabled(False)
+            a.setData(("closeViewsInOtherWins", None))
             menu.addSeparator()
             addDeferredAction(menu, 'file_save')
             addDeferredAction(menu, 'file_save_as')
@@ -656,6 +668,26 @@ class ODDListWidget(QListWidget):
                 newwin.activate()
                 newwin.showView(newview)
                 newview.setVisible()
+            elif aData[0] == "closeViewsInThisWin":
+                print("close views in this window")
+                self.viewCloser = ODDViewProcessor(
+                    operation = lambda : Application.action('file_close').trigger(),
+                    selectionCondition = lambda view : view.document() == doc and view.window() == activeWin,
+                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=True),
+                    finishedCallback = lambda: self.viewCloserFinished(doc)
+                )
+                self.viewCloser.targetDoc = doc
+                self.viewCloser.start()
+            elif aData[0] == "closeViewsInOtherWins":
+                print("close views in other windows")
+                self.viewCloser = ODDViewProcessor(
+                    operation = lambda : Application.action('file_close').trigger(),
+                    selectionCondition = lambda view : view.document() == doc and view.window() != activeWin,
+                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=False),
+                    finishedCallback = lambda: self.viewCloserFinished(doc)
+                )
+                self.viewCloser.targetDoc = doc
+                self.viewCloser.start()
         elif clickedActionName  == "file_close":
             self.docCloser = ODDViewProcessor(
                 operation = lambda : Application.action('file_close').trigger(),
@@ -679,6 +711,45 @@ class ODDListWidget(QListWidget):
             app.action(clickedActionName).trigger()
         
         menu.deleteLater()
+    
+    def closeViewsPrompt(self, doc, inThisWin):
+        msgBox = QMessageBox(
+                QMessageBox.Question,
+                "Krita",
+                "All {} on the document <b>'{}'</b> {} will be closed.<br/><br/>Are you sure?".format(
+                        "but one view" if doc.modified() else "views",
+                        self.odd.__class__.documentDisplayName(doc, False, 'Untitled'),
+                        "in the current window" if inThisWin else "in all other windows"
+                ),
+                parent = Application.activeWindow().qwindow()
+        )
+        btnCancel = msgBox.addButton(QMessageBox.Cancel)
+        btnYes    = msgBox.addButton(QMessageBox.Yes)
+        msgBox.setDefaultButton(QMessageBox.Yes)
+        print("prompt to close views", str(doc)[-15:-1])
+        msgBox.exec()
+        return msgBox.clickedButton() == btnYes
+    
+    def prepareToCloseViews(self, doc, inThisWin):
+        if not self.closeViewsPrompt(doc, inThisWin):
+            print("close views cancelled for", str(doc)[-15:-1])
+            return False
+        
+        Application.setBatchmode(True)
+        doc.setBatchmode(True)
+        
+        oddDocker = self.odd.dockers[0].__class__
+        if oddDocker.imageChangeDetected:
+            oddDocker.imageChangeDetected = False
+            oddDocker.refreshTimer.stop()
+        return True
+    
+    def viewCloserFinished(self, doc):
+        Application.setBatchmode(False)
+        doc.setBatchmode(False)
+        print("deleting viewCloser")
+        self.viewCloser.deleteLater()
+        del self.viewCloser
     
     def closeDocWithManyViewsPrompt(self, doc):
         msgBox = QMessageBox(
