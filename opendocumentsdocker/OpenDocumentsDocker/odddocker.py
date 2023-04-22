@@ -859,20 +859,19 @@ class ODDDocker(krita.DockWidget):
             print("stop or cancel imageChangeDetected refresh timer.")
             self.imageChangeDetected = False
             self.refreshTimer.stop()
-            force = True # quick fix to invalidate thumbs
+            force = True
         
-        settingDisplayThumbs = self.vs.settingValue("display") == self.vs.UI["display"]["btnThumbnails"]
+        settingDisplayThumbs = self.vs.settingValue("display", True) == "thumbnails"
         if not settingDisplayThumbs:
             force = False
         
-        if not force:
-            if not (settingDisplayThumbs and self.isItemOnScreen(item)):
-                self.markDocumentThumbnailAsDeferred(None, item)
-                print("update thumb: item not currently visible or docker in text mode, update later.")
-                return
-        
         if force:
             ODD.invalidateThumbnails(doc)
+        
+        if not (settingDisplayThumbs and self.isItemOnScreen(item)):
+            self.markDocumentThumbnailAsDeferred(None, item)
+            print("update thumb: item not currently visible or docker in text mode, update later.")
+            return
         
         self.unmarkDocumentThumbnailAsDeferred(doc, item)
         
