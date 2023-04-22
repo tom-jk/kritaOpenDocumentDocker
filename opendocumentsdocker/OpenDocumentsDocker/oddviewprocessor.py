@@ -78,6 +78,7 @@ class ODDViewProcessor(QObject):
             print("ODDViewProcessor: preprocessCallback")
             if not self.preprocessCallback():
                 print("ODDViewProcessor: processor cancelled.")
+                return
         
         print("ODDViewProcessor: begin process.")
         
