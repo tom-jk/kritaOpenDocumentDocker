@@ -711,7 +711,7 @@ class ODDSettings(QObject):
         self.UI[setting]["btn"].setToolTip(tooltipText)
     
     def createPanelSliderControlsForSetting(self, setting, valueText=None, valRange=None, labelText=None, value=None, tooltipText=""):
-        print("cPSCFS: {} vt:{} vr:{} lt:{}, v:{}".format(setting, valueText, valRange, labelText, value))
+        #print("cPSCFS: {} vt:{} vr:{} lt:{}, v:{}".format(setting, valueText, valRange, labelText, value))
         layout = QHBoxLayout()
         label = QLabel(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
         control = QSlider(Qt.Horizontal, self.panel)
@@ -788,15 +788,6 @@ class ODDSettings(QObject):
         self.UI["gridMode"]["btn"].activated.connect(self.changedGridMode)
         
         self.panelThumbsLabel = QLabel("Thumbnails", self.panel)
-        
-        self.createPanelCheckBoxControlsForSetting(
-                setting = "thumbUseProjectionMethod",
-                stateChanged = lambda state: self.changedSettingCheckBox("thumbUseProjectionMethod", state, postCallable=self.startRefreshAllDelayTimer),
-                tooltipText = 
-                        "If enabled, ODD will generate thumbnails with the projection method.\n" +
-                        "If disabled, ODD will use the thumbnail method.\n" +
-                        "Projection should be faster. If there are no issues, leave this enabled."
-        )
         
         setting = self.readSetting("thumbAspectLimit")
         self.panelThumbsAspectLimitLayout, self.panelThumbsAspectLimitLabel = self.createPanelSliderControlsForSetting(
@@ -947,7 +938,7 @@ class ODDSettings(QObject):
         self.UI["tooltipSizeMode"]["btngrp"   ] = QButtonGroup(self.panel)
         
         self.panelTooltipSizeLayout = QHBoxLayout()
-        self.panelTooltipSizeLabel = QLabel("Size Mode", self.panel)
+        self.panelTooltipSizeLabel = QLabel("Size mode", self.panel)
         self.panelTooltipSizeSubLayout = QHBoxLayout()
         self.UI["tooltipSizeMode"]["btnSmall" ] = QRadioButton("Small", self.panel)
         self.UI["tooltipSizeMode"]["btnSmall" ].setObjectName("small")
@@ -994,7 +985,18 @@ class ODDSettings(QObject):
                         "The refresh and settings buttons may also switch position."
         )
         
-        self.panelThumbCacheLabel = QLabel("Thumbnail Cache", self.panel)
+        self.panelMiscThumbsLabel = QLabel("Thumbnails", self.panel)
+        
+        self.createPanelCheckBoxControlsForSetting(
+                setting = "thumbUseProjectionMethod",
+                stateChanged = lambda state: self.changedSettingCheckBox("thumbUseProjectionMethod", state, postCallable=self.startRefreshAllDelayTimer),
+                tooltipText = 
+                        "If enabled, ODD will generate thumbnails with the projection method.\n" +
+                        "If disabled, ODD will use the thumbnail method.\n" +
+                        "Projection should be faster. If there are no issues, leave this enabled."
+        )
+        
+        self.panelThumbCacheLabel = QLabel("Thumbnail cache", self.panel)
         
         setting = self.readSetting("excessThumbCacheLimit")
         self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel = self.createPanelSliderControlsForSetting(
@@ -1061,7 +1063,6 @@ class ODDSettings(QObject):
         self.panelDisplayAndDirectionLayout.addLayout(self.panelDisplayLayout)
         self.subpanelListLayout.addLayout(self.panelDisplayAndDirectionLayout)
         self.subpanelListLayout.addWidget(self.panelThumbsLabel)
-        self.subpanelListLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
         addSliderSettingToPanel(self.panelThumbsAspectLimitLayout, self.panelThumbsAspectLimitLabel, "thumbAspectLimit")
         addSliderSettingToPanel(self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel, "thumbDisplayScale", targetLayout=None)
         addSliderSettingToPanel(self.panelThumbsDisplayScaleGridLayout, self.panelThumbsDisplayScaleGridLabel, "thumbDisplayScaleGrid", targetLayout=None)
@@ -1097,6 +1098,8 @@ class ODDSettings(QObject):
         currentTargetLayout = self.subpanelMiscLayout
         self.subpanelMiscLayout.addWidget(self.UI["showCommonControlsInDocker"]["btn"])
         self.subpanelMiscLayout.addWidget(self.UI["dockerAlignButtonsToSettingsPanel"]["btn"])
+        self.subpanelMiscLayout.addWidget(self.panelMiscThumbsLabel)
+        self.subpanelMiscLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
         self.subpanelMiscLayout.addWidget(self.panelThumbCacheLabel)
         addSliderSettingToPanel(self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel, "excessThumbCacheLimit")
         
