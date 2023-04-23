@@ -1,6 +1,6 @@
 from PyQt5.QtCore import QPoint
 from PyQt5.QtGui import QScreen
-from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton, QStackedLayout
+from PyQt5.QtWidgets import QWidget, QBoxLayout, QLabel, QCheckBox, QRadioButton, QButtonGroup, QSlider, QFrame, QToolButton, QStackedLayout, QTabBar
 from krita import *
 import math
 from ast import literal_eval
@@ -232,7 +232,7 @@ class ODDSettings(QObject):
                     "initial":lambda self: self.setUiValuesForThumbShowModified(self.readSetting("thumbShowModified")),
             },
             "tooltipShow": {
-                    "label"  :"Tooltips",
+                    "label"  :"Show tooltips",
                     "default":"true",
                     "flags"  :["perInstance"],
             },
@@ -739,15 +739,13 @@ class ODDSettings(QObject):
         
         self.panel = QFrame(self.oddDocker, Qt.Popup)
         self.panel.setFrameShape(QFrame.StyledPanel)
-        self.panelLayout = QVBoxLayout()
+        self.panelOuterLayout = QVBoxLayout()
+        self.panelLayout = QStackedLayout()
+        
+        self.subpanelListLayout = QVBoxLayout()
         
         self.UI["display"]["btngrp"] = QButtonGroup(self.panel)
         self.UI["direction"]["btngrp"] = QButtonGroup(self.panel)
-        
-        self.panelListHeading = QHBoxLayout()
-        self.panelListHeadingLabel = QLabel("List", self.panel)
-        self.panelListHeadingLine = QLabel("", self.panel)
-        self.panelListHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         self.panelDirectionLayout = QVBoxLayout()
         self.panelDirectionLabel = QLabel("Direction", self.panel)
@@ -939,13 +937,12 @@ class ODDSettings(QObject):
                 tooltipText = "How long after the last detected change to refresh the thumbnail."
         )
         
-        self.panelTooltipsHeading = QHBoxLayout()
+        self.subpanelTooltipsLayout = QVBoxLayout()
+        
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "tooltipShow",
                 stateChanged = lambda state: self.changedSettingCheckBox("tooltipShow", state),
         )
-        self.panelTooltipsHeadingLine = QLabel("", self.panel)
-        self.panelTooltipsHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
         
         self.UI["tooltipSizeMode"]["btngrp"   ] = QButtonGroup(self.panel)
         
@@ -975,10 +972,7 @@ class ODDSettings(QObject):
                 setting     = "tooltipThumbSize",
         )
         
-        self.panelMiscHeading = QHBoxLayout()
-        self.panelMiscHeadingLabel = QLabel("Miscellaneous", self.panel)
-        self.panelMiscHeadingLine = QLabel("", self.panel)
-        self.panelMiscHeadingLine.setFrameStyle(QFrame.HLine | QFrame.Sunken)
+        self.subpanelMiscLayout = QVBoxLayout()
         
         self.createPanelCheckBoxControlsForSetting(
                 setting      = "showCommonControlsInDocker",
@@ -1034,15 +1028,9 @@ class ODDSettings(QObject):
         self.UI["tooltipSizeMode"]["btnNormal"].clicked.connect(lambda : self.setTooltipSizeModeTo("normal"))
         self.UI["tooltipSizeMode"]["btnLarge" ].clicked.connect(lambda : self.setTooltipSizeModeTo("large"))
         
-                
-        def addHeadingToPanel(layout, label, line):
-            layout.addWidget(label)
-            layout.addWidget(line)
-            layout.setStretch(0, 1)
-            layout.setStretch(1, 99)
-            self.panelLayout.addLayout(layout)
-        
-        def addSliderSettingToPanel(settingLayout, nameLabel, setting, extraLayout=None, extraSetting=None, targetLayout=self.panelLayout):
+        def addSliderSettingToPanel(settingLayout, nameLabel, setting, extraLayout=None, extraSetting=None, **kwargs):
+            nonlocal currentTargetLayout
+            targetLayout = kwargs["targetLayout"] if "targetLayout" in kwargs else currentTargetLayout
             settingLayout.addWidget(nameLabel)
             settingLayout.addWidget(self.UI[setting]["value"])
             if extraLayout == None:
@@ -1058,7 +1046,7 @@ class ODDSettings(QObject):
             if targetLayout:
                 targetLayout.addLayout(settingLayout)
         
-        addHeadingToPanel(self.panelListHeading, self.panelListHeadingLabel, self.panelListHeadingLine)
+        currentTargetLayout = self.subpanelListLayout
         self.panelDirectionLayout.addWidget(self.panelDirectionLabel)
         self.panelDirectionLayout.addWidget(self.UI["direction"]["btnHorizontal"])
         self.panelDirectionLayout.addWidget(self.UI["direction"]["btnVertical"])
@@ -1071,13 +1059,13 @@ class ODDSettings(QObject):
         self.panelGridLayout.addWidget(self.UI["gridMode"]["btn"])
         self.panelDisplayLayout.addLayout(self.panelGridLayout)
         self.panelDisplayAndDirectionLayout.addLayout(self.panelDisplayLayout)
-        self.panelLayout.addLayout(self.panelDisplayAndDirectionLayout)
-        self.panelLayout.addWidget(self.panelThumbsLabel)
-        self.panelLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
+        self.subpanelListLayout.addLayout(self.panelDisplayAndDirectionLayout)
+        self.subpanelListLayout.addWidget(self.panelThumbsLabel)
+        self.subpanelListLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
         addSliderSettingToPanel(self.panelThumbsAspectLimitLayout, self.panelThumbsAspectLimitLabel, "thumbAspectLimit")
         addSliderSettingToPanel(self.panelThumbsDisplayScaleLayout, self.panelThumbsDisplayScaleLabel, "thumbDisplayScale", targetLayout=None)
         addSliderSettingToPanel(self.panelThumbsDisplayScaleGridLayout, self.panelThumbsDisplayScaleGridLabel, "thumbDisplayScaleGrid", targetLayout=None)
-        self.panelLayout.addLayout(self.panelThumbsDisplayScaleStack)
+        self.subpanelListLayout.addLayout(self.panelThumbsDisplayScaleStack)
         addSliderSettingToPanel(self.panelThumbsRenderScaleLayout, self.panelThumbsRenderScaleLabel, "thumbRenderScale")
         addSliderSettingToPanel(
                 self.panelThumbsFadeAmountLayout, self.panelThumbsFadeAmountLabel, "thumbFadeAmount",
@@ -1087,28 +1075,52 @@ class ODDSettings(QObject):
         self.panelThumbsShowModifiedLayout.addWidget(self.UI["thumbShowModified"]["btn"])
         self.panelThumbsShowModifiedLayout.setStretch(0, 4)
         self.panelThumbsShowModifiedLayout.setStretch(1, 5)
-        self.panelLayout.addLayout(self.panelThumbsShowModifiedLayout)
-        self.panelLayout.addWidget(self.UI["refreshOnSave"]["btn"])
-        self.panelLayout.addWidget(self.UI["refreshPeriodically"]["btn"])
+        self.subpanelListLayout.addLayout(self.panelThumbsShowModifiedLayout)
+        self.subpanelListLayout.addWidget(self.UI["refreshOnSave"]["btn"])
+        self.subpanelListLayout.addWidget(self.UI["refreshPeriodically"]["btn"])
         addSliderSettingToPanel(self.panelThumbsRefreshPeriodicallyChecksLayout, self.panelThumbsRefreshPeriodicallyChecksLabel, "refreshPeriodicallyChecks")
         addSliderSettingToPanel(self.panelThumbsRefreshPeriodicallyDelayLayout, self.panelThumbsRefreshPeriodicallyDelayLabel, "refreshPeriodicallyDelay")
-        addHeadingToPanel(self.panelTooltipsHeading, self.UI["tooltipShow"]["btn"], self.panelTooltipsHeadingLine)
+        
+        currentTargetLayout = self.subpanelTooltipsLayout
+        self.subpanelTooltipsLayout.addWidget(self.UI["tooltipShow"]["btn"])
         
         self.panelTooltipSizeLayout.addWidget(self.panelTooltipSizeLabel)
         self.panelTooltipSizeLayout.addLayout(self.panelTooltipSizeSubLayout)
         self.panelTooltipSizeLayout.setStretch(0, 4)
         self.panelTooltipSizeLayout.setStretch(1, 5)
-        self.panelLayout.addLayout(self.panelTooltipSizeLayout)
-        self.panelLayout.addWidget(self.panelTooltipThumbLabel)
+        self.subpanelTooltipsLayout.addLayout(self.panelTooltipSizeLayout)
+        self.subpanelTooltipsLayout.addWidget(self.panelTooltipThumbLabel)
         
         addSliderSettingToPanel(self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel, "tooltipThumbLimit")
         addSliderSettingToPanel(self.panelTooltipThumbSizeLayout, self.panelTooltipThumbSizeLabel, "tooltipThumbSize")
-        addHeadingToPanel(self.panelMiscHeading, self.panelMiscHeadingLabel, self.panelMiscHeadingLine)
-        self.panelLayout.addWidget(self.UI["showCommonControlsInDocker"]["btn"])
-        self.panelLayout.addWidget(self.UI["dockerAlignButtonsToSettingsPanel"]["btn"])
-        self.panelLayout.addWidget(self.panelThumbCacheLabel)
+        
+        currentTargetLayout = self.subpanelMiscLayout
+        self.subpanelMiscLayout.addWidget(self.UI["showCommonControlsInDocker"]["btn"])
+        self.subpanelMiscLayout.addWidget(self.UI["dockerAlignButtonsToSettingsPanel"]["btn"])
+        self.subpanelMiscLayout.addWidget(self.panelThumbCacheLabel)
         addSliderSettingToPanel(self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel, "excessThumbCacheLimit")
-        self.panel.setLayout(self.panelLayout)
+        
+        self.panelLayout.addWidget(QWidget(self.panel))
+        self.subpanelListLayout.setAlignment(Qt.AlignTop)
+        self.panelLayout.widget(0).setLayout(self.subpanelListLayout)
+        self.panelLayout.addWidget(QWidget(self.panel))
+        self.subpanelTooltipsLayout.setAlignment(Qt.AlignTop)
+        self.panelLayout.widget(1).setLayout(self.subpanelTooltipsLayout)
+        self.panelLayout.addWidget(QWidget(self.panel))
+        self.subpanelMiscLayout.setAlignment(Qt.AlignTop)
+        self.panelLayout.widget(2).setLayout(self.subpanelMiscLayout)
+        self.panelOuterLayout.addLayout(self.panelLayout)
+        
+        tb = QTabBar(self.panel)
+        b1 = tb.addTab("List")
+        b2 = tb.addTab("Tooltips")
+        b3 = tb.addTab("Miscellaneous")
+        self.subpanelSelectorLayout = QHBoxLayout()
+        self.subpanelSelectorLayout.addWidget(tb)
+        tb.currentChanged.connect(lambda index: self.panelLayout.setCurrentIndex(index))
+        self.panelOuterLayout.insertLayout(0, self.subpanelSelectorLayout)
+        
+        self.panel.setLayout(self.panelOuterLayout)
         self.panel.setMinimumWidth(432)
         
         self.dockerThumbsDisplayScaleLayout.addWidget(self.dockerThumbsDisplayScaleSlider)
