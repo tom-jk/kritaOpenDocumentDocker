@@ -302,9 +302,9 @@ class ODD(Extension):
                 for thumbKey,thumbData in cls.documents[i]["thumbnails"].items():
                     pm = thumbData["pixmap"]
                     print("doc {}: removing thumb {} with size {}".format(
-                        cls.documents[i]["document"], thumbKey, pm.width() * pm.height() * pm.depth()
+                        cls.documents[i]["document"], thumbKey, thumbData["size"]
                     ))
-                    cls.unusedCacheSize -= pm.width() * pm.height() * pm.depth()
+                    cls.unusedCacheSize -= thumbData["size"]
                 del cls.documents[i]
                 del docStillExists[i]
             else:
@@ -328,7 +328,7 @@ class ODD(Extension):
         isNew = False
         if not thumbKey in docData["thumbnails"]:
             isNew = True
-            docData["thumbnails"][thumbKey] = {"pixmap":None, "valid":False, "users":[], "lastUsed":0}
+            docData["thumbnails"][thumbKey] = {"pixmap":None, "valid":False, "users":[], "lastUsed":0, "size":0}
         
         thumb = docData["thumbnails"][thumbKey]
         
@@ -338,6 +338,7 @@ class ODD(Extension):
         oldPm = thumb["pixmap"]
         
         pm = QPixmap.fromImage(cls.generateThumbnail(docData["document"], thumbKey[0], thumbKey[1], thumbKey[2], thumbKey[3]))
+        thumb["size"] =  pm.width() * pm.height() * QPixmap.defaultDepth()
         thumb["pixmap"] = pm
         thumb["valid"] = True
         thumb["lastUsed"] = process_time_ns()
@@ -345,7 +346,7 @@ class ODD(Extension):
         cls.evictExcessUnusedCache()
         
         if isNew:
-            cls.unusedCacheSize += pm.width() * pm.height() * pm.depth()
+            cls.unusedCacheSize += thumb["size"]
         
         # tell docker instances to use new pixmap if using old one.
         if oldPm:
@@ -395,7 +396,7 @@ class ODD(Extension):
         for thumbData in thumbs.values():
             if not thumbData["valid"] and len(thumbData["users"]) == 0:
                 pm = thumbData["pixmap"]
-                cls.unusedCacheSize -= pm.width() * pm.height() * pm.depth()
+                cls.unusedCacheSize -= thumbData["size"]
         [thumbs.pop(t, None) for t in [t[0] for t in thumbs.items() if t[1]["valid"] == False and len(t[1]["users"]) == 0]]
     
     @classmethod
@@ -409,7 +410,7 @@ class ODD(Extension):
             thumbData["users"].append(who)
             if len(thumbData["users"]) == 1:
                 pm = thumbData["pixmap"]
-                cls.unusedCacheSize -= pm.width() * pm.height() * pm.depth()
+                cls.unusedCacheSize -= thumbData["size"]
     
     @classmethod
     def removeThumbnailUser(cls, who, docData, thumbKey):
@@ -424,7 +425,7 @@ class ODD(Extension):
         if len(thumbData["users"]) == 0:
             if thumbData["valid"]:
                 pm = thumbData["pixmap"]
-                cls.unusedCacheSize += pm.width() * pm.height() * pm.depth()
+                cls.unusedCacheSize += thumbData["size"]
                 thumbData["lastUsed"] = process_time_ns()
                 cls.evictExcessUnusedCache()
             else:
@@ -458,7 +459,7 @@ class ODD(Extension):
         while cls.unusedCacheSize > maxSize:
             e = evictableThumbsSorted[0]
             pm = e[2]["pixmap"]
-            size = pm.width() * pm.height() * pm.depth()
+            size = e[2]["size"]
             print("evicting:", e[0]["document"], e[1], end="... ")
             del e[0]["thumbnails"][e[1]]
             del evictableThumbsSorted[0]

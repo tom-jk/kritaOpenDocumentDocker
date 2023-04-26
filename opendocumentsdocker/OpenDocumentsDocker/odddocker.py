@@ -1076,8 +1076,7 @@ class ODDDocker(krita.DockWidget):
                 for thumbKey,thumbData in doc["thumbnails"].items():
                     pm = thumbData["pixmap"]
                     userCount = len(thumbData["users"])
-                    size = pm.size()
-                    thumbBitCount = size.width() * size.height() * pm.depth()
+                    thumbBitCount = thumbData["size"]
                     bitCount += thumbBitCount
                     valid = thumbData["valid"]
                     lastUsedMs = thumbData["lastUsed"]//1000000
