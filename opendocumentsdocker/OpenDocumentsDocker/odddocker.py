@@ -935,10 +935,10 @@ class ODDDocker(krita.DockWidget):
         return calculateRenderSizeForThumbnail(item.data(self.ItemDocumentSizeRole))
     
     def calculateRenderSizeForThumbnail(self, docSize=None):
-        if self.vs.readSetting("thumbUseProjectionMethod"):
+        if self.vs.settingValue("thumbUseProjectionMethod"):
             return self.calculateDisplaySizeForThumbnail(docSize)
         else:
-            return self.calculateDisplaySizeForThumbnail(docSize) * self.list.settingValue("thumbRenderScale")
+            return self.calculateDisplaySizeForThumbnail(docSize) * self.vs.settingValue("thumbRenderScale")
     
     def calculateDisplaySizeForItem(self, item):
         return self.calculateDisplaySizeForThumbnail(item.data(self.ItemDocumentSizeRole))
