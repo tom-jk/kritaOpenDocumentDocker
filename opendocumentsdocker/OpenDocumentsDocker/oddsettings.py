@@ -381,8 +381,9 @@ class ODDSettings(QObject):
                 self.settings[setting] = settingsSource[setting]
                 #print("setting", setting, "overriden in instance.")
     
-    def settingFlag(self, setting, flag):
-        return flag in self.SD[setting]["flags"] if "flags" in self.SD[setting] else False
+    @classmethod
+    def settingFlag(cls, setting, flag):
+        return flag in cls.SD[setting]["flags"] if "flags" in cls.SD[setting] else False
     
     @classmethod
     def readSettingFromConfig(cls, setting):
