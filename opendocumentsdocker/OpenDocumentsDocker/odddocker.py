@@ -235,7 +235,7 @@ class ODDDocker(krita.DockWidget):
                 size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
             else:
                 size = QSize(int(settingSize * (doc.width() / doc.height())), settingSize)
-            img = ODD.requestThumbnail(doc, (size.width(), size.height(), doc.width(), doc.height()))
+            img = ODD.requestThumbnail(doc, (size.width(), size.height(), doc.width(), doc.height()), forceNotProgressive=True)
             data = QByteArray()
             buffer = QBuffer(data)
             img.save(buffer, "PNG", 100)
@@ -511,6 +511,7 @@ class ODDDocker(krita.DockWidget):
             if changed:
                 print("imageChangeDetectionTimerTimeout - imageChangeDetected:false, lock:failed - document busy, it is being changed")
                 self.imageChangeDetected = True
+                ODD.invalidateThumbnails(doc)
         
         self.imageOldSize = doc.bounds().size()
         t1 = process_time_ns()
@@ -880,9 +881,11 @@ class ODDDocker(krita.DockWidget):
     
     def updateItemThumbnail(self, item, doc):
         if result := self.generateThumbnailForItem(item, doc):
+            print("updateItemThumbnail: result: pixmap={}, thumbKey={}".format(result[0], result[1]))
             oldThumbKey = item.data(self.ItemThumbnailKeyRole)
             if oldThumbKey != result[1]:
-                item.setData(Qt.DecorationRole, result[0])
+                if result[0]:
+                    item.setData(Qt.DecorationRole, result[0])
                 item.setData(self.ItemThumbnailKeyRole, result[1])
                 print("oldThumbKey:", oldThumbKey, ", result[1]:", result[1])
                 ODD.addThumbnailUser(self, doc, result[1])
@@ -1013,11 +1016,16 @@ class ODDDocker(krita.DockWidget):
         )
         
         if scaleFactor == 1:
+            # force immediate generation if item currently has no thumbnail at all.
             thumbKey = (size.width(), size.height(), doc.width(), doc.height())
-            thumbnail = ODD.requestThumbnail(doc, thumbKey)
-        
-            if thumbnail.isNull():
-                return None
+            thumbnail = ODD.requestThumbnail(doc, thumbKey, not item.data(Qt.DecorationRole))
+            
+            if type(thumbnail) is QPixmap:
+                if thumbnail.isNull():
+                    return None
+            else:
+                # progressive thumbnail with no fallback, keep current thumbnail.
+                thumbnail = item.data(Qt.DecorationRole)
         else:
             scaledSize = QSize(int(size.width() * scaleFactor), int(size.height() * scaleFactor))
             thumbKey = (scaledSize.width(), scaledSize.height(), doc.width(), doc.height())
@@ -1026,7 +1034,8 @@ class ODDDocker(krita.DockWidget):
             if thumbnail.isNull():
                 return None
         
-        thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
+        if type(thumbnail) is QPixmap:
+            thumbnail.setDevicePixelRatio(self.devicePixelRatioF())
         
         return (thumbnail, thumbKey)
 
@@ -1080,21 +1089,26 @@ class ODDDocker(krita.DockWidget):
                     bitCount += thumbBitCount
                     valid = thumbData["valid"]
                     lastUsedMs = thumbData["lastUsed"]//1000000
+                    gen = thumbData["generator"]
                     if userCount == 0:
                         unusedThumbTexts.append((
                                 lastUsedMs,
                                 thumbBitCount,
-                                "    <li>{}: 0 users, {:1.2f}kb, last use: {}ms</li>\n".format(
-                                        thumbKey, thumbBitCount/8/1024, lastUsedMs
-                                )
+                                "    <li>{}: 0 users, {:1.2f}kb, last use: {}ms {}</li>\n".format(
+                                        thumbKey,
+                                        thumbBitCount/8/1024,
+                                        lastUsedMs,
+                                        "({:1.2f}%)".format(gen.progress()*100) if gen else ""
+                                ),
                         ))
                     else:
-                        usedThumbText += "    <li><b>{}</b>: {} user{}, {:1.2f}kb{}</li>\n".format(
+                        usedThumbText += "    <li><b>{}</b>: {} user{}, {:1.2f}kb{} {}</li>\n".format(
                                 thumbKey,
                                 userCount,
                                 "" if userCount==1 else "s",
                                 thumbBitCount/8/1024,
-                                "" if valid else "<i>, outdated</i>"
+                                "" if valid else "<i>, outdated</i>",
+                                "({:1.2f}%)".format(gen.progress()*100) if gen else ""
                         )
                 
                 unusedThumbText = ""

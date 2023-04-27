@@ -318,27 +318,66 @@ class ODD(Extension):
             return None
     
     @classmethod
-    def requestThumbnail(cls, docData, thumbKey):
+    def requestThumbnail(cls, docData, thumbKey, forceNotProgressive=False):
         if not docData:
             return None
         if type(docData) == Document:
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return None
         
+        print("requestThumbnail: doc:", docData["document"].fileName())
+        print("                  thKey:", thumbKey)
+        print("                  fnPrg:", forceNotProgressive)
+        
         isNew = False
         if not thumbKey in docData["thumbnails"]:
             isNew = True
-            docData["thumbnails"][thumbKey] = {"pixmap":None, "valid":False, "users":[], "lastUsed":0, "size":0}
+            docData["thumbnails"][thumbKey] = {"pixmap":None, "valid":False, "users":[], "lastUsed":0, "generator":None, "size":0}
         
         thumb = docData["thumbnails"][thumbKey]
         
         if thumb["valid"]:
-            return thumb["pixmap"]
+            if thumb["pixmap"] and not thumb["generator"]:
+                print("requestThumbnail: existing thumb is valid, returning pixmap", thumb["pixmap"])
+                return thumb["pixmap"]
+            else:
+                print("requestThumbnail: existing thumb is valid but pixmap is blank or still being generated, returning closest valid pixmap.")
+                candidatePm = cls.closestValidThumbnailPixmap(docData["thumbnails"], thumbKey)
+                if candidatePm:
+                    return QPixmap(candidatePm)
+                else:
+                    return None
         
         oldPm = thumb["pixmap"]
         
-        pm = QPixmap.fromImage(cls.generateThumbnail(docData["document"], thumbKey[0], thumbKey[1], thumbKey[2], thumbKey[3]))
-        thumb["size"] =  pm.width() * pm.height() * QPixmap.defaultDepth()
+        progressive = (
+                ODDSettings.globalSettingValue("thumbUseProjectionMethod")
+                and ODDSettings.globalSettingValue("progressiveThumbs")
+                and not forceNotProgressive
+                and docData["document"].width()*docData["document"].height() > 64*128 # do instantly below a threshold doc size
+        )
+        
+        if progressive:
+            thumb["generator"] = ODDThumbGenerator(
+                docData["document"], thumbKey[0], thumbKey[1],
+                finishedCallback = lambda otgPixmap: cls.thumbGeneratorFinished(thumb, thumbKey, otgPixmap)
+            )
+            thumb["generator"].start()
+            if oldPm:
+                pm = oldPm
+            else:
+                # try to find the nearest-size valid pixmap, if there is one, before falling back to blank.
+                candidatePm = cls.closestValidThumbnailPixmap(docData["thumbnails"], thumbKey)
+                if candidatePm:
+                    pm = QPixmap(candidatePm)
+                else:
+                    pm = None
+            thumb["size"] = thumbKey[0] * thumbKey[1] * QPixmap.defaultDepth()
+        else:
+            img = cls.generateThumbnail(docData["document"], thumbKey[0], thumbKey[1], thumbKey[2], thumbKey[3])
+            pm = QPixmap.fromImage(img)
+            thumb["size"] =  pm.width() * pm.height() * QPixmap.defaultDepth()
+        
         thumb["pixmap"] = pm
         thumb["valid"] = True
         thumb["lastUsed"] = process_time_ns()
@@ -348,24 +387,56 @@ class ODD(Extension):
         if isNew:
             cls.unusedCacheSize += thumb["size"]
         
-        # tell docker instances to use new pixmap if using old one.
-        if oldPm:
-            oldPmCacheKey = oldPm.cacheKey()
-            for docker in cls.dockers:
-                if docker.vs.settingValue("display", True) != "thumbnails":
-                    continue
-                for i in range(docker.list.count()):
-                    item = docker.list.item(i)
-                    itemPm = item.data(Qt.DecorationRole)
-                    if not itemPm:
-                        continue
-                    itemPmCacheKey = itemPm.cacheKey()
-                    print(i, item, ": compare", itemPmCacheKey, "with", oldPmCacheKey)
-                    if itemPmCacheKey == oldPmCacheKey:
-                        print("update docker", docker, "item", item, "with updated thumb.")
-                        item.setData(Qt.DecorationRole, pm)
-        
+        if not progressive:
+            cls.updatePixmapInDockers(docData["document"], thumbKey, oldPm, pm)
         return thumb["pixmap"]
+    
+    @classmethod
+    def closestValidThumbnailPixmap(cls, thumbs, thumbKey):
+        print("find closestValidThumbnail: for thumbKey", thumbKey, end="... ")
+        candidatePm = None
+        candidateWidthDiff = 2**32 # really big number.
+        candidateIsLarger = False # prefer too-big valid thumbnails to too-small.
+        for k,v in thumbs.items():
+            if k != thumbKey:
+                if v["valid"] and v["pixmap"] and not v["generator"]:
+                    wdiff = thumbKey[0]-k[0]
+                    if abs(wdiff) < candidateWidthDiff:
+                        if wdiff < 0 or not candidateIsLarger:
+                            candidatePm = v["pixmap"]
+                            candidateWidthDiff = wdiff
+                            candidateIsLarger = wdiff < 0
+        print("found (error in width = {} px).".format(candidateWidthDiff) if candidatePm else "not found.")
+        return candidatePm
+    
+    @classmethod
+    def updatePixmapInDockers(cls, doc, thumbKey, oldPixmap, newPixmap):
+        """tell docker instances to use new pixmap if using old one."""
+        print("updatePixmapInDockers: doc:", doc.fileName())
+        print("                       thKey:", thumbKey)
+        if oldPixmap:
+            print("updatePixmapInDockers: oldPixmap exists")
+            oldPixmapCacheKey = oldPixmap.cacheKey()
+        for docker in cls.dockers:
+            if docker.vs.settingValue("display", True) != "thumbnails":
+                continue
+            for i in range(docker.list.count()):
+                item = docker.list.item(i)
+                itemDoc = item.data(docker.ItemDocumentRole)
+                itemKey = item.data(docker.ItemThumbnailKeyRole)
+                if not (itemDoc == doc and itemKey == thumbKey):
+                    continue
+                print("updatePixmapInDockers: itemDoc==doc and itemKey==thumbKey")
+                if oldPixmap:
+                    itemPm = item.data(Qt.DecorationRole)
+                    print("updatePixmapInDockers: itemPm:", itemPm)
+                    if itemPm:
+                        itemPmCacheKey = itemPm.cacheKey()
+                        print(i, item, ": compare", itemPmCacheKey, "with", oldPixmapCacheKey)
+                        if not itemPmCacheKey == oldPixmapCacheKey:
+                            continue
+                print("update docker of", docker.parent().objectName(), "item", item, "with updated thumb.")
+                item.setData(Qt.DecorationRole, newPixmap)
     
     def generateThumbnail(doc, thumbWidth, thumbHeight, regionWidth, regionHeight):
         if type(doc) == Document and ODDSettings.readSettingFromConfig("thumbUseProjectionMethod") == "true":
@@ -380,12 +451,23 @@ class ODD(Extension):
             return doc.thumbnail(thumbWidth, thumbHeight)
     
     @classmethod
+    def thumbGeneratorFinished(cls, thumbData, thumbKey, thumbPixmap):
+        oldPm = thumbData["pixmap"]
+        print("thumbGeneratorFinished:", thumbData["generator"].doc.fileName(), thumbKey)
+        thumbData["pixmap"] = thumbPixmap
+        cls.updatePixmapInDockers(thumbData["generator"].doc, thumbKey, oldPm, thumbPixmap)
+        thumbData["generator"] = None
+    
+    @classmethod
     def invalidateThumbnails(cls, docData):
         print("ODD:invalidateThumbnails")
         if type(docData) == Document:
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return
         for thumbData in docData["thumbnails"].values():
+            if thumbData["generator"]:
+                thumbData["generator"].stop()
+                thumbData["generator"] = None
             thumbData["valid"] = False
         
         cls.cleanupUnusedInvalidatedThumbnails(docData)
@@ -423,6 +505,9 @@ class ODD(Extension):
             return
         thumbData["users"].remove(who)
         if len(thumbData["users"]) == 0:
+            if thumbData["generator"]:
+                thumbData["generator"].stop()
+                thumbData["generator"] = None
             if thumbData["valid"]:
                 pm = thumbData["pixmap"]
                 cls.unusedCacheSize += thumbData["size"]
@@ -628,3 +713,4 @@ class ODD(Extension):
 
 
 from .oddviewprocessor import ODDViewProcessor
+from .oddthumbgenerator import ODDThumbGenerator
