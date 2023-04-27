@@ -8,7 +8,7 @@ from ast import literal_eval
 def convertSettingStringToValue(settingName, string):
     setting = ODDSettings.SD[settingName]
     strings = setting["strings"]
-    if type(strings) == list:
+    if type(strings) == list and not ODDSettings.settingFlag(settingName, "onlyStringifyForDisplay"):
         if string in strings:
             return strings.index(string)
         else:
@@ -145,7 +145,7 @@ class ODDSettings(QObject):
                     "label"  :"Delay by",
                     "default":2000,
                     "strings":lambda msec: ODDSettings.formatMillisecondsToString(msec),
-                    "values" :[500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 15000, 20000, 30000, 45000, 60000, 120000],
+                    "values" :[250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 15000, 20000, 30000, 45000, 60000, 120000],
                     "depends": {
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
@@ -285,6 +285,52 @@ class ODDSettings(QObject):
                     "default":"true",
                     "initial":lambda self: self.setUiValuesForThumbUseProjectionMethod(self.readSetting("thumbUseProjectionMethod")),
             },
+            "progressiveThumbs": {
+                    "label"  :"Enable progressive thumbnail generation",
+                    "default":"true",
+                    "depends": {
+                            "dependsOn":["thumbUseProjectionMethod"],
+                            "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod"),
+                    },
+                    "initial":lambda self: self.setUiValuesForProgressiveThumbs(self.readSetting("progressiveThumbs")),
+            },
+            "progressiveThumbsWidth": {
+                    "label"  :"Block width",
+                    "default":"1024",
+                    "strings":lambda v: str(v),
+                    "suffix" :"px",
+                    "values" :[64, 96, 128, 160, 192, 256, 384, 512, 640, 768, 1024, 1280, 1536, 1792, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192],
+                    "depends": {
+                            "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
+                            "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
+                    },
+                    "initial":lambda self: self.setUiValuesForProgressiveThumbsWidth(self.readSetting("progressiveThumbsWidth")),
+            },
+            "progressiveThumbsHeight": {
+                    "label"  :"Block height",
+                    "default":"1024",
+                    "strings":lambda v: str(v),
+                    "suffix" :"px",
+                    "values" :[64, 96, 128, 160, 192, 256, 384, 512, 640, 768, 1024, 1280, 1536, 1792, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192],
+                    "depends": {
+                            "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
+                            "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
+                    },
+                    "initial":lambda self: self.setUiValuesForProgressiveThumbsHeight(self.readSetting("progressiveThumbsHeight")),
+            },
+            "progressiveThumbsSpeed": {
+                    "label"  :"Speed",
+                    "default":17,
+                    "strings":["10","12","15","20","25","30","36","45","60","65","80","100","120"],
+                    "suffix" :" blocks/sec",
+                    "values" :[100, 83, 67, 50, 40, 33, 28, 22, 17, 15, 12, 10, 8],
+                    "depends": {
+                            "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
+                            "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
+                    },
+                    "initial":lambda self: self.setUiValuesForProgressiveThumbsSpeed(self.readSetting("progressiveThumbsSpeed")),
+                    "flags"  :["onlyStringifyForDisplay"],
+            },
             "excessThumbCacheLimit": {
                     "label"  :"Unused limit",
                     "default":"16384",
@@ -340,6 +386,10 @@ class ODDSettings(QObject):
                 "showCommonControlsInDocker":       {"btn":None},
                 "dockerAlignButtonsToSettingsPanel":{"btn":None},
                 "thumbUseProjectionMethod":         {"btn":None},
+                "progressiveThumbs":                {"btn":None},
+                "progressiveThumbsWidth":           {"value":None, "slider":None},
+                "progressiveThumbsHeight":          {"value":None, "slider":None},
+                "progressiveThumbsSpeed":           {"value":None, "slider":None},
                 "excessThumbCacheLimit":            {"value":None, "slider":None},
         }
     
@@ -485,6 +535,11 @@ class ODDSettings(QObject):
             else:
                 return ui["btn"].isChecked()
         return None
+    
+    @classmethod
+    def globalSettingValue(cls, setting, asName=False):
+        # get from first available docker, global settings should be same in all anyway.
+        return cls.instances[0].settingValue(setting, asName)
     
     def decoratedSettingText(self, setting, text, exceptions=None):
         sd = self.SD[setting]
@@ -638,6 +693,24 @@ class ODDSettings(QObject):
     
     def setUiValuesForThumbUseProjectionMethod(self, setting):
         self.UI["thumbUseProjectionMethod"]["btn"].setChecked(setting == "true")
+    
+    def setUiValuesForProgressiveThumbs(self, setting):
+        self.UI["progressiveThumbs"]["btn"].setChecked(setting == "true")
+    
+    def setUiValuesForProgressiveThumbsWidth(self, setting):
+        self.UI["progressiveThumbsWidth"]["slider"].setValue(
+                convertSettingStringToValue("progressiveThumbsWidth", setting)
+        )
+    
+    def setUiValuesForProgressiveThumbsHeight(self, setting):
+        self.UI["progressiveThumbsHeight"]["slider"].setValue(
+                convertSettingStringToValue("progressiveThumbsHeight", setting)
+        )
+    
+    def setUiValuesForProgressiveThumbsSpeed(self, setting):
+        self.UI["progressiveThumbsSpeed"]["slider"].setValue(
+                convertSettingStringToValue("progressiveThumbsSpeed", setting)
+        )
     
     def startRefreshAllDelayTimer(self):
         delay = self.oddDocker.refreshAllDelay
@@ -997,6 +1070,47 @@ class ODDSettings(QObject):
                         "Projection should be faster. If there are no issues, leave this enabled."
         )
         
+        self.createPanelCheckBoxControlsForSetting(
+                setting = "progressiveThumbs",
+                stateChanged = lambda state: self.changedSettingCheckBox("progressiveThumbs", state),
+                tooltipText = 
+                        "If enabled, construct thumbnails in increments over a short time.\n" +
+                        "If disabled, always generate whole thumbnails immediately.\n\n" +
+                        "Generating thumbnails for large documents can take a while, and krita will pause during this time.\n" +
+                        "If this frequently happens when you try to paint, it can become an annoyance.\n\n" +
+                        "Progressive thumbnail generation takes a small piece of the document (a 'block') at a time to fill\n" +
+                        "in the thumbnail bit-by-bit. It will take longer for a complete thumbnail to be ready to be displayed,\n" +
+                        "but you should experience no interruptions while painting. ODD will also discard an in-progress\n" +
+                        "thumbnail and start over if the image changes in the meantime (provided periodic refresh is enabled)."
+        )
+        
+        self.panelProgressiveThumbsWidthLayout, self.panelProgressiveThumbsWidthLabel = self.createPanelSliderControlsForSetting(
+                setting     = "progressiveThumbsWidth",
+                tooltipText =
+                        "The width of the document subregions ('blocks') used to construct its thumbnail.\n\n" +
+                        "You should make the blocks as large as possible, but not so large as to cause a noticeable delay.\n" +
+                        "It's recommended to adjust the block size while testing on a large square document. You should only have to do this once.\n" +
+                        "Note that ODD will automatically adjust the block size for comparatively narrow documents."
+        )
+        
+        self.panelProgressiveThumbsHeightLayout, self.panelProgressiveThumbsHeightLabel = self.createPanelSliderControlsForSetting(
+                setting     = "progressiveThumbsHeight",
+                tooltipText =
+                        "The height of the document subregions ('blocks') used to construct its thumbnail.\n\n" +
+                        "You should make the blocks as large as possible, but not so large as to cause a noticeable delay.\n" +
+                        "It's recommended to adjust the block size while testing on a large square document. You should only have to do this once.\n" +
+                        "Note that ODD will automatically adjust the block size for comparatively narrow documents."
+        )
+        
+        self.panelProgressiveThumbsSpeedLayout, self.panelProgressiveThumbsSpeedLabel = self.createPanelSliderControlsForSetting(
+                setting     = "progressiveThumbsSpeed",
+                tooltipText =
+                        "How frequently to get new blocks for thumbnail.\n\n" +
+                        "This setting is an approximate upper limit; the actual speed will be affected by the block size.\n" +
+                        "It's recommended to choose larger block sizes and moderate frequencies; there is a small overhead cost\n" +
+                        "for each block processed, so using many tiny blocks means your computer will do more work in total."
+        )
+        
         self.panelThumbCacheLabel = QLabel("Thumbnail cache", self.panel)
         
         setting = self.readSetting("excessThumbCacheLimit")
@@ -1101,6 +1215,10 @@ class ODDSettings(QObject):
         self.subpanelMiscLayout.addWidget(self.UI["dockerAlignButtonsToSettingsPanel"]["btn"])
         self.subpanelMiscLayout.addWidget(self.panelMiscThumbsLabel)
         self.subpanelMiscLayout.addWidget(self.UI["thumbUseProjectionMethod"]["btn"])
+        self.subpanelMiscLayout.addWidget(self.UI["progressiveThumbs"]["btn"])
+        addSliderSettingToPanel(self.panelProgressiveThumbsWidthLayout, self.panelProgressiveThumbsWidthLabel, "progressiveThumbsWidth")
+        addSliderSettingToPanel(self.panelProgressiveThumbsHeightLayout, self.panelProgressiveThumbsHeightLabel, "progressiveThumbsHeight")
+        addSliderSettingToPanel(self.panelProgressiveThumbsSpeedLayout, self.panelProgressiveThumbsSpeedLabel, "progressiveThumbsSpeed")
         self.subpanelMiscLayout.addWidget(self.panelThumbCacheLabel)
         addSliderSettingToPanel(self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel, "excessThumbCacheLimit")
         
@@ -1165,6 +1283,15 @@ class ODDSettings(QObject):
         )
         self.UI["refreshPeriodicallyDelay" ]["slider"].valueChanged.connect(
                 lambda value: self.changedSettingSlider("refreshPeriodicallyDelay", value, postCallable=self.postchangeRefreshPeriodicallyDelaySlider)
+        )
+        self.UI["progressiveThumbsWidth"]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("progressiveThumbsWidth", value, postCallable=None)
+        )
+        self.UI["progressiveThumbsHeight"]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("progressiveThumbsHeight", value, postCallable=None)
+        )
+        self.UI["progressiveThumbsSpeed"]["slider"].valueChanged.connect(
+                lambda value: self.changedSettingSlider("progressiveThumbsSpeed", value, postCallable=None)
         )
         self.UI["excessThumbCacheLimit"    ]["slider"].valueChanged.connect(
                 lambda value: self.changedSettingSlider("excessThumbCacheLimit", value, postCallable=self.odd.evictExcessUnusedCache)
