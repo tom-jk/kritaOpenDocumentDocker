@@ -90,7 +90,8 @@ class ODDThumbGenerator(QObject):
         print("ODDThumbGenerator: start", self)
         
         # make blank image for thumbnail
-        self.thumb = QImage(self.thumbWidth, self.thumbHeight, QImage.Format_RGB32)
+        self.thumb = QImage(self.thumbWidth, self.thumbHeight, QImage.Format_ARGB32_Premultiplied)
+        self.thumb.fill(Qt.transparent)
         
         self.stepTimer.start()
     
