@@ -624,7 +624,8 @@ class ODDListWidget(QListWidget):
             else:
                 menu.addAction("Revert")
                 menu.actions()[-1].setEnabled(False)
-            addDeferredAction(menu, 'file_close')
+            a = menu.addAction("Close")
+            a.setData(("closeDocument", None))
         
         action = menu.exec(pos)
         
@@ -688,17 +689,17 @@ class ODDListWidget(QListWidget):
                 )
                 self.viewCloser.targetDoc = doc
                 self.viewCloser.start()
-        elif clickedActionName  == "file_close":
-            self.docCloser = ODDViewProcessor(
-                operation = lambda : Application.action('file_close').trigger(),
-                selectionCondition = lambda view : view.document() == doc,
-                finishedCallback = lambda: self.docCloserFinished(),
-                preprocessCallbackForMultipleViews = lambda : self.closeDocWithManyViewsPrompt(doc),
-                preprocessCallback = lambda: self.prepareToCloseDoc(doc),
-                lastViewPreProcessCallback = lambda: self.prepareToCloseLastViewOnDoc(doc)
-            )
-            self.docCloser.targetDoc = doc
-            self.docCloser.start()
+            elif aData[0] == "closeDocument":
+                self.docCloser = ODDViewProcessor(
+                    operation = lambda : Application.action('file_close').trigger(),
+                    selectionCondition = lambda view : view.document() == doc,
+                    finishedCallback = lambda: self.docCloserFinished(),
+                    preprocessCallbackForMultipleViews = lambda : self.closeDocWithManyViewsPrompt(doc),
+                    preprocessCallback = lambda: self.prepareToCloseDoc(doc),
+                    lastViewPreProcessCallback = lambda: self.prepareToCloseLastViewOnDoc(doc)
+                )
+                self.docCloser.targetDoc = doc
+                self.docCloser.start()
         else:
             # switch to view on document before running actions on it.
             if app.activeDocument():
