@@ -1026,13 +1026,11 @@ class ODDSettings(QObject):
         
         self.panelTooltipThumbLabel = QLabel("Thumbnail", self.panel)
         
-        setting = self.readSetting("tooltipThumbLimit")
         self.panelTooltipThumbLimitLayout, self.panelTooltipThumbLimitLabel = self.createPanelSliderControlsForSetting(
                 setting     = "tooltipThumbLimit",
                 tooltipText = "Thumbnails in tooltips will be generated for images up to the chosen size."
         )
         
-        setting = self.readSetting("tooltipThumbSize")
         self.panelTooltipThumbSizeLayout, self.panelTooltipThumbSizeLabel = self.createPanelSliderControlsForSetting(
                 setting     = "tooltipThumbSize",
         )
@@ -1113,7 +1111,6 @@ class ODDSettings(QObject):
         
         self.panelThumbCacheLabel = QLabel("Thumbnail cache", self.panel)
         
-        setting = self.readSetting("excessThumbCacheLimit")
         self.panelExcessThumbCacheLimitLayout, self.panelExcessThumbCacheLimitLabel = self.createPanelSliderControlsForSetting(
                 setting     = "excessThumbCacheLimit",
                 tooltipText = 
