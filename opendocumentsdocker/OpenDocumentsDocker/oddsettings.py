@@ -256,7 +256,7 @@ class ODDSettings(QObject):
                             "dependsOn":["tooltipShow"],
                             "evaluator": lambda self: self.settingValue("tooltipShow"),
                     },
-                    "initial":lambda self: self.setUiValuesForTooltipThumbLimit(self.readSetting("tooltipThumbLimit")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("tooltipThumbLimit"),
             },
             "tooltipThumbSize": {
                     "label"  :"Size",
@@ -268,7 +268,7 @@ class ODDSettings(QObject):
                             "dependsOn":["tooltipShow", "tooltipThumbLimit"],
                             "evaluator": lambda self: self.settingValue("tooltipShow") and self.settingValue("tooltipThumbLimit") != 0,
                     },
-                    "initial":lambda self: self.setUiValuesForTooltipThumbSize(self.readSetting("tooltipThumbSize")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("tooltipThumbSize"),
             },
             "showCommonControlsInDocker": {
                     "label"  :"Show commonly used settings in the docker",
@@ -304,7 +304,7 @@ class ODDSettings(QObject):
                             "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
                             "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
                     },
-                    "initial":lambda self: self.setUiValuesForProgressiveThumbsWidth(self.readSetting("progressiveThumbsWidth")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("progressiveThumbsWidth"),
             },
             "progressiveThumbsHeight": {
                     "label"  :"Block height",
@@ -316,7 +316,7 @@ class ODDSettings(QObject):
                             "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
                             "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
                     },
-                    "initial":lambda self: self.setUiValuesForProgressiveThumbsHeight(self.readSetting("progressiveThumbsHeight")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("progressiveThumbsHeight"),
             },
             "progressiveThumbsSpeed": {
                     "label"  :"Speed",
@@ -328,7 +328,7 @@ class ODDSettings(QObject):
                             "dependsOn":["thumbUseProjectionMethod", "progressiveThumbs"],
                             "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod") and self.settingValue("progressiveThumbs"),
                     },
-                    "initial":lambda self: self.setUiValuesForProgressiveThumbsSpeed(self.readSetting("progressiveThumbsSpeed")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("progressiveThumbsSpeed"),
                     "flags"  :["onlyStringifyForDisplay"],
             },
             "excessThumbCacheLimit": {
@@ -336,7 +336,7 @@ class ODDSettings(QObject):
                     "default":"16384",
                     "strings":lambda kb: ODDSettings.formatBytesToString(kb*1024),
                     "values":[0] + [lerpi(2**(i//2), 2**(i//2+1), 0.5*(i%2)) for i in range(0, 45)][16:45],
-                    "initial":lambda self: self.setUiValuesForExcessThumbCacheLimit(self.readSetting("excessThumbCacheLimit")),
+                    "initial":lambda self: self.setUiValuesForSliderSetting("excessThumbCacheLimit"),
                     "flags"  :["onlyStringifyForDisplay"]
             },
     }
@@ -655,14 +655,9 @@ class ODDSettings(QObject):
     def setTooltipSizeModeTo(self, sizeMode):
         self.writeSetting("tooltipSizeMode", sizeMode)
     
-    def setUiValuesForTooltipThumbLimit(self, setting):
-        self.UI["tooltipThumbLimit"]["slider"].setValue(
-                convertSettingStringToValue("tooltipThumbLimit", setting)
-        )
-    
-    def setUiValuesForTooltipThumbSize(self, setting):
-        self.UI["tooltipThumbSize"]["slider"].setValue(
-                convertSettingStringToValue("tooltipThumbSize", setting)
+    def setUiValuesForSliderSetting(self, setting):
+        self.UI[setting]["slider"].setValue(
+            convertSettingStringToValue(setting, self.readSetting(setting))
         )
     
     def changedRefreshPeriodically(self, state):
@@ -697,21 +692,6 @@ class ODDSettings(QObject):
     def setUiValuesForProgressiveThumbs(self, setting):
         self.UI["progressiveThumbs"]["btn"].setChecked(setting == "true")
     
-    def setUiValuesForProgressiveThumbsWidth(self, setting):
-        self.UI["progressiveThumbsWidth"]["slider"].setValue(
-                convertSettingStringToValue("progressiveThumbsWidth", setting)
-        )
-    
-    def setUiValuesForProgressiveThumbsHeight(self, setting):
-        self.UI["progressiveThumbsHeight"]["slider"].setValue(
-                convertSettingStringToValue("progressiveThumbsHeight", setting)
-        )
-    
-    def setUiValuesForProgressiveThumbsSpeed(self, setting):
-        self.UI["progressiveThumbsSpeed"]["slider"].setValue(
-                convertSettingStringToValue("progressiveThumbsSpeed", setting)
-        )
-    
     def startRefreshAllDelayTimer(self):
         delay = self.oddDocker.refreshAllDelay
         if delay.isActive():
@@ -723,11 +703,6 @@ class ODDSettings(QObject):
     
     def postchangeRefreshPeriodicallyDelaySlider(self):
         self.oddDocker.refreshTimer.setInterval(self.settingValue("refreshPeriodicallyDelay"))
-    
-    def setUiValuesForExcessThumbCacheLimit(self, setting):
-        self.UI["excessThumbCacheLimit"]["slider"].setValue(
-                convertSettingStringToValue("excessThumbCacheLimit", setting)
-        )
     
     def changedSettingCheckBox(self, setting, state=None, postCallable=None):
         if not state:
