@@ -514,6 +514,8 @@ class ODDSettings(QObject):
                     self.UI[i]["slider"].setEnabled(enable)
                     if i == "thumbDisplayScale":
                         self.dockerThumbsDisplayScaleSlider.setEnabled(enable)
+                    elif i == "thumbDisplayScaleGrid":
+                        self.dockerThumbsDisplayScaleGridSlider.setEnabled(enable)
     
     def settingValue(self, setting, asName=False):
         ui = self.UI[setting]
