@@ -121,7 +121,7 @@ class ODDSettings(QObject):
                     "flags"  :["perInstance"],
             },
             "refreshPeriodically": {
-                    "label"  :"Refresh periodically (experimental)",
+                    "label"  :"Refresh periodically",
                     "default":"false",
                     "depends": {
                             "dependsOn":["display"],
@@ -132,9 +132,9 @@ class ODDSettings(QObject):
             "refreshPeriodicallyChecks": {
                     "label"  :"Checks",
                     "default":"15",
-                    "strings":["1","2","3","4","5","6","8","10","12","15","20","25","30"],
+                    "strings":["1","2","3","4","5","6","8","10","12","15","20","25","30","36","40","45","50"],
                     "suffix" :"/sec",
-                    "values" :[1000, 500, 333, 250, 200, 167, 125, 100, 83, 67, 50, 40, 33],
+                    "values" :[1000, 500, 333, 250, 200, 167, 125, 100, 83, 67, 50, 40, 33, 28, 25, 22, 20],
                     "depends": {
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
