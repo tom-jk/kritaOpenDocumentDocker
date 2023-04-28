@@ -1215,7 +1215,7 @@ class ODDSettings(QObject):
         self.panelOuterLayout.insertLayout(0, self.subpanelSelectorLayout)
         
         self.panel.setLayout(self.panelOuterLayout)
-        self.panel.setMinimumWidth(432)
+        self.panel.setMinimumWidth(452)
         
         self.dockerThumbsDisplayScaleLayout.addWidget(self.dockerThumbsDisplayScaleSlider)
         self.dockerThumbsDisplayScaleGridLayout.addWidget(self.dockerThumbsDisplayScaleGridSlider)
