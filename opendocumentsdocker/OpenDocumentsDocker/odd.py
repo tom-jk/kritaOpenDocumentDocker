@@ -454,6 +454,7 @@ class ODD(Extension):
     def thumbGeneratorFinished(cls, thumbData, thumbKey, thumbPixmap):
         oldPm = thumbData["pixmap"]
         print("thumbGeneratorFinished:", thumbData["generator"].doc.fileName(), thumbKey)
+        thumbPixmap.setDevicePixelRatio(cls.dockers[0].devicePixelRatioF())
         thumbData["pixmap"] = thumbPixmap
         cls.updatePixmapInDockers(thumbData["generator"].doc, thumbKey, oldPm, thumbPixmap)
         thumbData["generator"] = None
