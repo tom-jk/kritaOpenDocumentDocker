@@ -1,3 +1,4 @@
+from PyQt5.QtWidgets import QApplication
 from time import *
 from datetime import datetime
 from krita import *
@@ -11,6 +12,7 @@ class ODD(Extension):
     documents = []
     unusedCacheSize = 0
     instance = None
+    kritaHasFocus = False
     
     def __init__(self, parent):
         print("ODD:__init__")
@@ -32,6 +34,8 @@ class ODD(Extension):
             cls.viewClosedDelay.setSingleShot(True)
             cls.viewClosedDelay.timeout.connect(cls._viewClosed)
             cls.instance = self
+        
+        QApplication.instance().focusWindowChanged.connect(self.focusWindowChanged)
         
         #ODDSettings.debugDump()
         
@@ -194,6 +198,18 @@ class ODD(Extension):
         newdoc.waitForDone()
         newview = Application.activeWindow().addView(newdoc)
         print("postRevert finished.")
+    
+    def focusWindowChanged(self, focusWindow):
+        cls = self.__class__
+        hadFocus = cls.kritaHasFocus
+        cls.kritaHasFocus = bool(focusWindow)
+        #print("krita has {} focus.".format(("already got" if hadFocus else "regained") if cls.kritaHasFocus else "lost"))
+        
+        if hadFocus != cls.kritaHasFocus:
+            for docker in cls.dockers:
+                docker.updateImageChangeDetectionTimerState()
+                if cls.kritaHasFocus:
+                    docker.processDeferredDocumentThumbnails()
     
     @classmethod
     def viewCreated(cls):

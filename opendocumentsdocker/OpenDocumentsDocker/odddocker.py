@@ -681,8 +681,12 @@ class ODDDocker(krita.DockWidget):
         print("visibilityChanged: visible =", visible)
         self.dockVisible = visible
         self.processDeferredDocumentThumbnails()
+        self.updateImageChangeDetectionTimerState()
+    
+    def updateImageChangeDetectionTimerState(self):
         if self.vs.settingValue("refreshPeriodically"):
-            if visible:
+            shouldRun = self.dockVisible and ODD.kritaHasFocus
+            if shouldRun:
                 self.imageChangeDetectionTimer.start()
             else:
                 self.imageChangeDetectionTimer.stop()
@@ -690,6 +694,8 @@ class ODDDocker(krita.DockWidget):
                 if self.imageChangeDetected:
                     self.markDocumentThumbnailAsDeferred(Application.activeDocument())
                     self.imageChangeDetected = False
+        else:
+            self.imageChangeDetectionTimer.stop()
     
     def markDocumentThumbnailAsDeferred(self, doc=None, item=None):
         """
