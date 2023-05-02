@@ -13,6 +13,7 @@ class ODD(Extension):
     unusedCacheSize = 0
     instance = None
     kritaHasFocus = False
+    activeDocument = None
     
     def __init__(self, parent):
         print("ODD:__init__")
@@ -204,6 +205,8 @@ class ODD(Extension):
         hadFocus = cls.kritaHasFocus
         cls.kritaHasFocus = bool(focusWindow)
         #print("krita has {} focus.".format(("already got" if hadFocus else "regained") if cls.kritaHasFocus else "lost"))
+        
+        cls.activeDocument = Application.activeDocument()
         
         if hadFocus != cls.kritaHasFocus:
             for docker in cls.dockers:

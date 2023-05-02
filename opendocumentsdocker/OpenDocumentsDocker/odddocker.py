@@ -418,7 +418,7 @@ class ODDDocker(krita.DockWidget):
                 candidates.append(doc)
         if len(candidates) != 1:
             # couldn't work out which doc saved for whatever reason, so active doc is best guess.
-            doc = Application.activeDocument()
+            doc = ODD.activeDocument
         else:
             doc = candidates[0]
         print("image saved -", filename, "(doc", str(doc) + ")")
@@ -647,8 +647,9 @@ class ODDDocker(krita.DockWidget):
             self.imageChangeDetected = False
             self.refreshTimer.stop()
         doc = Application.activeDocument()
+        ODD.activeDocument = doc
         if doc:
-            self.currentDocument = Application.activeDocument()
+            self.currentDocument = doc
             print(" set currentDocument:", self.currentDocument)
             self.imageOldSize = Application.activeDocument().bounds().size()
             docData = ODD.docDataFromDocument(doc)
@@ -782,7 +783,7 @@ class ODDDocker(krita.DockWidget):
         self.list.invalidateItemRectsCache()
     
     def ensureListSelectionIsActiveDocument(self):
-        doc = Application.activeDocument()
+        doc = ODD.activeDocument
         
         if doc == None:
             return False
@@ -852,7 +853,7 @@ class ODDDocker(krita.DockWidget):
     
     def updateDocumentThumbnail(self, doc=None, force=False):
         if not doc:
-            doc = Application.activeDocument()
+            doc = ODD.activeDocument
         if not doc:
             print("update thumb: no active document.")
             return

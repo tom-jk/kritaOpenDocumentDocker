@@ -343,7 +343,7 @@ class ODDListWidget(QListWidget):
             return
         
         qwin = self.oddDocker.parent()
-        activeDoc = Application.activeDocument()
+        activeDoc = ODD.activeDocument
         #print("paintEvent:", event.rect())
         option = self.viewOptions()
         painter = QPainter(self.viewport())
