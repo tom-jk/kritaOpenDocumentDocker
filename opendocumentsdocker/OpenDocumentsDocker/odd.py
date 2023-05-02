@@ -366,11 +366,15 @@ class ODD(Extension):
         
         oldPm = thumb["pixmap"]
         
+        # check if should generate thumb progressively.
+        # (checks include if thumb would only require one block, in which case prog' gen' is unnecessary.)
         progressive = (
                 ODDSettings.globalSettingValue("thumbUseProjectionMethod")
                 and ODDSettings.globalSettingValue("progressiveThumbs")
                 and not forceNotProgressive
-                and docData["document"].width()*docData["document"].height() > 64*128 # do instantly below a threshold doc size
+                and docData["document"].width() * docData["document"].height() > (
+                    ODDSettings.globalSettingValue("progressiveThumbsWidth") * ODDSettings.globalSettingValue("progressiveThumbsHeight")
+                )
         )
         
         if progressive:
