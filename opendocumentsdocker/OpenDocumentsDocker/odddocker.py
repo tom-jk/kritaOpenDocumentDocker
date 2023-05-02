@@ -89,22 +89,7 @@ class ODDDocker(krita.DockWidget):
         self.dockerStack.addWidget(self.infoScrollArea)
         self.layout.addLayout(self.dockerStack)
         self.layout.setStretch(0, 1)
-        
-        self.imageChangeDetected = False
-        self.imageOldSize = QSize(0, 0)
-        self.imageChangeDetectionTimer = QTimer(self.baseWidget)
-        setting = self.vs.readSetting("refreshPeriodicallyChecks")
-        self.imageChangeDetectionTimer.setInterval(
-            ODDSettings.SD["refreshPeriodicallyChecks"]["values"][convertSettingStringToValue("refreshPeriodicallyChecks", setting)]
-        )
-        self.imageChangeDetectionTimer.timeout.connect(self.imageChangeDetectionTimerTimeout)
-        self.refreshTimer = QTimer(self.baseWidget)
-        setting = self.vs.readSetting("refreshPeriodicallyDelay")
-        self.refreshTimer.setInterval(
-            ODDSettings.SD["refreshPeriodicallyDelay"]["values"][convertSettingStringToValue("refreshPeriodicallyDelay", setting)]
-        )
-        self.refreshTimer.timeout.connect(self.refreshTimerTimeout)
-        
+                
         self.viewButton.clicked.connect(self.vs.clickedViewButton)
         self.buttonLayout.setSpacing(0)
         self.buttonLayout.addWidget(self.loadButton)
@@ -400,16 +385,13 @@ class ODDDocker(krita.DockWidget):
         print("", self.currentDocument)
         if self.currentDocument == doc:
             print(" we've closed the document that was current.")
-            if self.imageChangeDetected:
-                print(" it was waiting to refresh, cancelling.")
-                self.imageChangeDetected = False
-                self.refreshTimer.stop()
             
-            if len(ODD.documents) == 0:
+            if len(ODD.documents) == 1: # (entry in ODD.documents is not deleted yet, will in a moment, so length 1 'means' empty.)
                 print(" it was the last open document.")
                 self.currentDocument = None
     
     def imageSaved(self, filename):
+        # TODO: most (all?) of this should probably be moved to ODD main.
         candidates = []
         for d in ODD.documents:
             doc = d["document"]
@@ -423,10 +405,9 @@ class ODDDocker(krita.DockWidget):
             doc = candidates[0]
         print("image saved -", filename, "(doc", str(doc) + ")")
         if self.vs.settingValue("refreshOnSave"):
-            if self.imageChangeDetected:
-                self.imageChangeDetected = False
-                self.refreshTimer.stop()
             self.updateDocumentThumbnail(doc=doc, force=True)
+        
+        ODDImageChangeDetector.startCooldown()
     
     def moveEvent(self, event):
         #print("moveEvent:", event.pos(), self.pos(), self.baseWidget.mapToGlobal(self.baseWidget.pos()))
@@ -482,43 +463,6 @@ class ODDDocker(krita.DockWidget):
         
         if self.dockerStack.currentIndex() == 1:
             self.updateLabel()
-    
-    tavg = 0
-    def imageChangeDetectionTimerTimeout(self):
-        t0 = process_time_ns()
-        doc = Application.activeDocument()
-        if doc == None:
-            return
-        if not self.findItemWithDocument(doc):
-            print("imageChangeDetectionTimerTimeout - image has not been formally created yet, bail.")
-            return
-        if self.imageChangeDetected:
-            if doc.tryBarrierLock():
-                #print("imageChangeDetectionTimerTimeout - imageChangeDetected:false, lock:success - no refresh needed")
-                doc.unlock()
-                if not self.refreshTimer.isActive():
-                    self.refreshTimer.start()
-            else:
-                if self.refreshTimer.isActive():
-                    self.refreshTimer.stop()
-        else:
-            changed = False
-            if doc.tryBarrierLock():
-                doc.unlock()
-            else:
-                #print("imageChangeDetectionTimerTimeout - barrier lock failed")
-                changed = True
-            if changed:
-                print("imageChangeDetectionTimerTimeout - imageChangeDetected:false, lock:failed - document busy, it is being changed")
-                self.imageChangeDetected = True
-                ODD.invalidateThumbnails(doc)
-        
-        self.imageOldSize = doc.bounds().size()
-        t1 = process_time_ns()
-        tdiff = (t1-t0)
-        self.tavg = self.tavg + (tdiff - self.tavg) * 0.125
-        tps =  1000.0/50.0
-        #print(float(self.tavg)/1000000.0*tps, "ms/sec")
     
     def refreshTimerTimeout(self):
         doc = Application.activeDocument()
@@ -635,29 +579,18 @@ class ODDDocker(krita.DockWidget):
     
     def activeViewChanged(self):
         print("active view changed -", self)
-        #print("active doc:", Application.activeDocument())
-        if self.imageChangeDetected:
-            # flush thumbnail update for now-previous doc
-            print(" currdoc:", self.currentDocument)
-            if self.currentDocument:
-                doc = self.currentDocument
-                if doc:
-                    print(" flush thumbnail update for", self.currentDocument, "-", ODD.documentDisplayName(doc))
-                    self.updateDocumentThumbnail(doc)
-            self.imageChangeDetected = False
-            self.refreshTimer.stop()
         doc = Application.activeDocument()
         ODD.activeDocument = doc
         if doc:
             self.currentDocument = doc
             print(" set currentDocument:", self.currentDocument)
-            self.imageOldSize = Application.activeDocument().bounds().size()
             docData = ODD.docDataFromDocument(doc)
             qwin = self.parent()
             win = ODD.windowFromQWindow(qwin)
             docData["lastViewInWindow"][qwin] = win.activeView()
             print("last view on {} in {} set to {}".format(doc, qwin.objectName(), docData["lastViewInWindow"][self.parent()]))
         self.ensureListSelectionIsActiveDocument()
+        ODDImageChangeDetector.startCooldown()
     
     def canvasChanged(self, canvas):
         pass
@@ -682,21 +615,6 @@ class ODDDocker(krita.DockWidget):
         print("visibilityChanged: visible =", visible)
         self.dockVisible = visible
         self.processDeferredDocumentThumbnails()
-        self.updateImageChangeDetectionTimerState()
-    
-    def updateImageChangeDetectionTimerState(self):
-        if self.vs.settingValue("refreshPeriodically"):
-            shouldRun = self.dockVisible and ODD.kritaHasFocus
-            if shouldRun:
-                self.imageChangeDetectionTimer.start()
-            else:
-                self.imageChangeDetectionTimer.stop()
-                self.refreshTimer.stop()
-                if self.imageChangeDetected:
-                    self.markDocumentThumbnailAsDeferred(Application.activeDocument())
-                    self.imageChangeDetected = False
-        else:
-            self.imageChangeDetectionTimer.stop()
     
     def markDocumentThumbnailAsDeferred(self, doc=None, item=None):
         """
@@ -851,7 +769,7 @@ class ODDDocker(krita.DockWidget):
                 self.addDocumentToList(doc)
                 
     
-    def updateDocumentThumbnail(self, doc=None, force=False):
+    def updateDocumentThumbnail(self, doc=None, force=False, ignoreThumbsMoreRecentThan=None):
         if not doc:
             doc = ODD.activeDocument
         if not doc:
@@ -863,11 +781,14 @@ class ODDDocker(krita.DockWidget):
             print("update thumb: no list item associated with document.")
             return
         
-        if doc == Application.activeDocument() and self.imageChangeDetected:
-            print("stop or cancel imageChangeDetected refresh timer.")
-            self.imageChangeDetected = False
-            self.refreshTimer.stop()
-            force = True
+        if ignoreThumbsMoreRecentThan:
+            docData = ODD.docDataFromDocument(doc)
+            thKey = item.data(self.ItemThumbnailKeyRole)
+            thTime = docData["thumbnails"][thKey]["lastUsed"]
+            print("update thumb: doc:{}, thKey:{}, thTime:{:n}, requiredTime:{:n}".format(ODD.documentDisplayName(doc), thKey, thTime, ignoreThumbsMoreRecentThan))
+            if thTime >= ignoreThumbsMoreRecentThan:
+                print("update thumb: thumb already more recent than required, cancel.")
+                return
         
         settingDisplayThumbs = self.vs.settingValue("display", True) == "thumbnails"
         if not settingDisplayThumbs:
@@ -1147,3 +1068,6 @@ class ODDDocker(krita.DockWidget):
                 "mb<br/>" + newText + \
                 "</html>"
         )
+
+
+from .oddimagechangedetector import ODDImageChangeDetector

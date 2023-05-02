@@ -127,7 +127,7 @@ class ODDSettings(QObject):
                             "dependsOn":["display"],
                             "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
                     },
-                    "flags"  :["perInstance"],
+                    "initial":lambda self: self.setUiValuesForRefreshPeriodically(self.readSetting("refreshPeriodically")),
             },
             "refreshPeriodicallyChecks": {
                     "label"  :"Checks",
@@ -139,7 +139,7 @@ class ODDSettings(QObject):
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
                     },
-                    "flags"  :["perInstance"],
+                    "initial":lambda self: self.setUiValuesForSliderSetting("refreshPeriodicallyChecks"),
             },
             "refreshPeriodicallyDelay": {
                     "label"  :"Delay by",
@@ -150,7 +150,8 @@ class ODDSettings(QObject):
                             "dependsOn":["refreshPeriodically"],
                             "evaluator": lambda self: self.settingValue("refreshPeriodically"),
                     },
-                    "flags"  :["perInstance", "onlyStringifyForDisplay"],
+                    "initial":lambda self: self.setUiValuesForSliderSetting("refreshPeriodicallyDelay"),
+                    "flags"  :["onlyStringifyForDisplay"],
             },
             "thumbAspectLimit": {
                     "label"  :"Aspect limit",
@@ -668,10 +669,9 @@ class ODDSettings(QObject):
     def postchangeRefreshPeriodically(self):
         state = self.readSetting("refreshPeriodically") == "true"
         if state:
-            self.oddDocker.imageChangeDetectionTimer.start()
+            ODDImageChangeDetector.removeStopper(ODDImageChangeDetector.StopReasonUser)
         else:
-            self.oddDocker.imageChangeDetectionTimer.stop()
-            self.oddDocker.refreshTimer.stop()
+            ODDImageChangeDetector.addStopper(ODDImageChangeDetector.StopReasonUser)
         
         self.dockerRefreshPeriodicallyToggleButton.setChecked(state)
     
@@ -691,6 +691,9 @@ class ODDSettings(QObject):
     def setUiValuesForThumbUseProjectionMethod(self, setting):
         self.UI["thumbUseProjectionMethod"]["btn"].setChecked(setting == "true")
     
+    def setUiValuesForRefreshPeriodically(self, setting):
+        self.UI["refreshPeriodically"]["btn"].setChecked(setting == "true")
+    
     def setUiValuesForProgressiveThumbs(self, setting):
         self.UI["progressiveThumbs"]["btn"].setChecked(setting == "true")
     
@@ -701,10 +704,10 @@ class ODDSettings(QObject):
         delay.start()
     
     def postchangeRefreshPeriodicallyChecksSlider(self):
-        self.oddDocker.imageChangeDetectionTimer.setInterval(self.settingValue("refreshPeriodicallyChecks"))
+        ODDImageChangeDetector.checkTimer.setInterval(self.settingValue("refreshPeriodicallyChecks"))
     
     def postchangeRefreshPeriodicallyDelaySlider(self):
-        self.oddDocker.refreshTimer.setInterval(self.settingValue("refreshPeriodicallyDelay"))
+        ODDImageChangeDetector.refreshDelay = self.settingValue("refreshPeriodicallyDelay")
     
     def changedSettingCheckBox(self, setting, state=None, postCallable=None):
         if not state:
@@ -1470,3 +1473,5 @@ class ODDSettings(QObject):
 ODDSettings.repairConfig()
 ODDSettings.cacheSettingsDataDependencies()
 ODDSettings.setupGlobalSettings()
+
+from .oddimagechangedetector import ODDImageChangeDetector

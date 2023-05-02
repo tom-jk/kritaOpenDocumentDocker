@@ -3,7 +3,6 @@ from time import *
 from datetime import datetime
 from krita import *
 from pathlib import Path
-from .oddsettings import ODDSettings
 
 class ODD(Extension):
     dockers = []
@@ -47,6 +46,8 @@ class ODD(Extension):
         appNotifier.viewCreated.connect(cls.viewCreated)
         appNotifier.windowCreated.connect(self.windowCreated)
         appNotifier.windowIsBeingCreated.connect(self.windowIsBeingCreated)
+        
+        ODDImageChangeDetector()
 
     def setup(self):
         print("ODD:__setup__")
@@ -209,10 +210,13 @@ class ODD(Extension):
         cls.activeDocument = Application.activeDocument()
         
         if hadFocus != cls.kritaHasFocus:
-            for docker in cls.dockers:
-                docker.updateImageChangeDetectionTimerState()
-                if cls.kritaHasFocus:
-                    docker.processDeferredDocumentThumbnails()
+            if cls.kritaHasFocus:
+                ODDImageChangeDetector.removeStopper(ODDImageChangeDetector.StopReasonBlur)
+                for docker in cls.dockers:
+                        docker.processDeferredDocumentThumbnails()
+                ODDImageChangeDetector.startCooldown()
+            else:
+                ODDImageChangeDetector.addStopper(ODDImageChangeDetector.StopReasonBlur)
     
     @classmethod
     def viewCreated(cls):
@@ -317,6 +321,13 @@ class ODD(Extension):
                 print("doc removed:", cls.documents[i]["document"])
                 for docker in cls.dockers:
                     docker.documentClosed(cls.documents[i]["document"])
+                # ensure it will be removed from ODDImageChangeDetector list of changed docs.
+                if matchList := [cd for cd in enumerate(ODDImageChangeDetector.changedDocs) if cd[1]["docData"]["document"] == cls.documents[i]["document"]]:
+                    print("Deleting entry of ODDImageChangeDetector.changedDocs at index", matchList[0][0])
+                    if ODDImageChangeDetector.changedDoc == matchList[0][1]:
+                        print("and remove as current changedDoc")
+                        ODDImageChangeDetector.changedDoc = None
+                    del ODDImageChangeDetector.changedDocs[matchList[0][0]]
                 # account for any leftover thumbs.
                 for thumbKey,thumbData in cls.documents[i]["thumbnails"].items():
                     pm = thumbData["pixmap"]
@@ -326,6 +337,8 @@ class ODD(Extension):
                     cls.unusedCacheSize -= thumbData["size"]
                 del cls.documents[i]
                 del docStillExists[i]
+                if len(cls.documents) == 0:
+                    cls.activeDocument = None
             else:
                 i += 1
     
@@ -736,5 +749,7 @@ class ODD(Extension):
             return who.parent().windowHandle().screen()
 
 
+from .oddsettings import ODDSettings
 from .oddviewprocessor import ODDViewProcessor
 from .oddthumbgenerator import ODDThumbGenerator
+from .oddimagechangedetector import ODDImageChangeDetector
