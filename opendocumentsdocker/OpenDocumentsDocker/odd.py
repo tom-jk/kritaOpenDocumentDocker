@@ -4,6 +4,10 @@ from datetime import datetime
 from krita import *
 from pathlib import Path
 
+import logging
+logger = logging.getLogger("odd")
+
+
 class ODD(Extension):
     dockers = []
     windows = []
@@ -15,15 +19,15 @@ class ODD(Extension):
     activeDocument = None
     
     def __init__(self, parent):
-        print("ODD:__init__")
+        logger.debug("ODD:__init__")
         super().__init__(parent)
         cls = self.__class__
         
         if len(Application.windows()) > 0:
             if len(self.dockers) > 0:
-                print("ODD: reactivated.\n     should be safe to continue.")
+                logger.warning("ODD: reactivated.\n     should be safe to continue.")
             else:
-                print("ODD: activated mid-krita session.\n     please restart krita.")
+                logger.warning("ODD: activated mid-krita session.\n     please restart krita.")
             return
         
         cls.winForQWin = {}
@@ -50,7 +54,7 @@ class ODD(Extension):
         ODDImageChangeDetector()
 
     def setup(self):
-        print("ODD:__setup__")
+        logger.debug("ODD:__setup__")
         pass
 
     def createActions(self, window):
@@ -61,7 +65,7 @@ class ODD(Extension):
         actionFileRevert.triggered.connect(self.fileRevertAction)
     
     def quickCopyMergedAction(self):
-        print("perform ODDQuickCopyMergedAction")
+        logger.info("perform ODDQuickCopyMergedAction")
         app = Application
         app.action('select_all').trigger()
         app.action('copy_merged').trigger()
@@ -76,7 +80,7 @@ class ODD(Extension):
     
     def fileRevertInPlaceOperation(self):
         if not self.fileReverter.cleanupPhase:
-            print("fileRevertInPlaceOperation:", self.fileReverter, self.fileReverter.targetDoc, "->", self.fileReverter.newDoc)
+            logger.debug("fileRevertInPlaceOperation: %s %s -> %s", self.fileReverter, self.fileReverter.targetDoc, self.fileReverter.newDoc)
             view = Application.activeWindow().activeView()
             
             canvas = view.canvas()
@@ -96,7 +100,7 @@ class ODD(Extension):
             if self.fileReverter.aboutToEnterCleanupPhase:
                 self.fileReverter.cleanupPhase = True
         else:
-            print("fileRevertInPlaceOperation (cleanup temp view):", self.fileReverter)
+            logger.debug("fileRevertInPlaceOperation (cleanup temp view): %s", self.fileReverter)
             Application.action('file_close').trigger()
     
     def fileRevertInPlaceLastViewPreProcess(self):
@@ -108,7 +112,7 @@ class ODD(Extension):
             return True
     
     def fileRevertInPlaceFinished(self):
-        print("fileRevertInPlaceFinished: deleting fileReverter")
+        logger.debug("fileRevertInPlaceFinished: deleting fileReverter")
         self.fileReverter.deleteLater()
         del self.fileReverter
         Application.setBatchmode(False)
@@ -139,14 +143,14 @@ class ODD(Extension):
         
         if msgBox.clickedButton() == btnRevert:
             if btnDoInPlace.isChecked():
-                print("Revert (place into current views)")
+                logger.info("Revert (place into current views)")
                 newDoc = Application.openDocument(fname)
                 if not newDoc:
-                    print("cancel: the revert-to document was not opened.")
+                    logger.info("cancel: the revert-to document was not opened.")
                     return
                 newDoc.waitForDone()
                 newView = Application.activeWindow().addView(newDoc)
-                print("newDoc ready. newView =", newView)
+                logger.debug("newDoc ready. newView = %s", newView)
                 self.fileReverter = ODDViewProcessor(
                     operation = lambda: self.fileRevertInPlaceOperation(),
                     selectionCondition = lambda v: self.fileRevertInPlaceCondition(v, doc),
@@ -159,13 +163,13 @@ class ODD(Extension):
                 self.fileReverter.tempView = newView
                 self.fileReverter.aboutToEnterCleanupPhase = False
                 self.fileReverter.cleanupPhase = False
-                print("old:", doc, ", new:", newDoc)
+                logger.debug("old: %s, new: %s", doc, newDoc)
                 Application.setBatchmode(True)
                 doc.setBatchmode(True)
                 doc.setModified(False)
                 self.fileReverter.start()
             else:
-                print("Revert (open in single view)")
+                logger.info("Revert (open in single view)")
                 
                 # suppress save prompt by telling Krita the document wasn't modified.
                 # --> set Application batch mode here?
@@ -187,27 +191,28 @@ class ODD(Extension):
                 doc.close()
                 self.revertDelay.start()
         else:
-            print("Cancel")
+            logger.info("Cancel")
     
     def postRevert(self):
         fname = self.revertedDocFileName
         if fname is None:
-            assert False, "ODD:PostRevert: called without a filename."
+            logger.error("ODD:PostRevert: called without a filename.")
             return
         self.revertedDocFileName = None
-        print("postRevert for", fname)
+        logger.debug("postRevert for %s", fname)
         newdoc = Application.openDocument(fname)
         newdoc.waitForDone()
         newview = Application.activeWindow().addView(newdoc)
-        print("postRevert finished.")
+        logger.debug("postRevert finished.")
     
     def focusWindowChanged(self, focusWindow):
         cls = self.__class__
         hadFocus = cls.kritaHasFocus
         cls.kritaHasFocus = bool(focusWindow)
-        #print("krita has {} focus.".format(("already got" if hadFocus else "regained") if cls.kritaHasFocus else "lost"))
+        #logger.debug("krita has {} focus.".format(("already got" if hadFocus else "regained") if cls.kritaHasFocus else "lost"))
         
         cls.activeDocument = Application.activeDocument()
+        logger.debug("ODD.activeDocument -> %s", cls.activeDocument.fileName() if type(cls.activeDocument) is Document else "None")
         
         if hadFocus != cls.kritaHasFocus:
             if cls.kritaHasFocus:
@@ -220,18 +225,19 @@ class ODD(Extension):
     
     @classmethod
     def viewCreated(cls):
-        print("ODD:viewCreated")
+        logger.info("ODD:viewCreated")
         
         appViews = Application.views()
         for view in appViews:
             if view in cls.views:
-                print("existing view", view)
+                #logger.debug("existing view %s", view)
+                pass
             else:
-                print("new view:", view)
+                logger.debug("new view: %s", view)
                 cls.views.append(view)
-        print(" - views - ")
-        for i in enumerate(cls.views):
-            print(i[0], ":", i[1])
+        # ~ logger.debug(" - views - ")
+        # ~ for i in enumerate(cls.views):
+            # ~ logger.debug("%s: %s", i[0], i[1])
         
         cls.updateDocumentsFromViews()
     
@@ -239,33 +245,33 @@ class ODD(Extension):
     def viewClosed(cls, view):
         # must wait a little for krita to remove closed view from it's list of views.
         d = view.document()
-        print("viewClosed", view, (str(d) + Path(d.fileName()).name) if d else "")
+        logger.info("viewClosed %s %s", view, (str(d) + Path(d.fileName()).name) if d else "")
         cls.viewClosedDelay.start()
     
     @classmethod
     def _viewClosed(cls):
-        print("_viewClosed")
+        logger.debug("_viewClosed")
         
         closedViews = []
         appViews = Application.views()
         for view in cls.views:
             if view in appViews:
-                #print("kept view", view)
+                #logger.debug("kept view %s", view)
                 pass
             else:
-                print("closed view:", view)
+                logger.debug("closed view: %s", view)
                 closedViews.append(view)
         for view in closedViews:
             cls.views.remove(view)
-        print(" - views - ")
-        for i in enumerate(cls.views):
-            print(i[0], ":", i[1])
+        # ~ logger.debug(" - views - ")
+        # ~ for i in enumerate(cls.views):
+            # ~ logger.debug("%s: %s", i[0], i[1])
         
         for docData in cls.documents:
             for k,v in docData["lastViewInWindow"].items():
-                print(v)
+                logger.debug(v)
                 if v not in cls.views:
-                    print("a closed view was latest active view on doc", docData["document"], "in its window")
+                    logger.debug("a closed view was latest active view on doc %s in its window.", docData["document"])
                     docData["lastViewInWindow"][k] = None
         
         cls.updateDocumentsFromViews()
@@ -285,7 +291,7 @@ class ODD(Extension):
                 continue
             qwin = win.qwindow()
             if not doc:
-                print("UpdateDocsAndWins: no doc for view")
+                logger.debug("UpdateDocsAndWins: no doc for view")
                 continue
             if matchList := [i for i in enumerate(cls.documents) if i[1]["document"] == doc]:
                 knownDoc = matchList[0]
@@ -295,9 +301,9 @@ class ODD(Extension):
                     docData["viewCountPerWindow"][qwin] += 1
                 else:
                     docData["viewCountPerWindow"][qwin] = 1
-                print("existing doc {} has {} views in {}".format(docData["document"], docData["viewCountPerWindow"][qwin], qwin.objectName()))
+                #logger.debug("existing doc {} has {} views in {}".format(docData["document"], docData["viewCountPerWindow"][qwin], qwin.objectName()))
             else:
-                print("new doc:", doc)
+                logger.info("new doc: %s", doc)
                 cls.documents.append({
                     "document": doc,
                     "thumbnails": {},
@@ -307,31 +313,31 @@ class ODD(Extension):
                 })
                 cls.documents[-1]["lastViewInWindow"  ][qwin] = view
                 cls.documents[-1]["viewCountPerWindow"][qwin] = 1
-                print("\n".join("  {}: {}".format(k, v) for k,v in cls.documents[-1].items()))
+                logger.debug("\n".join("  {}: {}".format(k, v) for k,v in cls.documents[-1].items()))
                 for docker in cls.dockers:
                     docker.documentCreated(doc)
         
-        print("docStillExists:")
-        for i in enumerate(docStillExists):
-            print(i[0], ":", i[1])
+        # ~ logger.debug("docStillExists:")
+        # ~ for i in enumerate(docStillExists):
+            # ~ logger.debug("%s: %s", i[0], i[1])
         
         i = 0
         while i < len(docStillExists):
             if not docStillExists[i]:
-                print("doc removed:", cls.documents[i]["document"])
+                logger.info("doc removed: %s (%s)", cls.documents[i]["document"], cls.documents[i]["document"].fileName())
                 for docker in cls.dockers:
                     docker.documentClosed(cls.documents[i]["document"])
                 # ensure it will be removed from ODDImageChangeDetector list of changed docs.
                 if matchList := [cd for cd in enumerate(ODDImageChangeDetector.changedDocs) if cd[1]["docData"]["document"] == cls.documents[i]["document"]]:
-                    print("Deleting entry of ODDImageChangeDetector.changedDocs at index", matchList[0][0])
+                    logger.debug("Deleting entry of ODDImageChangeDetector.changedDocs at index %s", matchList[0][0])
                     if ODDImageChangeDetector.changedDoc == matchList[0][1]:
-                        print("and remove as current changedDoc")
+                        logger.debug("and remove as current changedDoc")
                         ODDImageChangeDetector.changedDoc = None
                     del ODDImageChangeDetector.changedDocs[matchList[0][0]]
                 # account for any leftover thumbs.
                 for thumbKey,thumbData in cls.documents[i]["thumbnails"].items():
                     pm = thumbData["pixmap"]
-                    print("doc {}: removing thumb {} with size {}".format(
+                    logger.debug("doc {}: removing thumb {} with size {}".format(
                         cls.documents[i]["document"], thumbKey, thumbData["size"]
                     ))
                     cls.unusedCacheSize -= thumbData["size"]
@@ -357,9 +363,9 @@ class ODD(Extension):
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return None
         
-        print("requestThumbnail: doc:", docData["document"].fileName())
-        print("                  thKey:", thumbKey)
-        print("                  fnPrg:", forceNotProgressive)
+        logger.debug("requestThumbnail: doc: %s", docData["document"].fileName())
+        logger.debug("                  thKey: %s", thumbKey)
+        logger.debug("                  fnPrg: %s", forceNotProgressive)
         
         isNew = False
         if not thumbKey in docData["thumbnails"]:
@@ -370,10 +376,10 @@ class ODD(Extension):
         
         if thumb["valid"]:
             if thumb["pixmap"] and not thumb["generator"]:
-                print("requestThumbnail: existing thumb is valid, returning pixmap", thumb["pixmap"])
+                logger.debug("requestThumbnail: existing thumb is valid, returning pixmap %s", thumb["pixmap"])
                 return thumb["pixmap"]
             else:
-                print("requestThumbnail: existing thumb is valid but pixmap is blank or still being generated, returning closest valid pixmap.")
+                logger.debug("requestThumbnail: existing thumb is valid but pixmap is blank or still being generated, returning closest valid pixmap.")
                 candidatePm = cls.closestValidThumbnailPixmap(docData["thumbnails"], thumbKey)
                 if candidatePm:
                     return QPixmap(candidatePm)
@@ -429,7 +435,7 @@ class ODD(Extension):
     
     @classmethod
     def closestValidThumbnailPixmap(cls, thumbs, thumbKey):
-        print("find closestValidThumbnail: for thumbKey", thumbKey, end="... ")
+        # ~ logger.debug("find closestValidThumbnail: for thumbKey %s...", thumbKey)
         candidatePm = None
         candidateWidthDiff = 2**32 # really big number.
         candidateIsLarger = False # prefer too-big valid thumbnails to too-small.
@@ -442,16 +448,18 @@ class ODD(Extension):
                             candidatePm = v["pixmap"]
                             candidateWidthDiff = wdiff
                             candidateIsLarger = wdiff < 0
-        print("found (error in width = {} px).".format(candidateWidthDiff) if candidatePm else "not found.")
+        logger.debug("found (error in width = {} px).".format(candidateWidthDiff) if candidatePm else "not found.")
         return candidatePm
     
     @classmethod
     def updatePixmapInDockers(cls, doc, thumbKey, oldPixmap, newPixmap):
         """tell docker instances to use new pixmap if using old one."""
-        print("updatePixmapInDockers: doc:", doc.fileName())
-        print("                       thKey:", thumbKey)
+        logger.debug("updatePixmapInDockers: doc: %s", doc.fileName())
+        logger.debug("                       thKey: %s", thumbKey)
+        # ~ logger.debug("                       oldPm: %s", oldPixmap)
+        # ~ logger.debug("                       newPm: %s", newPixmap)
         if oldPixmap:
-            print("updatePixmapInDockers: oldPixmap exists")
+            logger.debug("updatePixmapInDockers: oldPixmap exists")
             oldPixmapCacheKey = oldPixmap.cacheKey()
         for docker in cls.dockers:
             if docker.vs.settingValue("display", True) != "thumbnails":
@@ -462,16 +470,16 @@ class ODD(Extension):
                 itemKey = item.data(docker.ItemThumbnailKeyRole)
                 if not (itemDoc == doc and itemKey == thumbKey):
                     continue
-                print("updatePixmapInDockers: itemDoc==doc and itemKey==thumbKey")
+                logger.debug("updatePixmapInDockers: itemDoc==doc and itemKey==thumbKey")
                 if oldPixmap:
                     itemPm = item.data(Qt.DecorationRole)
-                    print("updatePixmapInDockers: itemPm:", itemPm)
+                    logger.debug("updatePixmapInDockers: itemPm: %s", itemPm)
                     if itemPm:
                         itemPmCacheKey = itemPm.cacheKey()
-                        print(i, item, ": compare", itemPmCacheKey, "with", oldPixmapCacheKey)
+                        logger.debug("%s %s: compare %s with %s", i, item, itemPmCacheKey, oldPixmapCacheKey)
                         if not itemPmCacheKey == oldPixmapCacheKey:
                             continue
-                print("update docker of", docker.parent().objectName(), "item", item, "with updated thumb.")
+                logger.debug("update docker of %s item %s with updated thumb.", docker.parent().objectName(), item)
                 item.setData(Qt.DecorationRole, newPixmap)
     
     def generateThumbnail(doc, thumbWidth, thumbHeight, regionWidth, regionHeight):
@@ -489,7 +497,7 @@ class ODD(Extension):
     @classmethod
     def thumbGeneratorFinished(cls, thumbData, thumbKey, thumbPixmap):
         oldPm = thumbData["pixmap"]
-        print("thumbGeneratorFinished:", thumbData["generator"].doc.fileName(), thumbKey)
+        logger.debug("thumbGeneratorFinished: %s %s", thumbData["generator"].doc.fileName(), thumbKey)
         thumbPixmap.setDevicePixelRatio(cls.dockers[0].devicePixelRatioF())
         thumbData["pixmap"] = thumbPixmap
         cls.updatePixmapInDockers(thumbData["generator"].doc, thumbKey, oldPm, thumbPixmap)
@@ -497,7 +505,7 @@ class ODD(Extension):
     
     @classmethod
     def invalidateThumbnails(cls, docData):
-        print("ODD:invalidateThumbnails")
+        logger.debug("ODD:invalidateThumbnails")
         if type(docData) == Document:
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return
@@ -520,7 +528,7 @@ class ODD(Extension):
     
     @classmethod
     def addThumbnailUser(cls, who, docData, thumbKey):
-        print("ODD:addThumbnailUser")
+        logger.debug("ODD:addThumbnailUser")
         if type(docData) == Document:
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return
@@ -533,7 +541,7 @@ class ODD(Extension):
     
     @classmethod
     def removeThumbnailUser(cls, who, docData, thumbKey):
-        print("ODD:removeThumbnailUser")
+        logger.debug("ODD:removeThumbnailUser")
         if type(docData) == Document:
             if (docData := cls.docDataFromDocument(docData)) is None:
                 return
@@ -551,7 +559,7 @@ class ODD(Extension):
                 thumbData["lastUsed"] = process_time_ns()
                 cls.evictExcessUnusedCache()
             else:
-                print("removed last user of invalidated thumb, deleting thumb.")
+                logger.debug("removed last user of invalidated thumb, deleting thumb.")
                 del docData["thumbnails"][thumbKey]
         
     
@@ -562,33 +570,33 @@ class ODD(Extension):
         if cls.unusedCacheSize-maxSize <= 0:
             return
         
-        print(" - evictExcessUnusedCache - ")
-        print("before: unused cache size:", cls.unusedCacheSize, ", max allowed:", maxSize, ", excess:", cls.unusedCacheSize-maxSize)
+        logger.debug(" - evictExcessUnusedCache - ")
+        logger.debug("before: unused cache size: %s, max allowed: %s, excess: %s", cls.unusedCacheSize, maxSize, cls.unusedCacheSize-maxSize)
         evictableThumbs = []
         for d in cls.documents:
             for t in d["thumbnails"].items():
                 if len(t[1]["users"]) == 0:
                     evictableThumbs.append((d, t[0], t[1]))
         if len(evictableThumbs) == 0:
-            print(" - nothing to evict - ")
+            logger.debug(" - nothing to evict - ")
             return
         evictableThumbsSorted = sorted(evictableThumbs, key = lambda e: e[2]["lastUsed"])
-        print("evictable thumbs:")
+        logger.debug("evictable thumbs:")
         i = 1
         for e in evictableThumbsSorted:
-            print("#"+str(i)+":doc", e[0]["document"], ", tKey:", e[1], "(lu:", e[2]["lastUsed"], ")")
+            logger.debug("#%s: doc %s, tKey: %s (lu: %s)", i, e[0]["document"], e[1], e[2]["lastUsed"])
             i += 1
         while cls.unusedCacheSize > maxSize:
             e = evictableThumbsSorted[0]
             pm = e[2]["pixmap"]
             size = e[2]["size"]
-            print("evicting:", e[0]["document"], e[1], end="... ")
+            logger.debug("evicting: %s %s...", e[0]["document"], e[1])
             del e[0]["thumbnails"][e[1]]
             del evictableThumbsSorted[0]
             cls.unusedCacheSize -= size
-            print("removed", size, "- excess remaining:", cls.unusedCacheSize-maxSize)
-        print("result: unused cache size:", cls.unusedCacheSize, ", max allowed:", maxSize, ", excess:", cls.unusedCacheSize-(maxSize))
-        print(" - evict finished - ")
+            logger.debug("removed %s - excess remaining: %s", size, cls.unusedCacheSize-maxSize)
+        logger.debug("result: unused cache size: %s, max allowed: %s, excess: %s", cls.unusedCacheSize, maxSize, cls.unusedCacheSize-(maxSize))
+        logger.debug(" - evict finished - ")
     
     @classmethod
     def findAndActivateView(cls, doc):
@@ -609,7 +617,7 @@ class ODD(Extension):
     def windowFromQWindow(cls, qwin):
         if qwin in cls.winForQWin:
             return cls.winForQWin[qwin]
-        print("warning: windowFromQWindow called before window ready.")
+        logger.warning("warning: windowFromQWindow called before window ready.")
         return None
     
     @classmethod
@@ -635,7 +643,7 @@ class ODD(Extension):
     
     def windowIsBeingCreated(self, window):
         cls = self.__class__
-        print("window being created:", window, "(" + window.qwindow().objectName() + ")")
+        logger.info("window being created: %s (%s)", window, window.qwindow().objectName())
         window.qwindow().installEventFilter(self)
         window.qwindow().destroyed.connect(cls.windowDestroyed)
     
@@ -645,23 +653,23 @@ class ODD(Extension):
         appWins = Application.windows()
         for win in appWins:
             if win in cls.windows:
-                print("existing win:", win)
+                logger.debug("existing win: %s", win)
             else:
-                print("new win:", win)
+                logger.debug("new win: %s", win)
                 cls.windows.append(win)
                 qwin = win.qwindow()
-                print("add winForQWin entry", qwin, "->", win)
+                logger.debug("add winForQWin entry %s -> %s", qwin, win)
                 cls.winForQWin[qwin] = win
                 dockercls = cls.dockers[0].__class__
                 docker = qwin.findChild(dockercls)
-                print("connect window", win, "activeViewChanged to", docker)
+                logger.debug("connect window %s activeViewChanged to %s", win, docker)
                 win.activeViewChanged.connect(docker.activeViewChanged)
                 for docData in cls.documents:
                     if not qwin in docData["lastViewInWindow"]:
-                        #print("{} was missing lastViewInWindow   for {}".format(docData["document"], qwin.objectName()))
+                        #logger.debug("{} was missing lastViewInWindow   for {}".format(docData["document"], qwin.objectName()))
                         docData["lastViewInWindow"][qwin] = None
                     if not qwin in docData["viewCountPerWindow"]:
-                        #print("{} was missing viewCountPerWindow for {}".format(docData["document"], qwin.objectName()))
+                        #logger.debug("{} was missing viewCountPerWindow for {}".format(docData["document"], qwin.objectName()))
                         docData["viewCountPerWindow"][qwin] = sum(v.document()==docData["document"] for v in win.views())
     
     @classmethod
@@ -675,37 +683,37 @@ class ODD(Extension):
     
     @classmethod
     def windowDestroyed(cls, obj):
-        print("window destroyed:", obj)
+        logger.info("window destroyed: %s", obj)
         
         closedWins = []
         appWins = Application.windows()
         for win in cls.windows:
             if win in appWins:
-                print("kept win", win)
+                logger.debug("kept win %s", win)
                 pass
             else:
-                print("closed win:", win)
+                logger.debug("closed win: %s", win)
                 closedWins.append(win)
         for win in closedWins:
             for k,v in cls.winForQWin.items():
                 if v == win:
                     qwin = k
-            print("remove winForQWin entry", qwin, "->", win)
+            logger.debug("remove winForQWin entry %s -> %s", qwin, win)
             del cls.winForQWin[qwin]
             cls.windows.remove(win)
         
-        print(" - wins - ")
+        logger.debug(" - wins - ")
         for i in enumerate(cls.windows):
-            print(i[0], ":", i[1])
+            logger.debug("%s: %s", i[0], i[1])
         
-        # ~ print("-pre-")
+        # ~ logger.debug("-pre-")
         # ~ for i in range(len(cls.dockers)):
-            # ~ print("docker", i, ":", cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
+            # ~ logger.debug("docker %s: %s %s", i, cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
             
         for i in range(len(cls.dockers)):
             docker = cls.dockers[i]
             if type(docker.parent()) != QMainWindow: #QMainWindow becomes QObject when closed/destroyed
-                print("delete ref to docker", docker)
+                logger.info("delete ref to docker %s", docker)
                 removeUserBuffer = []
                 for d in cls.documents:
                     for t in d["thumbnails"].items():
@@ -718,27 +726,27 @@ class ODD(Extension):
                 
                 cls.dockers[i] = None
                 
-        # ~ print("-mid-")
+        # ~ logger.debug("-mid-")
         # ~ for i in range(len(cls.dockers)):
-            # ~ print("docker", i, ":", cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
+            # ~ logger.debug("docker %s: %s %s", i, cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
             
         for i in range(len(cls.dockers)-1, -1, -1):
             if cls.dockers[i] == None:
-                #print("deleting ref to docker", i, ":", cls.dockers[i])
+                #logger.debug("deleting ref to docker %s: %s", i, cls.dockers[i])
                 del cls.dockers[i]
         
         for docData in cls.documents:
             for win in closedWins:
                 qwin = win.qwindow()
-                print("remove closed qwin", qwin, "data from docData of", docData["document"])
+                logger.debug("remove closed qwin %s data from docData of %s", qwin, docData["document"])
                 if qwin in docData["lastViewInWindow"]:
                     del docData["lastViewInWindow"][qwin]
                 if qwin in docData["viewCountPerWindow"]:
                     del docData["viewCountPerWindow"][qwin]
         
-        # ~ print("-post-")
+        # ~ logger.debug("-post-")
         # ~ for i in range(len(cls.dockers)):
-            # ~ print("docker", i, ":", cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
+            # ~ logger.debug("docker %s: %s %s", i, cls.dockers[i], cls.dockers[i].parent() if cls.dockers[i] else "")
     
     def getScreen(self, who):
         if hasattr(who, "screen"):

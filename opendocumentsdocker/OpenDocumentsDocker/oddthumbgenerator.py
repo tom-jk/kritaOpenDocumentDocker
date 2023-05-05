@@ -5,6 +5,9 @@ from krita import *
 from .odd import ODD
 from .oddsettings import ODDSettings
 
+import logging
+logger = logging.getLogger("odd")
+
 
 def mapValue(fromMin, fromMax, toMin, toMax, value):
     fromRange = fromMax - fromMin
@@ -25,10 +28,10 @@ class ODDThumbGenerator(QObject):
             interval = None,
     ):
         super(ODDThumbGenerator, self).__init__()
-        print("ODDThumbGenerator: init", self)
-        print(" - doc", doc, doc.fileName())
-        print(" - thumb size",  thumbWidth, "x", thumbHeight)
-        print(" - finishedCallback", finishedCallback)
+        logger.debug("ODDThumbGenerator: init %s", self)
+        logger.debug(" - doc %s %s", doc, doc.fileName())
+        logger.debug(" - thumb size %sx%s",  thumbWidth, thumbHeight)
+        logger.debug(" - finishedCallback %s", finishedCallback)
         
         if not (blockWidth and blockHeight):
             blockWidth = ODDSettings.globalSettingValue("progressiveThumbsWidth")
@@ -39,26 +42,24 @@ class ODDThumbGenerator(QObject):
         isDocTall = docWidth <= blockWidth // 2
         isDocWide = docHeight <= blockHeight // 2
         if isDocTall ^ isDocWide:
-            print(" - block size: ", end="")
-            print("{}x{}".format(blockWidth, blockHeight), end="")
+            # ~ logger.debug(" - block size: {}x{}".format(blockWidth, blockHeight))
             if isDocTall:
                 while docWidth <= blockWidth // 2 and blockWidth > 2:
                     blockWidth = blockWidth // 2
                     blockHeight = blockHeight * 2
-                    print(" -> {}x{}".format(blockWidth, blockHeight), end="")
+                    # ~ logger.debug(" -> {}x{}".format(blockWidth, blockHeight))
             else:
                 while docHeight <= blockHeight // 2 and blockHeight > 2:
                     blockHeight = blockHeight // 2
                     blockWidth = blockWidth * 2
-                    print(" -> {}x{}".format(blockWidth, blockHeight), end="")
-            print()
+                    # ~ logger.debug(" -> {}x{}".format(blockWidth, blockHeight))
         else:
-            print(" - block size",  blockWidth, "x", blockHeight)
+            logger.debug(" - block size %sx%s",  blockWidth, blockHeight)
         
         if not interval:
             interval = ODDSettings.globalSettingValue("progressiveThumbsSpeed")
             
-        print(" - interval",  interval, "ms")
+        logger.debug(" - interval %s ms",  interval)
         
         self.doc = doc
         self.thumbWidth = thumbWidth
@@ -80,14 +81,14 @@ class ODDThumbGenerator(QObject):
         self.processor = self.process()
     
     def __del__(self):
-        #print("ODDThumbGenerator: deleting instance", self)
+        #logger.debug("ODDThumbGenerator: deleting instance %s", self)
         pass
     
     def progress(self):
         return self.progressPixelCount / self.docPixelCount
     
     def start(self):
-        print("ODDThumbGenerator: start", self)
+        logger.debug("ODDThumbGenerator: start %s", self)
         
         # make blank image for thumbnail
         self.thumb = QImage(self.thumbWidth, self.thumbHeight, QImage.Format_ARGB32_Premultiplied)
@@ -96,23 +97,23 @@ class ODDThumbGenerator(QObject):
         self.stepTimer.start()
     
     def stop(self):
-        print("ODDThumbGenerator: stop", self.doc.fileName() if type(self.doc)==Document else "(no doc)")
+        logger.debug("ODDThumbGenerator: stop %s", self.doc.fileName() if type(self.doc)==Document else "(no doc)")
         self.processor.close()
     
     def step(self):
         try:
-            #print("ODDThumbGenerator: step")
+            #logger.debug("ODDThumbGenerator: step")
             next(self.processor)
-            #print("ODDThumbGenerator: start timer for next step")
+            #logger.debug("ODDThumbGenerator: start timer for next step")
             self.stepTimer.start()
         except StopIteration:
             self.processor = None
-            print("ODDThumbGenerator: finished", self.doc.fileName() if type(self.doc)==Document else "(no doc)")
+            logger.debug("ODDThumbGenerator: finished %s", self.doc.fileName() if type(self.doc)==Document else "(no doc)")
             if self.finishedCallback:
                 self.finishedCallback(QPixmap.fromImage(self.thumb))
         
     def process(self):
-        print("ODDThumbGenerator: begin process.")
+        logger.debug("ODDThumbGenerator: begin process.")
         
         doc = self.doc
         docWidth = doc.width()
@@ -130,7 +131,7 @@ class ODDThumbGenerator(QObject):
             loopCount += 1
             
             if loopCount <= 3:
-                print("ODDThumbGenerator: processing block {},{} {}".format(posInDoc.x(), posInDoc.y(), "..." if loopCount==3 else ""))
+                logger.debug("ODDThumbGenerator: processing block {},{} {}".format(posInDoc.x(), posInDoc.y(), "..." if loopCount==3 else ""))
             
             # grab some of the doc image.
             block = doc.projection(
@@ -174,8 +175,8 @@ class ODDThumbGenerator(QObject):
                 posInDoc.setY(posInDoc.y() + blockHeight)
                 posInThumb.setY(posInThumb.y() + blockHeightInThumb)
                 if posInDoc.y() >= docHeight:
-                    #print("Done")
+                    #logger.debug("Done")
                     return
             
-            #print("ODDThumbGenerator: processed block")
+            #logger.debug("ODDThumbGenerator: processed block")
             yield

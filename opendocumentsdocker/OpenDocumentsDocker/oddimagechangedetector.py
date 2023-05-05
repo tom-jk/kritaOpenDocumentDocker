@@ -3,6 +3,9 @@ from krita import *
 from .odd import ODD
 from time import *
 
+import logging
+logger = logging.getLogger("odd")
+
 
 class ODDImageChangeDetector(QObject):
     StopReasonUser = 1
@@ -18,7 +21,7 @@ class ODDImageChangeDetector(QObject):
     changedDoc = None
     
     def __init__(self):
-        print("ODDImageChangeDetector:__init__")
+        logger.debug("ODDImageChangeDetector:__init__")
         super(ODDImageChangeDetector, self).__init__()
         cls = self.__class__
         cls.instance = self
@@ -53,12 +56,12 @@ class ODDImageChangeDetector(QObject):
         
         if cls.refreshCheckTimer.isActive():
             if stopReason & (cls.StopReasonUser | cls.StopReasonBlur):
-                print("ODDImageChangeDetector: stopping refreshCheckTimer.")
+                logger.info("ODDImageChangeDetector: stopping refreshCheckTimer.")
                 cls.refreshCheckTimer.stop()
         
         if cls.checkTimer.isActive():
             if stopReason & (cls.StopReasonBlur | cls.StopReasonCooldown):
-                print("ODDImageChangeDetector: stopping checkTimer.")
+                logger.info("ODDImageChangeDetector: stopping checkTimer.")
                 cls.checkTimer.stop()
     
     @classmethod
@@ -72,28 +75,28 @@ class ODDImageChangeDetector(QObject):
         
         if not cls.checkTimer.isActive():
             if not (cls.stopReasons & (cls.StopReasonBlur | cls.StopReasonCooldown)):
-                print("ODDImageChangeDetector: restarting checkTimer.")
+                logger.info("ODDImageChangeDetector: restarting checkTimer.")
                 cls.checkTimer.start()
         
         if not cls.refreshCheckTimer.isActive():
             if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur)):
-                print("ODDImageChangeDetector: restarting refreshCheckTimer.")
+                logger.info("ODDImageChangeDetector: restarting refreshCheckTimer.")
                 cls.refreshCheckTimer.start()
     
     @classmethod
     def startCooldown(cls):
-        print("ODDImageChangeDetector: cooldown starting...")
+        logger.info("ODDImageChangeDetector: cooldown starting...")
         cls.cooldownTimer.start()
         cls.addStopper(cls.StopReasonCooldown)
     
     @classmethod
     def cooldownTimerTimeout(cls):
-        print("ODDImageChangeDetector: ...cooldown finished.")
+        logger.info("ODDImageChangeDetector: ...cooldown finished.")
         cls.removeStopper(cls.StopReasonCooldown)
     
     @classmethod
     def checkTimerTimeout(cls):
-        #print("checkTimerTimeout")
+        #logger.debug("checkTimerTimeout")
         
         doc = ODD.activeDocument
         
@@ -104,7 +107,7 @@ class ODDImageChangeDetector(QObject):
                     del cls.changedDocs[cls.changedDocs.index(cls.changedDoc)]
             if doc:
                 found = False
-                print("checking if doc in changedDocs")
+                logger.debug("checking if doc in changedDocs")
                 for cd in cls.changedDocs:
                     if cd["docData"]["document"] == doc:
                         cls.changedDoc = cd
@@ -143,7 +146,7 @@ class ODDImageChangeDetector(QObject):
                     # doc already known to be changed.
                     pass
                 else:
-                    print("ODDImageChangeDetector: detected change in", cls.changedDoc["docData"]["document"].fileName())
+                    logger.debug("ODDImageChangeDetector: detected change in %s", cls.changedDoc["docData"]["document"].fileName())
                     cls.changedDoc["hasChanged"] = True
                     ODD.invalidateThumbnails(doc)
                 
@@ -168,7 +171,7 @@ class ODDImageChangeDetector(QObject):
                     cd["refreshDelay"] = 0
                     cd["hasChanged"] = False
                     # let everyone who needs to know, know it's time to refresh.
-                    print("ODDImageChangeDetector: time to refresh", cdDoc.fileName())
+                    logger.debug("ODDImageChangeDetector: time to refresh %s", cdDoc.fileName())
                     for docker in ODD.dockers:
                         docker.updateDocumentThumbnail(cdDoc, ignoreThumbsMoreRecentThan=cd["changeTime"])
         

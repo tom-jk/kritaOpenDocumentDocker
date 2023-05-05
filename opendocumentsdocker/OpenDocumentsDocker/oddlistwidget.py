@@ -4,6 +4,10 @@ from krita import *
 from .odd import ODD
 from .oddviewprocessor import ODDViewProcessor
 
+import logging
+logger = logging.getLogger("odd")
+
+
 class ODDListWidget(QListWidget):
     def __init__(self, odd, oddDocker):
         self.odd = odd
@@ -96,7 +100,7 @@ class ODDListWidget(QListWidget):
         return False
     
     def resizeEvent(self, event):
-        #print("ODDListWidget:resizeEvent:", event.size().width(), event.size().height())
+        #logger.debug("ODDListWidget:resizeEvent: %s %s", event.size().width(), event.size().height())
         self.oddDocker.restartResizeDelayTimer()
     
     def enterEvent(self, event):
@@ -127,7 +131,7 @@ class ODDListWidget(QListWidget):
                 self.viewport().update()
     
     def invalidateItemRectsCache(self):
-        #print("itemRects cache invalidated")
+        #logger.debug("itemRects cache invalidated")
         self._itemRectsValid = False
     
     def itemRects(self):
@@ -135,13 +139,13 @@ class ODDListWidget(QListWidget):
             if len(self._itemRects) == self.count():
                 return self._itemRects
             else:
-                print("itemRectsValid but wrong count!")
+                logger.info("itemRectsValid but wrong count!")
         
         if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return None
         
         if self._doNotRecacheItemRects:
-            #print("ODDListWidget.itemRects: tried to recache, but was told doNotRecache, aborting...")
+            #logger.info("ODDListWidget.itemRects: tried to recache, but was told doNotRecache, aborting...")
             return self._itemRects
         
         assert not self._itemRectsRecaching, "ODDListWidget.itemRects: started recaching while already recaching!"
@@ -150,7 +154,7 @@ class ODDListWidget(QListWidget):
         if count == 0:
             return None
         
-        print("regenerate itemRects cache")
+        logger.debug("regenerate itemRects cache")
         self._itemRectsRecaching = True
         itemRects = []
         
@@ -165,7 +169,7 @@ class ODDListWidget(QListWidget):
             checkExt = 1.0 * float(self.oddDocker.vs.readSetting("thumbDisplayScale"))
             stackCount = int(self.oddDocker.vs.readSetting("thumbDisplayScaleGrid"))
             if stackCount == 0:
-                print("note: stackCount == 0")
+                logger.info("note: stackCount == 0")
                 stackCount = 1
             
             if gridMode == "masonry":
@@ -264,12 +268,12 @@ class ODDListWidget(QListWidget):
         if not itemRects:
             return
         if self.flow() == QListView.TopToBottom:
-            #print("vscroll max =", self._childrenExtent, "-", self.viewport().height(), "=", self._childrenExtent-self.viewport().height())
+            #logger.debug("vscroll max = %s - %s = %s", self._childrenExtent, self.viewport().height(), self._childrenExtent-self.viewport().height())
             self.verticalScrollBar().setRange(0, self._childrenExtent - self.viewport().height())
             self._childrenRect = QRect(0, 0, self.viewport().width(), self._childrenExtent)
             self.horizontalScrollBar().setRange(0, 0)
         else:
-            #print("hscroll max =", self._childrenExtent, "-", self.viewport().width(), "=", self._childrenExtent-self.viewport().width())
+            #logger.debug("hscroll max = %s - %s = %s", self._childrenExtent, self.viewport().width(), self._childrenExtent-self.viewport().width())
             self.horizontalScrollBar().setRange(0, self._childrenExtent - self.viewport().width())
             self._childrenRect = QRect(0, 0, self._childrenExtent, self.viewport().height())
             self.verticalScrollBar().setRange(0, 0)
@@ -308,7 +312,7 @@ class ODDListWidget(QListWidget):
             super().scrollTo(index, hint)
             return
         
-        #print("scrollTo: ", index, index.row(), index.column(), index.data(), self.itemFromIndex(index))
+        #logger.debug("scrollTo: %s %s %s %s %s", index, index.row(), index.column(), index.data(), self.itemFromIndex(index))
         item = self.itemFromIndex(index)
         if not item:
             return
@@ -330,7 +334,7 @@ class ODDListWidget(QListWidget):
     def updateGeometries(self):
         if not self.oddDocker.vs.readSetting("display") == "thumbnails":
             return super().updateGeometries()
-        #print("ODDListWidget: updateGeometries")
+        #logger.debug("ODDListWidget: updateGeometries")
         self.updateScrollBarRange()
         self.horizontalScrollBar().setSingleStep(32)
         self.verticalScrollBar().setSingleStep(32)
@@ -344,7 +348,7 @@ class ODDListWidget(QListWidget):
         
         qwin = self.oddDocker.parent()
         activeDoc = ODD.activeDocument
-        #print("paintEvent:", event.rect())
+        #logger.debug("paintEvent: %s", event.rect())
         option = self.viewOptions()
         painter = QPainter(self.viewport())
         count = self.count()
@@ -457,18 +461,18 @@ class ODDListWidget(QListWidget):
                         cropWidth = w * itemToPmScale
                         cropRect.setWidth(round(cropWidth))
                         cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
-                        #print(itemRect, pm.rect(), itemToPmScale, cropRect)
+                        #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
                     elif pmRatio > 1.0:
                         itemToPmScale = pm.width() / w
                         cropHeight = h * itemToPmScale
                         cropRect.setHeight(round(cropHeight))
                         cropRect.moveTop(round((pm.height() - cropHeight) / 2))
-                        #print(itemRect, pm.rect(), itemToPmScale, cropRect)
+                        #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
                     cropRect.moveLeft(max(0, cropRect.left()))
                     cropRect.moveTop(max(0, cropRect.top()))
                     cropRect.setWidth(min(pm.width(), cropRect.width()))
                     cropRect.setHeight(min(pm.height(), cropRect.height()))
-                    #print("#"+str(i)+":", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
+                    #logger.debug("#"+str(i)+": %s %s %s", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
                     painter.drawPixmap(itemRect, pm, cropRect)
             
             if isItemActiveDoc:
@@ -533,11 +537,11 @@ class ODDListWidget(QListWidget):
         painter.end()
 
     def contextMenuEvent(self, event, viewOptionsOnly=False):
-        print("ctx menu event -", event.globalPos(), event.reason())
+        logger.debug("ctx menu event - %s %s", event.globalPos(), event.reason())
         self.oddDocker.listToolTip.hide()
         
         if not self.mouseEntered:
-            print("ctx menu cancelled (mouse not over list)")
+            logger.debug("ctx menu cancelled (mouse not over list)")
             return
         
         app = Application
@@ -547,7 +551,7 @@ class ODDListWidget(QListWidget):
         if event.reason() == QContextMenuEvent.Mouse:
             item = self.itemFromIndex(self.indexAt(event.globalPos() - listTopLeft))
             if not item:
-                print("ctx menu cancelled (mouse not over item)")
+                logger.debug("ctx menu cancelled (mouse not over item)")
                 return
             pos = event.globalPos()
         else:
@@ -557,7 +561,7 @@ class ODDListWidget(QListWidget):
         
         doc = item.data(self.oddDocker.ItemDocumentRole)
         if not doc:
-            print("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
+            logger.warning("ODD: right-clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
         docData = ODD.docDataFromDocument(doc)
@@ -582,7 +586,7 @@ class ODDListWidget(QListWidget):
         def addDeferredAction(menu, actionName):
             menu.addAction(app.action(actionName).text(), lambda : setClickedActionName(actionName), app.action(actionName).shortcut())
         
-        print("selected:", item, " -", doc.fileName())
+        logger.debug("selected: %s - %s", item, doc.fileName())
         
         menu = QMenu(self)
         menu.addAction(ODD.documentDisplayName(doc))
@@ -630,14 +634,14 @@ class ODDListWidget(QListWidget):
         action = menu.exec(pos)
         
         if not action:
-            print("ctx menu exited without selection")
+            logger.debug("ctx menu exited without selection")
             menu.deleteLater()
             return
         
         aData = action.data()
         if aData:
             if aData[0] == "goToViewInWin":
-                print("go to view in win", aData[1].qwindow().objectName())
+                logger.info("go to view in win %s", aData[1].qwindow().objectName())
                 win = aData[1]
                 win.activate()
                 qwin = win.qwindow()
@@ -646,8 +650,8 @@ class ODDListWidget(QListWidget):
                 if qwin in docData["lastViewInWindow"]:
                     toView = docData["lastViewInWindow"][qwin]
                 else:
-                    print("ctx menu: tried to go to view in win on doc with no lastViewInWindow for that win.\n" \
-                          "          you might have asked for a window that was still being created?")
+                    logger.warning("ctx menu: tried to go to view in win on doc with no lastViewInWindow for that win.\n" \
+                                   "          you might have asked for a window that was still being created?")
                 if not toView:
                     if win.activeView().document() != doc:
                         for view in win.views():
@@ -658,11 +662,11 @@ class ODDListWidget(QListWidget):
                     win.showView(toView)
                     toView.setVisible()
             elif aData[0] == "newViewInWin":
-                print("new view in win", aData[1].qwindow().objectName())
+                logger.info("new view in win %s", aData[1].qwindow().objectName())
                 newview = Application.activeWindow().addView(doc)
                 pass
             elif aData[0] == "newViewInNewWin":
-                print("new view in new win")
+                logger.info("new view in new win")
                 newwin = Application.openWindow()
                 newwin.qwindow().show()
                 newview = newwin.addView(doc)
@@ -670,7 +674,7 @@ class ODDListWidget(QListWidget):
                 newwin.showView(newview)
                 newview.setVisible()
             elif aData[0] == "closeViewsInThisWin":
-                print("close views in this window")
+                logger.info("close views in this window")
                 self.viewCloser = ODDViewProcessor(
                     operation = lambda : Application.action('file_close').trigger(),
                     selectionCondition = lambda view : view.document() == doc and view.window() == activeWin,
@@ -680,7 +684,7 @@ class ODDListWidget(QListWidget):
                 self.viewCloser.targetDoc = doc
                 self.viewCloser.start()
             elif aData[0] == "closeViewsInOtherWins":
-                print("close views in other windows")
+                logger.info("close views in other windows")
                 self.viewCloser = ODDViewProcessor(
                     operation = lambda : Application.action('file_close').trigger(),
                     selectionCondition = lambda view : view.document() == doc and view.window() != activeWin,
@@ -708,7 +712,7 @@ class ODDListWidget(QListWidget):
             #app.setActiveDocument(doc)
             doc.waitForDone()
             
-            print("do action", clickedActionName)
+            logger.debug("do action %s", clickedActionName)
             app.action(clickedActionName).trigger()
         
         menu.deleteLater()
@@ -727,13 +731,13 @@ class ODDListWidget(QListWidget):
         btnCancel = msgBox.addButton(QMessageBox.Cancel)
         btnYes    = msgBox.addButton(QMessageBox.Yes)
         msgBox.setDefaultButton(QMessageBox.Yes)
-        print("prompt to close views", str(doc)[-15:-1])
+        logger.debug("prompt to close views %s", str(doc)[-15:-1])
         msgBox.exec()
         return msgBox.clickedButton() == btnYes
     
     def prepareToCloseViews(self, doc, inThisWin):
         if not self.closeViewsPrompt(doc, inThisWin):
-            print("close views cancelled for", str(doc)[-15:-1])
+            logger.debug("close views cancelled for %s", str(doc)[-15:-1])
             return False
         
         Application.setBatchmode(True)
@@ -748,7 +752,7 @@ class ODDListWidget(QListWidget):
     def viewCloserFinished(self, doc):
         Application.setBatchmode(False)
         doc.setBatchmode(False)
-        print("deleting viewCloser")
+        logger.debug("deleting viewCloser")
         self.viewCloser.deleteLater()
         del self.viewCloser
     
@@ -766,10 +770,10 @@ class ODDListWidget(QListWidget):
         btnCancel = msgBox.addButton(QMessageBox.Cancel)
         btnYes    = msgBox.addButton(QMessageBox.Yes)
         msgBox.setDefaultButton(QMessageBox.Yes)
-        print("prompt to close views", str(doc)[-15:-1])
+        logger.debug("prompt to close views %s", str(doc)[-15:-1])
         msgBox.exec()
         if msgBox.clickedButton() == btnCancel:
-            print("close cancelled for", str(doc)[-15:-1])
+            logger.debug("close cancelled for %s", str(doc)[-15:-1])
             return False
         return True
     
@@ -794,6 +798,6 @@ class ODDListWidget(QListWidget):
         return True
     
     def docCloserFinished(self):
-        print("deleting docCloser")
+        logger.debug("deleting docCloser")
         self.docCloser.deleteLater()
         del self.docCloser

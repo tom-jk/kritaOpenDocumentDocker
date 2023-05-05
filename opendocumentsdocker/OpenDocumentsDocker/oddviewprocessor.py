@@ -1,6 +1,10 @@
 from krita import *
 from .odd import ODD
 
+import logging
+logger = logging.getLogger("odd")
+
+
 class ODDViewProcessor(QObject):
     def __init__(
             self,
@@ -13,14 +17,14 @@ class ODDViewProcessor(QObject):
             lastViewPreProcessCallback=None
     ):
         super(ODDViewProcessor, self).__init__()
-        print("ODDViewProcessor: init", self)
-        # ~ print(" - preprocessCallbackForMultipleViews", preprocessCallbackForMultipleViews)
-        # ~ print(" - preprocessCallback", preprocessCallback)
-        # ~ print(" - selectionCondition", selectionCondition)
-        # ~ print(" - switchToView", switchToView)
-        # ~ print(" - operation", operation)
-        # ~ print(" - lastViewPreProcessCallback", lastViewPreProcessCallback)
-        # ~ print(" - finishedCallback", finishedCallback)
+        logger.debug("ODDViewProcessor: init %s", self)
+        # ~ logger.debug(" - preprocessCallbackForMultipleViews %s", preprocessCallbackForMultipleViews)
+        # ~ logger.debug(" - preprocessCallback %s", preprocessCallback)
+        # ~ logger.debug(" - selectionCondition %s", selectionCondition)
+        # ~ logger.debug(" - switchToView %s", switchToView)
+        # ~ logger.debug(" - operation %s", operation)
+        # ~ logger.debug(" - lastViewPreProcessCallback %s", lastViewPreProcessCallback)
+        # ~ logger.debug(" - finishedCallback %s", finishedCallback)
         
         self.preprocessCallbackForMultipleViews = preprocessCallbackForMultipleViews
         self.preprocessCallback = preprocessCallback
@@ -38,27 +42,27 @@ class ODDViewProcessor(QObject):
         self.processor = self.process()
     
     def __del__(self):
-        #print("ODDViewProcessor: deleting instance", self)
+        #logger.debug("ODDViewProcessor: deleting instance %s", self)
         pass
     
     def start(self):
-        print("ODDViewProcessor: start", self)
+        logger.debug("ODDViewProcessor: start %s", self)
         self.stepTimer.start()
 
     def step(self):
         try:
-            #print("ODDViewProcessor: step")
+            #logger.debug("ODDViewProcessor: step")
             next(self.processor)
-            #print("ODDViewProcessor: start timer for next step")
+            #logger.debug("ODDViewProcessor: start timer for next step")
             self.stepTimer.start()
         except StopIteration:
             self.processor = None
-            print("ODDViewProcessor: finished")
+            logger.debug("ODDViewProcessor: finished")
             if self.finishedCallback:
                 self.finishedCallback()
         
     def process(self):
-        print("ODDViewProcessor: begin processor")
+        logger.debug("ODDViewProcessor: begin processor")
         
         viewCount = 0
         for v in ODD.views:
@@ -69,18 +73,18 @@ class ODDViewProcessor(QObject):
         
         if viewCount > 1:
             if self.preprocessCallbackForMultipleViews:
-                print("ODDViewProcessor: preprocessCallbackForMultipleViews")
+                logger.debug("ODDViewProcessor: preprocessCallbackForMultipleViews")
                 if not self.preprocessCallbackForMultipleViews():
-                    print("ODDViewProcessor: processor cancelled.")
+                    logger.debug("ODDViewProcessor: processor cancelled.")
                     return
         
         if self.preprocessCallback:
-            print("ODDViewProcessor: preprocessCallback")
+            logger.debug("ODDViewProcessor: preprocessCallback")
             if not self.preprocessCallback():
-                print("ODDViewProcessor: processor cancelled.")
+                logger.debug("ODDViewProcessor: processor cancelled.")
                 return
         
-        print("ODDViewProcessor: begin process.")
+        logger.debug("ODDViewProcessor: begin process.")
         
         loopCount = 0
         forceNoMoreLoops = False
@@ -101,10 +105,10 @@ class ODDViewProcessor(QObject):
             
             if viewCount == 1:
                 if self.lastViewPreProcessCallback:
-                    print("ODDViewProcessor: lastViewPreProcessCallback")
+                    logger.debug("ODDViewProcessor: lastViewPreProcessCallback")
                     forceNoMoreLoops = (self.lastViewPreProcessCallback() == True)
             elif viewCount == 0:
-                print("ODDViewProcessor: no more views to process.")
+                logger.debug("ODDViewProcessor: no more views to process (viewCount == endAtViewCount).")
                 return
             
             doc = view.document()
@@ -120,9 +124,9 @@ class ODDViewProcessor(QObject):
             
             assert Application.activeWindow().activeView().document() == self.targetDoc if hasattr(self, "targetDoc") else True, \
                     "ODDListWidget:_tryToCloseDocument: sanity check (view doc == doc to close) failed."
-            print("ODDViewProcessor: processing view {} ({} after this)".format(str(view)[-15:-1], viewCount-1))
+            logger.debug("ODDViewProcessor: processing view {} ({} after this)".format(str(view)[-15:-1], viewCount-1))
             doc.waitForDone()
             self.operation()
-            print("ODDViewProcessor: processed view")
+            logger.debug("ODDViewProcessor: processed view")
             doc.waitForDone()
             yield

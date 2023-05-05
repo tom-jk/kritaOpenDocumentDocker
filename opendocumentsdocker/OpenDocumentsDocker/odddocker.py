@@ -11,6 +11,10 @@ from .odd import ODD
 from .oddsettings import ODDSettings, convertSettingStringToValue, convertSettingValueToString
 from .oddlistwidget import ODDListWidget
 
+import logging
+logger = logging.getLogger("odd")
+
+
 class ODDDocker(krita.DockWidget):
     ItemDocumentRole = Qt.UserRole
     ItemUpdateDeferredRole = Qt.UserRole+1
@@ -21,7 +25,7 @@ class ODDDocker(krita.DockWidget):
     imageChangeDetected = False # todo: make instance attribute, not class?
     
     def __init__(self):
-        print("ODDDocker: begin init", self)
+        logger.debug("ODDDocker: begin init %s", self)
         super(ODDDocker, self).__init__()
         
         ODD.dockers.append(self)
@@ -63,7 +67,7 @@ class ODDDocker(krita.DockWidget):
             self.list.setAcceptDrops(True)
             self.list.setDragEnabled(True)
             self.list.setDropIndicatorShown(True)
-            print("qaiv.im:", QAbstractItemView.InternalMove)
+            logger.debug("qaiv.im: %s", QAbstractItemView.InternalMove)
             self.list.setDragDropMode(QAbstractItemView.InternalMove)
             self.list.setDefaultDropAction(Qt.MoveAction)
             self.list.setDragDropOverwriteMode(False)
@@ -89,7 +93,7 @@ class ODDDocker(krita.DockWidget):
         self.dockerStack.addWidget(self.infoScrollArea)
         self.layout.addLayout(self.dockerStack)
         self.layout.setStretch(0, 1)
-                
+        
         self.viewButton.clicked.connect(self.vs.clickedViewButton)
         self.buttonLayout.setSpacing(0)
         self.buttonLayout.addWidget(self.loadButton)
@@ -151,7 +155,7 @@ class ODDDocker(krita.DockWidget):
     def itemClicked(self, item):
         doc = item.data(self.ItemDocumentRole)
         if not doc:
-            print("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
+            logger.warning("ODD: clicked an item that has no doc, or points to a doc that doesn't exist!")
             return
         
         qwin = self.parent()
@@ -220,6 +224,7 @@ class ODDDocker(krita.DockWidget):
                 size = QSize(settingSize, int(settingSize * (doc.height() / doc.width())))
             else:
                 size = QSize(int(settingSize * (doc.width() / doc.height())), settingSize)
+            logger.debug("itemEntered: requesting thumbnail...")
             img = ODD.requestThumbnail(doc, (size.width(), size.height(), doc.width(), doc.height()), forceNotProgressive=True)
             data = QByteArray()
             buffer = QBuffer(data)
@@ -309,43 +314,43 @@ class ODDDocker(krita.DockWidget):
             return True
         
         self.resizeDelay.stop()
-        print("delayedResize: lastSize:", self.lastSize)
-        print("               new size:", self.baseWidget.size())
+        logger.debug("delayedResize: lastSize: %s", self.lastSize)
+        logger.debug("               new size: %s", self.baseWidget.size())
         doRefresh = False
         lastFlow = self.list.flow()
         self.setDockerDirection(self.vs.readSetting("direction"))
         if self.vs.readSetting("display") != "thumbnails":
-            print("delayedResize: not in thumbnails mode, nothing to refresh.")
+            logger.debug("delayedResize: not in thumbnails mode, nothing to refresh.")
         elif self.lastSize != self.baseWidget.size():
             if (lastFlow == QListView.TopToBottom and self.lastSize.width() == self.baseWidget.size().width()) or \
                     (lastFlow == QListView.LeftToRight and self.lastSize.height() == self.baseWidget.size().height()):
-                print("delayedResize: list is longer/shorter, but not narrower/wider - refresh only deferred.")
+                logger.debug("delayedResize: list is longer/shorter, but not narrower/wider - refresh only deferred.")
                 self.list.updateScrollBarRange()
                 self.processDeferredDocumentThumbnails()
             else:
-                print("delayedResize: size changed - refresh.")
+                logger.debug("delayedResize: size changed - refresh.")
                 doRefresh = True
         elif self.list.flow() != lastFlow:
-            print("delayedResize: direction changed - refresh.")
+            logger.debug("delayedResize: direction changed - refresh.")
             doRefresh = True
         elif not checkThumbSizes():
-            print("delayedResize: some items are improperly sized - refresh.")
+            logger.debug("delayedResize: some items are improperly sized - refresh.")
             doRefresh = True
         else:
-            print("delayedResize: size did not change - no refresh.")
+            logger.debug("delayedResize: size did not change - no refresh.")
             
         if doRefresh:
             self.list.invalidateItemRectsCache()
             self.list.itemRects()
             self.list._doNotRecacheItemRects = True
-            print(bool(itemsWithBadThumbs), itemsWithBadThumbs)
+            logger.debug("%s %s", bool(itemsWithBadThumbs), itemsWithBadThumbs)
             if itemsWithBadThumbs:
-                print(" refresh", len(itemsWithBadThumbs), "items")
+                logger.debug(" refresh %s items", len(itemsWithBadThumbs))
                 for i in itemsWithBadThumbs:
                     item = self.list.item(i)
                     self.updateDocumentThumbnail(item.data(self.ItemDocumentRole))
             else:
-                print(" refresh all items")
+                logger.debug(" refresh all items")
                 self.refreshOpenDocuments(soft=True, force=False)
             self.list._doNotRecacheItemRects = False
             self.list.itemRects()
@@ -355,9 +360,9 @@ class ODDDocker(krita.DockWidget):
         self.vs.updatePanelPosition()
     
     def documentCreated(self, doc):
-        print("document created -", doc)
+        logger.debug("document created - %s", doc)
         fName = doc.fileName()
-        print(" name:", (fName if fName else "[not saved]"))
+        logger.debug(" name: %s", (fName if fName else "[not saved]"))
         
         if self.filtButton.isChecked():
             if not ODD.documentHasViewsInWindow(doc, self.window()):
@@ -374,20 +379,20 @@ class ODDDocker(krita.DockWidget):
     def _documentCreated(self):
         doc = self.createdDoc
         self.createdDoc = None
-        print("_documentCreated -", doc)
+        logger.debug("_documentCreated - %s", doc)
         self.addDocumentToList(doc)
     
     def documentClosed(self, doc):
-        print("document closed -", doc, doc.fileName())
+        logger.debug("document closed - %s %s", doc, doc.fileName())
         
         self.removeDocumentFromList(doc)
         
-        print("", self.currentDocument)
+        logger.debug(" %s", self.currentDocument)
         if self.currentDocument == doc:
-            print(" we've closed the document that was current.")
+            logger.debug(" we've closed the document that was current.")
             
             if len(ODD.documents) == 1: # (entry in ODD.documents is not deleted yet, will in a moment, so length 1 'means' empty.)
-                print(" it was the last open document.")
+                logger.debug(" it was the last open document.")
                 self.currentDocument = None
     
     def imageSaved(self, filename):
@@ -403,14 +408,14 @@ class ODDDocker(krita.DockWidget):
             doc = ODD.activeDocument
         else:
             doc = candidates[0]
-        print("image saved -", filename, "(doc", str(doc) + ")")
+        logger.info("image saved - %s (doc %s)", filename, str(doc))
         if self.vs.settingValue("refreshOnSave"):
             self.updateDocumentThumbnail(doc=doc, force=True)
         
         ODDImageChangeDetector.startCooldown()
     
     def moveEvent(self, event):
-        #print("moveEvent:", event.pos(), self.pos(), self.baseWidget.mapToGlobal(self.baseWidget.pos()))
+        #logger.debug("moveEvent: %s %s %s", event.pos(), self.pos(), self.baseWidget.mapToGlobal(self.baseWidget.pos()))
         self.vs.updatePanelPosition()
     
     def dockMoved(self, area):
@@ -428,7 +433,7 @@ class ODDDocker(krita.DockWidget):
         isSettingDisplayThumbnails = self.vs.readSetting("display") == "thumbnails"
         
         if hasattr(ODD.instance, "fileReverter"):
-            print("reverting, skip")
+            logger.debug("reverting, skip")
             return
         
         itemCount = self.list.count()
@@ -436,10 +441,10 @@ class ODDDocker(krita.DockWidget):
             item = self.list.item(i)
             doc = item.data(self.ItemDocumentRole)
             if not doc:
-                assert False, "ODDDocker:itemUpdateTimerTimeout: can't find document for item."
+                logger.warning("ODDDocker:itemUpdateTimerTimeout: can't find document for item.")
                 continue
             if doc.width() == 0 or doc.height() == 0:
-                print("ODDDocker:itemUpdateTimerTimeout: closed document still in list at item", i+1, "/", itemCount, ", skip.")
+                logger.info("ODDDocker:itemUpdateTimerTimeout: closed document still in list at item %s/%s, skip.", i+1, itemCount)
                 continue
             if isSettingDisplayThumbnails:
                 oldModified = item.data(self.ItemModifiedStatusRole)
@@ -470,11 +475,11 @@ class ODDDocker(krita.DockWidget):
             return
         if self.imageChangeDetected:
             if doc.tryBarrierLock():
-                print("refreshTimerTimeout - imageChangeDetected:true, lock:success - refresh")
+                logger.debug("refreshTimerTimeout - imageChangeDetected:true, lock:success - refresh")
                 doc.unlock()
                 self.updateDocumentThumbnail()
             else:
-                print("refreshTimerTimeout - imageChangeDetected:true, lock:failed - document busy, wait")
+                logger.debug("refreshTimerTimeout - imageChangeDetected:true, lock:failed - document busy, wait")
 
     def longestDockerSide(self):
         dockrect = self.layout.geometry()
@@ -512,7 +517,7 @@ class ODDDocker(krita.DockWidget):
             try:
                 self.list.verticalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
-                print("couldn't disconnect vscroll")
+                logger.debug("couldn't disconnect vscroll")
                 pass
             self.list.horizontalScrollBar().valueChanged.connect(self.listScrolled)
         else:
@@ -538,7 +543,7 @@ class ODDDocker(krita.DockWidget):
             try:
                 self.list.horizontalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
-                print("couldn't disconnect hscroll")
+                logger.debug("couldn't disconnect hscroll")
                 pass
             self.list.verticalScrollBar().valueChanged.connect(self.listScrolled)
         self.updateScrollBarPolicy()
@@ -578,17 +583,18 @@ class ODDDocker(krita.DockWidget):
         pass
     
     def activeViewChanged(self):
-        print("active view changed -", self)
+        logger.info("active view changed - %s", self)
         doc = Application.activeDocument()
         ODD.activeDocument = doc
+        logger.debug("ODD.activeDocument -> %s", doc if type(doc) is Document else "None")
         if doc:
             self.currentDocument = doc
-            print(" set currentDocument:", self.currentDocument)
+            logger.debug(" set currentDocument: %s", self.currentDocument)
             docData = ODD.docDataFromDocument(doc)
             qwin = self.parent()
             win = ODD.windowFromQWindow(qwin)
             docData["lastViewInWindow"][qwin] = win.activeView()
-            print("last view on {} in {} set to {}".format(doc, qwin.objectName(), docData["lastViewInWindow"][self.parent()]))
+            logger.debug("last view on {} in {} set to {}".format(doc, qwin.objectName(), docData["lastViewInWindow"][self.parent()]))
         self.ensureListSelectionIsActiveDocument()
         ODDImageChangeDetector.startCooldown()
     
@@ -612,7 +618,7 @@ class ODDDocker(krita.DockWidget):
         self.listToolTip.hide()
     
     def dockVisibilityChanged(self, visible):
-        print("visibilityChanged: visible =", visible)
+        logger.debug("visibilityChanged: visible = %s", visible)
         self.dockVisible = visible
         self.processDeferredDocumentThumbnails()
     
@@ -624,28 +630,28 @@ class ODDDocker(krita.DockWidget):
         """
         if not item:
             if not doc:
-                print("mark deferred: no doc or item specified.")
+                logger.warning("mark deferred: no doc or item specified.")
                 return
             item = self.findItemWithDocument(doc)
             if not item:
-                print("mark deferred: no list item associated with document.")
+                logger.warning("mark deferred: no list item associated with document.")
                 return
         
         if item.data(self.ItemUpdateDeferredRole):
-            print("mark deferred: already marked.")
+            logger.info("mark deferred: already marked.")
             return
         
         if not doc:
             doc = item.data(self.ItemDocumentRole)
         
         self.deferredItemThumbnailCount += 1
-        print("DEFERRED ITEM COUNT +1, =", self.deferredItemThumbnailCount)
+        logger.debug("DEFERRED ITEM COUNT +1, = %s", self.deferredItemThumbnailCount)
         item.setData(self.ItemUpdateDeferredRole, True)
-        print("mark deferred: " + ODD.documentDisplayName(doc) + " thumbnail update has been deferred.")
+        logger.debug("mark deferred: %s thumbnail update has been deferred.", ODD.documentDisplayName(doc))
     
     def unmarkDocumentThumbnailAsDeferred(self, doc=None, item=None):
         if not item.data(self.ItemUpdateDeferredRole):
-            #print("unmark deferred: already not marked.")
+            #logger.info("unmark deferred: already not marked.")
             return
         
         if not doc:
@@ -653,8 +659,8 @@ class ODDDocker(krita.DockWidget):
         
         item.setData(self.ItemUpdateDeferredRole, False)
         self.deferredItemThumbnailCount -= 1
-        print("DEFERRED ITEM COUNT -1, =", self.deferredItemThumbnailCount)
-        print("unmark deferred: " + ODD.documentDisplayName(doc) + " thumbnail update is no longer deferred.")
+        logger.debug("DEFERRED ITEM COUNT -1, = %s", self.deferredItemThumbnailCount)
+        logger.debug("unmark deferred: %s thumbnail update is no longer deferred.", ODD.documentDisplayName(doc))
     
     def processDeferredDocumentThumbnails(self):
         if not self.dockVisible:
@@ -663,10 +669,18 @@ class ODDDocker(krita.DockWidget):
         if self.deferredItemThumbnailCount == 0:
             return
         
-        assert self.deferredItemThumbnailCount >= 0, "ODD: deferredItemThumbnailCount is negative."
+        itemCount = self.list.count()
+        
+        if self.deferredItemThumbnailCount < 0:
+            logger.error("deferredItemThumbnailCount is negative.")
+            # correct the count.
+            self.deferredItemThumbnailCount = 0
+            for i in range(itemCount):
+                if self.list.item(i).data(self.ItemUpdateDeferredRole):
+                    self.deferredItemThumbnailCount += 1
+            logger.info("DEFERRED ITEM COUNT = %s", self.deferredItemThumbnailCount)
         
         viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
-        itemCount = self.list.count()
         for i in range(itemCount):
             item = self.list.item(i)
             if item.data(self.ItemUpdateDeferredRole):
@@ -678,7 +692,7 @@ class ODDDocker(krita.DockWidget):
                     pass
     
     def dropEvent(self, event):
-        print("dropEvent: ", event)
+        logger.debug("dropEvent: %s", event)
     
     def refreshOpenDocuments(self, soft=False, force=False):
         if soft:
@@ -688,7 +702,7 @@ class ODDDocker(krita.DockWidget):
                 self.updateDocumentThumbnail(item.data(self.ItemDocumentRole), force)
         else:
             self.deferredItemThumbnailCount = 0
-            print("DEFERRED ITEM COUNT = 0")
+            logger.debug("DEFERRED ITEM COUNT = 0")
             count = self.list.count()
             for i in range(count):
                 item = self.list.item(i)
@@ -727,7 +741,7 @@ class ODDDocker(krita.DockWidget):
         
         viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
         visRect = self.list.visualItemRect(item)
-        print("isItemOnScreen:", viewRect, visRect, bool(viewRect.intersected(visRect).isValid()))
+        logger.debug("isItemOnScreen: %s %s %s", viewRect, visRect, bool(viewRect.intersected(visRect).isValid()))
         return viewRect.intersected(visRect).isValid()
     
     def updateDocumentThumbnailForced(self):
@@ -773,21 +787,21 @@ class ODDDocker(krita.DockWidget):
         if not doc:
             doc = ODD.activeDocument
         if not doc:
-            print("update thumb: no active document.")
+            logger.warning("update thumb: no active document.")
             return
         
         item = self.findItemWithDocument(doc)
         if not item:
-            print("update thumb: no list item associated with document.")
+            logger.warning("update thumb: no list item associated with document.")
             return
         
         if ignoreThumbsMoreRecentThan:
             docData = ODD.docDataFromDocument(doc)
             thKey = item.data(self.ItemThumbnailKeyRole)
             thTime = docData["thumbnails"][thKey]["lastUsed"]
-            print("update thumb: doc:{}, thKey:{}, thTime:{:n}, requiredTime:{:n}".format(ODD.documentDisplayName(doc), thKey, thTime, ignoreThumbsMoreRecentThan))
+            logger.debug("update thumb: doc:{}, thKey:{}, thTime:{:n}, requiredTime:{:n}".format(ODD.documentDisplayName(doc), thKey, thTime, ignoreThumbsMoreRecentThan))
             if thTime >= ignoreThumbsMoreRecentThan:
-                print("update thumb: thumb already more recent than required, cancel.")
+                logger.debug("update thumb: thumb already more recent than required, cancel.")
                 return
         
         settingDisplayThumbs = self.vs.settingValue("display", True) == "thumbnails"
@@ -799,23 +813,23 @@ class ODDDocker(krita.DockWidget):
         
         if not (settingDisplayThumbs and self.isItemOnScreen(item)):
             self.markDocumentThumbnailAsDeferred(None, item)
-            print("update thumb: item not currently visible or docker in text mode, update later.")
+            logger.debug("update thumb: item not currently visible or docker in text mode, update later.")
             return
         
         self.unmarkDocumentThumbnailAsDeferred(doc, item)
         
-        print("update thumb for", doc.fileName())
+        logger.debug("update thumb for %s", doc.fileName())
         self.updateItemThumbnail(item, doc)
     
     def updateItemThumbnail(self, item, doc):
         if result := self.generateThumbnailForItem(item, doc):
-            print("updateItemThumbnail: result: pixmap={}, thumbKey={}".format(result[0], result[1]))
+            logger.debug("updateItemThumbnail: result: pixmap={}, thumbKey={}".format(result[0], result[1]))
             oldThumbKey = item.data(self.ItemThumbnailKeyRole)
             if oldThumbKey != result[1]:
                 if result[0]:
                     item.setData(Qt.DecorationRole, result[0])
                 item.setData(self.ItemThumbnailKeyRole, result[1])
-                print("oldThumbKey:", oldThumbKey, ", result[1]:", result[1])
+                logger.debug("oldThumbKey: %s, result[1]: %s", oldThumbKey, result[1])
                 ODD.addThumbnailUser(self, doc, result[1])
                 if oldThumbKey:
                     ODD.removeThumbnailUser(self, doc, oldThumbKey)
@@ -829,7 +843,7 @@ class ODDDocker(krita.DockWidget):
         return None
     
     def addDocumentToList(self, doc):
-        print("addDocumentToList:", doc)
+        logger.debug("addDocumentToList: %s", doc)
         item = QListWidgetItem("", self.list)
         item.setData(self.ItemDocumentRole, doc)
         item.setData(self.ItemDocumentSizeRole, QSize(doc.width(), doc.height()))
@@ -852,7 +866,7 @@ class ODDDocker(krita.DockWidget):
                 item = self.list.takeItem(self.list.row(searchItem))
                 break
         if item:
-            print("deleting item")
+            logger.debug("deleting item")
             self.unmarkDocumentThumbnailAsDeferred(item.data(self.ItemDocumentRole), item)
             if item.data(Qt.DecorationRole):
                 ODD.removeThumbnailUser(self, doc, item.data(self.ItemThumbnailKeyRole))
@@ -860,7 +874,7 @@ class ODDDocker(krita.DockWidget):
             self.ensureListSelectionIsActiveDocument()
             self.list.invalidateItemRectsCache()
         else:
-            print("did not find item to delete!")
+            logger.warning("did not find item to delete!")
     
     def calculateRenderSizeForItem(self, item):
         return calculateRenderSizeForThumbnail(item.data(self.ItemDocumentSizeRole))
@@ -904,7 +918,7 @@ class ODDDocker(krita.DockWidget):
             width = min(width, maxSize)
             height = width * docRatio
             size = QSizeF(width, height)
-            #print("cdsft: Vert", scrollBarWidth, self.list.width(), docRatio, str(size.width())+"x"+str(size.height()))
+            #logger.debug("cdsft: Vert %s %s %s %s", scrollBarWidth, self.list.width(), docRatio, str(size.width())+"x"+str(size.height()))
         else:
             scrollBarHeight = self.list.horizontalScrollBar().sizeHint().height() if self.list.horizontalScrollBar().isVisible() else 0
             height = self.list.height() - gutterPixels - scrollBarHeight
@@ -912,7 +926,7 @@ class ODDDocker(krita.DockWidget):
             height = min(height, maxSize)
             width = height / docRatio
             size = QSizeF(width, height)
-            #print("cdsft: Hori", scrollBarHeight, self.list.height(), docRatio, str(size.width())+"x"+str(size.height()))
+            #logger.debug("cdsft: Hori %s %s %s %s", scrollBarHeight, self.list.height(), docRatio, str(size.width())+"x"+str(size.height()))
         
         if asFloat:
             if size.width() < 1.0:

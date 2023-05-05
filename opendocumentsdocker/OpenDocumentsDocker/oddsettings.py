@@ -5,6 +5,10 @@ from krita import *
 import math
 from ast import literal_eval
 
+import logging
+logger = logging.getLogger("odd")
+
+
 def convertSettingStringToValue(settingName, string):
     setting = ODDSettings.SD[settingName]
     strings = setting["strings"]
@@ -344,17 +348,17 @@ class ODDSettings(QObject):
     
     def __init__(self, odd, oddDocker):
         super(ODDSettings, self).__init__()
-        print("ODDSettings: init")
-        #print(self.SD)
+        logger.debug("ODDSettings: init")
+        #logger.debug(self.SD)
         self.odd = odd
         self.oddDocker = oddDocker
         self.panelSize = QSize()
         self.panelPosition = QPoint()
         
         ODDSettings.instances.append(self)
-        print("instances:")
+        logger.debug("instances:")
         for i in ODDSettings.instances:
-            print(i)
+            logger.debug(i)
         
         self.setupInstanceSettings()
         
@@ -399,7 +403,7 @@ class ODDSettings(QObject):
         for setting in cls.SD.items():
             sName = setting[0]
             sData = setting[1]
-            #print(sName, sData)
+            #logger.debug("%s %s", sName, sData)
             if "depends" in sData:
                 depends = sData["depends"]
                 if "dependsOn" in depends:
@@ -411,26 +415,26 @@ class ODDSettings(QObject):
                         elif not "dependedOnBy" in s["depends"]:
                             s["depends"]["dependedOnBy"] = []
                         cls.SD[i]["depends"]["dependedOnBy"].append(sName)
-                        #print(sName, "depends on", i)
-        #print(cls.SD)
+                        #logger.debug("%s depends on %s", sName, i)
+        #logger.debug(cls.SD)
     
     @classmethod
     def setupGlobalSettings(cls):
         cls.globalSettings = {}
         for setting in cls.SD:
             cls.globalSettings[setting] = cls.readSettingFromConfig(setting)
-            #print("setting", setting, "=", cls.globalSettings[setting])
+            #logger.debug("setting %s = %s", setting, cls.globalSettings[setting])
     
     def setupInstanceSettings(self):
         fromWindow = Application.activeWindow()
-        print("setupInstanceSettings: fromWindow:", fromWindow, "(", fromWindow.qwindow().objectName() if fromWindow else "", ")")
+        logger.debug("setupInstanceSettings: fromWindow: %s (%s)", fromWindow, fromWindow.qwindow().objectName() if fromWindow else "")
         fromDocker = self.odd.findDockerWithWindow(fromWindow) if fromWindow else None
         settingsSource = fromDocker.vs.settings if fromDocker else self.globalSettings
         self.settings = {}
         for setting in self.SD:
             if self.settingFlag(setting, "perInstance"):
                 self.settings[setting] = settingsSource[setting]
-                #print("setting", setting, "overriden in instance.")
+                #logger.debug("setting %s overriden in instance.", setting)
     
     @classmethod
     def settingFlag(cls, setting, flag):
@@ -456,26 +460,26 @@ class ODDSettings(QObject):
             return
             
         if setting in self.settings:
-            print("writeSetting for local setting", setting, "with value", value)
+            logger.debug("writeSetting for local setting %s with value %s", setting, value)
             self.settings[setting] = value
             
         else:
             cls = type(self)
-            print("writeSetting for global setting", setting, "with value", value)#, end=" ")
+            logger.debug("writeSetting for global setting %s with value %s", setting, value)
             if not cls.isUpdatingControlsInInstances:
                 cls.globalSettings[setting] = value
-                #print("... done, start updating control in other dockers.")
+                #logger.debug("... done, start updating control in other dockers.")
                 if not "initial" in cls.SD[setting]:
-                    print("warning: setting", setting, "does not have an 'initial' item.")
+                    logger.warning("warning: setting %s does not have an 'initial' item.", setting)
                     return
                 cls.isUpdatingControlsInInstances = True
                 for inst in cls.instances:
                     if inst != self:
-                        #print("updating controls for", setting, "in other docker settings", inst)
+                        #logger.debug("updating controls for %s in other docker settings %s", setting, inst)
                         cls.SD[setting]["initial"](inst)
                 cls.isUpdatingControlsInInstances = False
             #else:
-                #print("... stop, we're just being updated by another docker.")
+                #logger.debug("... stop, we're just being updated by another docker.")
         
         if not setting in self.configFlushBuffer:
             self.configFlushBuffer.append(setting)
@@ -489,13 +493,13 @@ class ODDSettings(QObject):
         delay.start()
     
     def flushSettingsToConfig(self):
-        print("flush")
+        logger.debug("flush")
         for i in self.configFlushBuffer:
             self.writeSettingToConfig(i, self.readSetting(i))
         self.configFlushBuffer.clear()
     
     def writeSettingToConfig(self, setting, value):
-        print("write", setting, "=", value)
+        logger.info("write %s = %s", setting, value)
         if not setting in self.SD:
             return
         Application.writeSetting("OpenDocumentsDocker", setting, str(value))
@@ -598,7 +602,7 @@ class ODDSettings(QObject):
     
     def changedGridMode(self, index):
         setting = self.settingValue("gridMode")
-        print("changedGridMode to", setting)
+        logger.debug("changedGridMode to %s", setting)
         self.writeSetting("gridMode", setting)
         self.updateListThumbnails()
     
@@ -606,8 +610,8 @@ class ODDSettings(QObject):
         setting = "{:1.6g}".format(pow(10, value/200.0))
         self.UI["thumbAspectLimit"]["value"].setText("1:{:1.3g}".format(float(setting)))
         self.writeSetting("thumbAspectLimit", setting)
-        print("changedThumbAspectLimitSlider: value, setting: ", value, setting)
-        #print("find original value:", value/200.0, "->", setting, "->", "{:1.3g}".format(math.log10(float(setting))))
+        logger.debug("changedThumbAspectLimitSlider: value, setting: %s %s", value, setting)
+        #logger.debug("find original value: %s -> %s -> %s", value/200.0, setting, "{:1.3g}".format(math.log10(float(setting))))
         
         self.updateListThumbnails()
     
@@ -637,7 +641,7 @@ class ODDSettings(QObject):
 
     def changedThumbShowModified(self, index):
         setting = self.settingValue("thumbShowModified")
-        print("changedThumbShowModified to", setting)
+        logger.debug("changedThumbShowModified to %s", setting)
         self.writeSetting("thumbShowModified", setting)
         self.oddDocker.list.viewport().update()
     
@@ -712,7 +716,7 @@ class ODDSettings(QObject):
     def changedSettingCheckBox(self, setting, state=None, postCallable=None):
         if not state:
             state = self.UI[setting]["btn"].isChecked()
-        print("changedSettingCheckBox:", setting, state, self.sender(), postCallable)
+        #logger.debug("changedSettingCheckBox: %s %s %s %s", setting, state, self.sender(), postCallable)
         writeValue = str(state==2).lower()
         self.writeSetting(setting, writeValue)
         
@@ -730,7 +734,7 @@ class ODDSettings(QObject):
             return formatString.format(self.settingValue(setting))
     
     def changedSettingSlider(self, setting, value, valueText=None, postCallable=None):
-        print("changedSettingSlider:", setting, value, valueText, self.sender(), postCallable)
+        #logger.debug("changedSettingSlider: %s %s %s %s %s", setting, value, valueText, self.sender(), postCallable)
         
         valueText = valueText or self.sliderValueText(setting, value)
         self.UI[setting]["value"].setText(self.decoratedSettingText(setting, valueText))
@@ -765,7 +769,7 @@ class ODDSettings(QObject):
         self.UI[setting]["btn"].setToolTip(tooltipText)
     
     def createPanelSliderControlsForSetting(self, setting, valueText=None, valRange=None, labelText=None, value=None, tooltipText=""):
-        #print("cPSCFS: {} vt:{} vr:{} lt:{}, v:{}".format(setting, valueText, valRange, labelText, value))
+        #logger.debug("cPSCFS: {} vt:{} vr:{} lt:{}, v:{}".format(setting, valueText, valRange, labelText, value))
         layout = QHBoxLayout()
         label = QLabel(labelText if labelText != None else (self.SD[setting]["label"] if "label" in self.SD[setting] else ""), self.panel)
         control = QSlider(Qt.Horizontal, self.panel)
@@ -1366,14 +1370,14 @@ class ODDSettings(QObject):
     
     @classmethod
     def debugDump(cls):
-        print(" - ODDSettings - ")
+        logger.info(" - ODDSettings - ")
         for setting in cls.SD.items():
             first = True
             for attr in setting[1].items():
-                print("{:<36}{:<10}{}".format(setting[0] if first else "", attr[0], attr[1] if not attr[0]=="tooltips" else "<snip>"))
+                logger.info("{:<36}{:<10}{}".format(setting[0] if first else "", attr[0], attr[1] if not attr[0]=="tooltips" else "<snip>"))
                 first = False
         for setting in cls.globalSettings.items():
-            print("{:<36}{}".format(setting[0], setting[1]))
+            logger.info("{:<36}{}".format(setting[0], setting[1]))
     
     def roundToNSigFigures(v, n):
         """(tested with zero and positive integers only)"""
