@@ -136,13 +136,14 @@ class ODDImageChangeDetector(QObject):
                 if cls.changedDoc["busyLastCheck"]:
                     # doc has just finished being busy.
                     # invalidate thumbs again at end (less costly than
-                    # invalidating constantly while busy).
+                    # invalidating constantly while busy). ditto time.
+                    cls.changedDoc["changeTime"] = process_time_ns()
                     ODD.invalidateThumbnails(doc)
                 cls.changedDoc["busyLastCheck"] = False
             else:
                 if not any(dd["document"] == doc for dd in ODD.documents):
                     # couldn't acquire lock for a document that was closed.
-                    assert False, "should not reach here."
+                    logger.error("tried to acquire lock for a document that was closed. this shouldn't happen.")
                     return 
                 # doc was busy.
                 if cls.changedDoc["hasChanged"]:
@@ -151,11 +152,11 @@ class ODDImageChangeDetector(QObject):
                 else:
                     logger.debug("ODDImageChangeDetector: detected change in %s", cls.changedDoc["docData"]["document"].fileName())
                     cls.changedDoc["hasChanged"] = True
+                    cls.changedDoc["changeTime"] = process_time_ns()
                     ODD.invalidateThumbnails(doc)
                 
                 # reset refresh delay so long as doc being changed.
                 cls.changedDoc["refreshDelay"] = cls.refreshDelay
-                cls.changedDoc["changeTime"] = process_time_ns()
                 
                 cls.changedDoc["busyLastCheck"] = True
     
