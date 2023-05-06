@@ -274,6 +274,10 @@ class ODD(Extension):
                     docData["lastViewInWindow"][k] = None
         
         cls.updateDocumentsFromViews()
+        
+        for docker in cls.dockers:
+            if docker.filtButton.isChecked():
+                docker.toggleDockerFiltering()
     
     @classmethod
     def updateDocumentsFromViews(cls):

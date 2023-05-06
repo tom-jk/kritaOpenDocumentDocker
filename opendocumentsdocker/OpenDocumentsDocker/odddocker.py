@@ -364,10 +364,6 @@ class ODDDocker(krita.DockWidget):
         fName = doc.fileName()
         logger.debug(" name: %s", (fName if fName else "[not saved]"))
         
-        if self.filtButton.isChecked():
-            if not ODD.documentHasViewsInWindow(doc, self.window()):
-                return
-        
         if not hasattr(self, "docCreatedDelay"):
             self.docCreatedDelay = QTimer(self.baseWidget)
             self.docCreatedDelay.setSingleShot(True)
@@ -725,6 +721,9 @@ class ODDDocker(krita.DockWidget):
         if not self.dockVisible:
             return False
         
+        if item.isHidden():
+            return False
+        
         viewRect = QRect(QPoint(0, 0), self.list.viewport().size())
         visRect = self.list.visualItemRect(item)
         logger.debug("isItemOnScreen: %s %s %s", viewRect, visRect, bool(viewRect.intersected(visRect).isValid()))
@@ -741,33 +740,19 @@ class ODDDocker(krita.DockWidget):
     
     def toggleDockerFiltering(self):
         enabled = self.filtButton.isChecked()
+        count = self.list.count()
         if enabled:
-            docsToRemove = []
-            win = Application.activeWindow()
-            count = self.list.count()
+            win = ODD.windowFromQWindow(self.parent())
             for i in range(count):
                 item = self.list.item(i)
                 doc = item.data(self.ItemDocumentRole)
-                if not ODD.documentHasViewsInWindow(doc, win):
-                    docsToRemove.append(doc)
-            for doc in docsToRemove:
-                self.removeDocumentFromList(doc)
+                item.setHidden(not ODD.documentHasViewsInWindow(doc, win))
         else:
-            docsToAdd = []
-            count = self.list.count()
-            for docData in ODD.documents:
-                doc = docData["document"]
-                isInList = False
-                for i in range(count):
-                    item = self.list.item(i)
-                    if item.data(self.ItemDocumentRole) == doc:
-                        isInList = True
-                        break
-                if not isInList:
-                    docsToAdd.append(doc)
-            for doc in docsToAdd:
-                self.addDocumentToList(doc)
-                
+            for i in range(count):
+                item = self.list.item(i)
+                item.setHidden(False)
+        self.list.invalidateItemRectsCache()
+        self.processDeferredDocumentThumbnails()
     
     def updateDocumentThumbnail(self, doc=None, force=False, ignoreThumbsMoreRecentThan=None):
         if not doc:
@@ -784,11 +769,12 @@ class ODDDocker(krita.DockWidget):
         if ignoreThumbsMoreRecentThan:
             docData = ODD.docDataFromDocument(doc)
             thKey = item.data(self.ItemThumbnailKeyRole)
-            thTime = docData["thumbnails"][thKey]["lastUsed"]
-            logger.debug("update thumb: doc:{}, thKey:{}, thTime:{:n}, requiredTime:{:n}".format(ODD.documentDisplayName(doc), thKey, thTime, ignoreThumbsMoreRecentThan))
-            if thTime >= ignoreThumbsMoreRecentThan:
-                logger.debug("update thumb: thumb already more recent than required, cancel.")
-                return
+            if thKey:
+                thTime = docData["thumbnails"][thKey]["lastUsed"]
+                logger.debug("update thumb: doc:{}, thKey:{}, thTime:{:n}, requiredTime:{:n}".format(ODD.documentDisplayName(doc), thKey, thTime, ignoreThumbsMoreRecentThan))
+                if thTime >= ignoreThumbsMoreRecentThan:
+                    logger.debug("update thumb: thumb already more recent than required, cancel.")
+                    return
         
         settingDisplayThumbs = self.vs.settingValue("display", True) == "thumbnails"
         if not settingDisplayThumbs:
@@ -839,6 +825,7 @@ class ODDDocker(krita.DockWidget):
         else:
             item.setText(ODD.documentDisplayName(doc))
         
+        self.toggleDockerFiltering()
         self.list.invalidateItemRectsCache()
         self.list.update()
         self.ensureListSelectionIsActiveDocument()

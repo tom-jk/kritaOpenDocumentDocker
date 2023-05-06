@@ -200,6 +200,9 @@ class ODDListWidget(QListWidget):
             xExt = 2
         for i in range(count):
             item = self.item(i)
+            if item.isHidden():
+                itemRects.append(QRect(0,0,0,0))
+                continue
             size = self.oddDocker.calculateDisplaySizeForThumbnail(item.data(self.oddDocker.ItemDocumentSizeRole), False, True)
             itemRects.append(QRect(x, y, size.width(), size.height()))
             if isListVertical:
@@ -213,6 +216,9 @@ class ODDListWidget(QListWidget):
         
         for i in range(count):
             item = self.item(i)
+            if item.isHidden():
+                itemRects.append(QRect(0,0,0,0))
+                continue
             if stack == stackCount:
                 if isListVertical:
                     x = 0
@@ -247,6 +253,9 @@ class ODDListWidget(QListWidget):
         
         for i in range(count):
             item = self.item(i)
+            if item.isHidden():
+                itemRects.append(QRect(0,0,0,0))
+                continue
             docSize = item.data(self.oddDocker.ItemDocumentSizeRole)
             itemSize = self.oddDocker.calculateDisplaySizeForThumbnail(docSize, True, True)
             
@@ -416,6 +425,8 @@ class ODDListWidget(QListWidget):
         
         for i in range(count):
             item = self.item(i)
+            if item.isHidden():
+                continue
             isItemActiveDoc = item.data(self.oddDocker.ItemDocumentRole) == activeDoc
             itemRect = self.itemRects()[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
             option.rect = itemRect
