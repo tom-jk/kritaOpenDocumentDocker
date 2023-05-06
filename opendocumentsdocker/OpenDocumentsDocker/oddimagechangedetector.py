@@ -95,9 +95,7 @@ class ODDImageChangeDetector(QObject):
         cls.removeStopper(cls.StopReasonCooldown)
     
     @classmethod
-    def checkTimerTimeout(cls):
-        #logger.debug("checkTimerTimeout")
-        
+    def activeDocumentChanged(cls):
         doc = ODD.activeDocument
         
         if not cls.changedDoc or doc != cls.changedDoc["docData"]["document"]:
@@ -125,6 +123,11 @@ class ODDImageChangeDetector(QObject):
                     cls.changedDoc = cls.changedDocs[-1]
             else:
                 cls.changedDoc = None
+    
+    @classmethod
+    def checkTimerTimeout(cls):
+        #logger.debug("checkTimerTimeout")
+        doc = ODD.activeDocument
         
         if doc:
             if doc.tryBarrierLock():

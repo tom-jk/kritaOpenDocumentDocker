@@ -211,8 +211,7 @@ class ODD(Extension):
         cls.kritaHasFocus = bool(focusWindow)
         #logger.debug("krita has {} focus.".format(("already got" if hadFocus else "regained") if cls.kritaHasFocus else "lost"))
         
-        cls.activeDocument = Application.activeDocument()
-        logger.debug("ODD.activeDocument -> %s", cls.activeDocument.fileName() if type(cls.activeDocument) is Document else "None")
+        cls.updateActiveDocument()
         
         if hadFocus != cls.kritaHasFocus:
             if cls.kritaHasFocus:
@@ -344,9 +343,15 @@ class ODD(Extension):
                 del cls.documents[i]
                 del docStillExists[i]
                 if len(cls.documents) == 0:
-                    cls.activeDocument = None
+                    cls.updateActiveDocument()
             else:
                 i += 1
+    
+    @classmethod
+    def updateActiveDocument(cls):
+        cls.activeDocument = Application.activeDocument()
+        logger.debug("ODD.activeDocument -> %s", cls.activeDocument.fileName() if type(cls.activeDocument) is Document else "None")
+        ODDImageChangeDetector.activeDocumentChanged()
     
     @classmethod
     def docDataFromDocument(cls, doc):

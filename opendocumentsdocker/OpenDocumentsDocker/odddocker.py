@@ -572,9 +572,8 @@ class ODDDocker(krita.DockWidget):
     
     def activeViewChanged(self):
         logger.info("active view changed - %s", self)
-        doc = Application.activeDocument()
-        ODD.activeDocument = doc
-        logger.debug("ODD.activeDocument -> %s", doc if type(doc) is Document else "None")
+        ODD.updateActiveDocument()
+        doc = ODD.activeDocument
         if doc:
             self.currentDocument = doc
             logger.debug(" set currentDocument: %s", self.currentDocument)
