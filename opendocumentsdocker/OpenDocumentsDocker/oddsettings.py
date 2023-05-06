@@ -488,8 +488,6 @@ class ODDSettings(QObject):
     
     def startConfigFlushDelayTimer(self):
         delay = self.configFlushDelay
-        if delay.isActive():
-            delay.stop()
         delay.start()
     
     def flushSettingsToConfig(self):
@@ -697,8 +695,6 @@ class ODDSettings(QObject):
     
     def startRefreshAllDelayTimer(self):
         delay = self.oddDocker.refreshAllDelay
-        if delay.isActive():
-            delay.stop()
         delay.start()
     
     def postchangeRefreshPeriodicallyChecksSlider(self):

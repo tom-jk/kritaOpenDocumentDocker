@@ -595,8 +595,7 @@ class ODDDocker(krita.DockWidget):
         # TODO: change init order so check not necessary
         if not hasattr(self, "resizeDelay"):
             return
-        if self.resizeDelay.isActive():
-            self.resizeDelay.stop()
+        self.resizeDelay.stop()
         self.resizeDelay.setSingleShot(True)
         self.resizeDelay.setInterval(100)
         self.resizeDelay.start()
