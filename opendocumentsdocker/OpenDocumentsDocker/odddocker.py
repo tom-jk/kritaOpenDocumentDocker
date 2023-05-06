@@ -468,18 +468,6 @@ class ODDDocker(krita.DockWidget):
         
         if self.dockerStack.currentIndex() == 1:
             self.updateLabel()
-    
-    def refreshTimerTimeout(self):
-        doc = Application.activeDocument()
-        if doc == None:
-            return
-        if self.imageChangeDetected:
-            if doc.tryBarrierLock():
-                logger.debug("refreshTimerTimeout - imageChangeDetected:true, lock:success - refresh")
-                doc.unlock()
-                self.updateDocumentThumbnail()
-            else:
-                logger.debug("refreshTimerTimeout - imageChangeDetected:true, lock:failed - document busy, wait")
 
     def longestDockerSide(self):
         dockrect = self.layout.geometry()
