@@ -11,6 +11,8 @@ class ODDImageChangeDetector(QObject):
     StopReasonUser = 1
     StopReasonBlur = 2
     StopReasonCooldown = 4
+    StopReasonNoDoc = 8
+    StopReasonNoChanges = 16
     checkTimer = None
     refreshCheckTimer = None
     refreshDelay = 0
@@ -19,6 +21,7 @@ class ODDImageChangeDetector(QObject):
     instance = None
     changedDocs = []
     changedDoc = None
+    pendingCount = 0
     
     def __init__(self):
         logger.debug("ODDImageChangeDetector:__init__")
@@ -49,24 +52,24 @@ class ODDImageChangeDetector(QObject):
     
     @classmethod
     def addStopper(cls, stopReason):
-        if stopReason not in [cls.StopReasonUser, cls.StopReasonBlur, cls.StopReasonCooldown]:
+        if stopReason not in [cls.StopReasonUser, cls.StopReasonBlur, cls.StopReasonCooldown, cls.StopReasonNoDoc, cls.StopReasonNoChanges]:
             return
         
         cls.stopReasons |= stopReason
         
         if cls.refreshCheckTimer.isActive():
-            if stopReason & (cls.StopReasonUser | cls.StopReasonBlur):
-                logger.info("ODDImageChangeDetector: stopping refreshCheckTimer.")
+            if stopReason & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonNoChanges):
+                logger.info("ODDImageChangeDetector: stopping refreshCheckTimer. (reason=%s)", stopReason)
                 cls.refreshCheckTimer.stop()
         
         if cls.checkTimer.isActive():
-            if stopReason & (cls.StopReasonBlur | cls.StopReasonCooldown):
-                logger.info("ODDImageChangeDetector: stopping checkTimer.")
+            if stopReason & (cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc):
+                logger.info("ODDImageChangeDetector: stopping checkTimer. (reason=%s)", stopReason)
                 cls.checkTimer.stop()
     
     @classmethod
     def removeStopper(cls, stopReason):
-        if stopReason not in [cls.StopReasonUser, cls.StopReasonBlur, cls.StopReasonCooldown]:
+        if stopReason not in [cls.StopReasonUser, cls.StopReasonBlur, cls.StopReasonCooldown, cls.StopReasonNoDoc, cls.StopReasonNoChanges]:
             return
         if not cls.stopReasons:
             return
@@ -74,12 +77,12 @@ class ODDImageChangeDetector(QObject):
         cls.stopReasons &= ~stopReason
         
         if not cls.checkTimer.isActive():
-            if not (cls.stopReasons & (cls.StopReasonBlur | cls.StopReasonCooldown)):
+            if not (cls.stopReasons & (cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc)):
                 logger.info("ODDImageChangeDetector: restarting checkTimer.")
                 cls.checkTimer.start()
         
         if not cls.refreshCheckTimer.isActive():
-            if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur)):
+            if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonNoChanges)):
                 logger.info("ODDImageChangeDetector: restarting refreshCheckTimer.")
                 cls.refreshCheckTimer.start()
     
@@ -104,6 +107,7 @@ class ODDImageChangeDetector(QObject):
                     # remove inactive and unchanged doc.
                     del cls.changedDocs[cls.changedDocs.index(cls.changedDoc)]
             if doc:
+                cdWasNone = not cls.changedDoc
                 found = False
                 logger.debug("checking if doc in changedDocs")
                 for cd in cls.changedDocs:
@@ -121,8 +125,11 @@ class ODDImageChangeDetector(QObject):
                         "refreshDelay": 0,
                     })
                     cls.changedDoc = cls.changedDocs[-1]
+                if cdWasNone:
+                    cls.removeStopper(cls.StopReasonNoDoc)
             else:
                 cls.changedDoc = None
+                cls.addStopper(cls.StopReasonNoDoc)
     
     @classmethod
     def checkTimerTimeout(cls):
@@ -150,9 +157,13 @@ class ODDImageChangeDetector(QObject):
                     # doc already known to be changed.
                     pass
                 else:
+                    # doc has newly become busy, a change has begun.
                     logger.debug("ODDImageChangeDetector: detected change in %s", cls.changedDoc["docData"]["document"].fileName())
                     cls.changedDoc["hasChanged"] = True
                     cls.changedDoc["changeTime"] = process_time_ns()
+                    if cls.pendingCount == 0:
+                        cls.pendingCount = 1
+                        cls.removeStopper(cls.StopReasonNoChanges)
                     ODD.invalidateThumbnails(doc)
                 
                 # reset refresh delay so long as doc being changed.
@@ -162,6 +173,7 @@ class ODDImageChangeDetector(QObject):
     
     @classmethod
     def refreshCheckTimerTimeout(cls):
+        pendingCount = 0
         for cd in cls.changedDocs:
             if cd["refreshDelay"] > 0:
                 cd["refreshDelay"] -= cls.refreshCheckTimer.interval()
@@ -170,6 +182,7 @@ class ODDImageChangeDetector(QObject):
                     if not cdDoc.tryBarrierLock():
                         # go around.
                         cd["refreshDelay"] = cls.refreshDelay
+                        pendingCount += 1
                         continue
                     cdDoc.unlock()
                     cd["refreshDelay"] = 0
@@ -178,6 +191,8 @@ class ODDImageChangeDetector(QObject):
                     logger.debug("ODDImageChangeDetector: time to refresh %s", cdDoc.fileName())
                     for docker in ODD.dockers:
                         docker.updateDocumentThumbnail(cdDoc, ignoreThumbsMoreRecentThan=cd["changeTime"])
+                else:
+                    pendingCount += 1
         
         i = 0
         while i < len(cls.changedDocs):
@@ -186,6 +201,10 @@ class ODDImageChangeDetector(QObject):
                 del cls.changedDocs[i]
             else:
                 i += 1
+        
+        cls.pendingCount = pendingCount
+        if cls.pendingCount == 0:
+            cls.addStopper(cls.StopReasonNoChanges)
 
 
 from .odddocker import ODDDocker
