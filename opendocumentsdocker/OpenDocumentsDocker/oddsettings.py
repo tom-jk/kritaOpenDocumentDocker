@@ -131,7 +131,7 @@ class ODDSettings(QObject):
                             "dependsOn":["display"],
                             "evaluator":lambda self: self.settingValue("display", True) == "thumbnails",
                     },
-                    "initial":lambda self: self.setUiValuesForRefreshPeriodically(self.readSetting("refreshPeriodically")),
+                    "initial":lambda self: self.setUiValuesForCheckboxSetting("refreshPeriodically"),
             },
             "refreshPeriodicallyChecks": {
                     "label"  :"Checks",
@@ -288,7 +288,7 @@ class ODDSettings(QObject):
             "thumbUseProjectionMethod": {
                     "label"  :"Use projection method",
                     "default":"true",
-                    "initial":lambda self: self.setUiValuesForThumbUseProjectionMethod(self.readSetting("thumbUseProjectionMethod")),
+                    "initial":lambda self: self.setUiValuesForCheckboxSetting("thumbUseProjectionMethod"),
             },
             "progressiveThumbs": {
                     "label"  :"Enable progressive thumbnail generation",
@@ -297,7 +297,7 @@ class ODDSettings(QObject):
                             "dependsOn":["thumbUseProjectionMethod"],
                             "evaluator": lambda self: self.settingValue("thumbUseProjectionMethod"),
                     },
-                    "initial":lambda self: self.setUiValuesForProgressiveThumbs(self.readSetting("progressiveThumbs")),
+                    "initial":lambda self: self.setUiValuesForCheckboxSetting("progressiveThumbs"),
             },
             "progressiveThumbsWidth": {
                     "label"  :"Block width",
@@ -662,6 +662,9 @@ class ODDSettings(QObject):
     def setTooltipSizeModeTo(self, sizeMode):
         self.writeSetting("tooltipSizeMode", sizeMode)
     
+    def setUiValuesForCheckboxSetting(self, setting):
+        self.UI[setting]["btn"].setChecked(self.readSetting(setting) == "true")
+    
     def setUiValuesForSliderSetting(self, setting):
         self.UI[setting]["slider"].setValue(
             convertSettingStringToValue(setting, self.readSetting(setting))
@@ -691,15 +694,6 @@ class ODDSettings(QObject):
         self.dockerThumbsDisplayScaleGridSlider.setVisible(state)
         self.dockerDisplayToggleButton.setVisible(state)
         self.dockerRefreshPeriodicallyToggleButton.setVisible(state)
-    
-    def setUiValuesForThumbUseProjectionMethod(self, setting):
-        self.UI["thumbUseProjectionMethod"]["btn"].setChecked(setting == "true")
-    
-    def setUiValuesForRefreshPeriodically(self, setting):
-        self.UI["refreshPeriodically"]["btn"].setChecked(setting == "true")
-    
-    def setUiValuesForProgressiveThumbs(self, setting):
-        self.UI["progressiveThumbs"]["btn"].setChecked(setting == "true")
     
     def startRefreshAllDelayTimer(self):
         delay = self.oddDocker.refreshAllDelay
