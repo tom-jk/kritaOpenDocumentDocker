@@ -33,7 +33,7 @@ class ODD(Extension):
         cls.winForQWin = {}
         
         if not cls.instance:
-            cls.viewClosedDelay = QTimer(None)
+            cls.viewClosedDelay = QTimer(self)
             cls.viewClosedDelay.setInterval(0)
             cls.viewClosedDelay.setSingleShot(True)
             cls.viewClosedDelay.timeout.connect(cls._viewClosed)
