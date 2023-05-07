@@ -359,10 +359,9 @@ class ODD(Extension):
     
     @classmethod
     def docDataFromDocument(cls, doc):
-        if matchList := [i for i in enumerate(cls.documents) if i[1]["document"] == doc]:
-            return matchList[0][1]
-        else:
-            return None
+        return next(
+                filter(lambda docData: docData["document"] == doc, cls.documents), None
+        )
     
     @classmethod
     def requestThumbnail(cls, docData, thumbKey, forceNotProgressive=False):
