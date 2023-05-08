@@ -31,21 +31,23 @@ Right-click for a menu of common file actions: save, save as, export, etc.
 The list will automatically add and remove items as files are created, opened and closed.
 
 # Status
-Pre-release, expect quirks.
+Pre-release, expect quirks. Issue reports are welcome.
 
 ## Releases ##
-**v0.0.8** - 28th April 23
+**v0.0.9** - 8<sup>th</sup> May 23
 
-**v0.0.7** - 13th April 23
+**v0.0.8** - 28<sup>th</sup> April 23
 
-**v0.0.6** - 8th March 23
+**v0.0.7** - 13<sup>th</sup> April 23
 
-**v0.0.5** - 24th February 23
+**v0.0.6** - 8<sup>th</sup> March 23
 
-**v0.0.4** - 20th February 23
+**v0.0.5** - 24<sup>th</sup> February 23
 
-**v0.0.3** - 5th Feburary 23
+**v0.0.4** - 20<sup>th</sup> February 23
 
-**v0.0.2** - 24th January 23
+**v0.0.3** - 5<sup>th</sup> Feburary 23
 
-**v0.0.1** - 15th January 23
+**v0.0.2** - 24<sup>th</sup> January 23
+
+**v0.0.1** - 15<sup>th</sup> January 23
