@@ -20,6 +20,8 @@ class ODDListWidget(QListWidget):
         self._doNotRecacheItemRects = False
         self._childrenExtent = 0
         self._childrenRect = QRect(0, 0, 0, 0)
+        self._itemsToDraw = []
+        self._isItemsToDrawDirty = True
         super(ODDListWidget, self).__init__()
         self.horizontalScrollBar().installEventFilter(self)
         self.verticalScrollBar().installEventFilter(self)
@@ -94,7 +96,9 @@ class ODDListWidget(QListWidget):
     def eventFilter(self, obj, event):
         if obj in (self.horizontalScrollBar(), self.verticalScrollBar()):
             if event.type() == QEvent.Enter:
-                self.itemHovered = None
+                if self.itemHovered:
+                    self.itemHovered = None
+                    self._isItemsToDrawDirty = True
                 self.oddDocker.listToolTip.hide()
                 self.viewport().update()
         return False
@@ -114,6 +118,7 @@ class ODDListWidget(QListWidget):
     def leaveEvent(self, event):
         if self.itemHovered:
             self.itemHovered = None
+            self._isItemsToDrawDirty = True
             self.oddDocker.listToolTip.hide()
         self.mouseEntered = False
         self.viewport().update()
@@ -124,14 +129,17 @@ class ODDListWidget(QListWidget):
         if not self.itemHovered:
             if oldItemHovered:
                 self.oddDocker.listToolTip.hide()
+                self._isItemsToDrawDirty = True
                 self.viewport().update()
         else:
             if self.itemHovered != oldItemHovered:
                 self.oddDocker.itemEntered(self.itemHovered)
+                self._isItemsToDrawDirty = True
                 self.viewport().update()
     
     def invalidateItemRectsCache(self):
         #logger.debug("itemRects cache invalidated")
+        self._isItemsToDrawDirty = True
         self._itemRectsValid = False
     
     def itemRects(self):
@@ -355,12 +363,15 @@ class ODDListWidget(QListWidget):
             super().paintEvent(event)
             return
         
+        count = self.count()
+        if count == 0:
+            return
+        
         qwin = self.oddDocker.parent()
         activeDoc = ODD.activeDocument
         #logger.debug("paintEvent: %s", event.rect())
         option = self.viewOptions()
         painter = QPainter(self.viewport())
-        count = self.count()
         fadeAmount = self.oddDocker.vs.settingValue("thumbFadeAmount")
         
         modIconPreview = self.oddDocker.vs.previewThumbsShowModified
@@ -413,6 +424,8 @@ class ODDListWidget(QListWidget):
         else:
             isStretchToFit = False
         
+        aspectLimit = float(self.oddDocker.vs.readSetting("thumbAspectLimit"))
+        
         noViewsIconPolyBox = [
             QPointF(2/30, 0.2), QPointF(28/30, 0.2), QPointF(28/30, 1/3),   QPointF(1.0, 1/3),
             QPointF(1.0, 0.0),  QPointF(0.0, 0.0),   QPointF(0.0, 0.8),     QPointF(1.0, 0.8),
@@ -423,128 +436,231 @@ class ODDListWidget(QListWidget):
             QPointF(26/30, 20/30), QPointF(26/30, 16/30), QPointF(32/30, 16/30),
         ]
         
-        for i in range(count):
-            item = self.item(i)
-            if item.isHidden():
-                continue
-            isItemActiveDoc = item.data(self.oddDocker.ItemDocumentRole) == activeDoc
-            itemRect = self.itemRects()[i].translated(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
-            option.rect = itemRect
-            option.showDecorationSelected = (item in self.selectedItems())
-            painter.setOpacity(
-                    opacityItemHoveredActive if (item == self.itemHovered and isItemActiveDoc) else (
-                            opacityItemHoveredNotActive if (item == self.itemHovered) else (
-                                    opacityListHoveredActive if (self.mouseEntered and isItemActiveDoc) else (
-                                            opacityListHoveredNotActive if (self.mouseEntered) else (
-                                                    opacityNotHoveredActive if isItemActiveDoc else opacityNotHoveredNotActive
-                                            )
-                                    )
-                            )
+        # make list of (item, itemRect, doc, isActive, isHovered, viewsThisWindowCount, viewsOtherWindowsCount) tuples.
+        # include only those that will be visible (not isHidden, not scrolled out of view).
+        # the list is ordered as follows: active item, hovered inactive item (if any), remaining items.
+        # the first three (active, hovered, first of remainder) will be drawn with their respective painter settings.
+        # then all the rest will be drawn with no further changes.
+        
+        hscroll = self.horizontalScrollBar().value()
+        vscroll = self.verticalScrollBar().value()
+        vpwidth = self.viewport().width()
+        vpheight= self.viewport().height()
+        
+        if self._isItemsToDrawDirty:
+            self._isItemsToDrawDirty = False
+            
+            viewCountPerWindow = [
+                    self.odd.docDataFromDocument(self.item(i).data(self.oddDocker.ItemDocumentRole))["viewCountPerWindow"]
+                    for i in range(count)
+            ]
+            
+            self.itemRects()
+            self._itemsToDraw = [
+                    (
+                            self.item(i),
+                            self._itemRects[i],
+                            self.item(i).data(self.oddDocker.ItemDocumentRole),
+                            self.item(i).data(self.oddDocker.ItemDocumentRole) == activeDoc,
+                            self.item(i) == self.itemHovered,
+                            (self.item(i) in self.selectedItems()),
+                            viewCountPerWindow[i][qwin] if qwin in viewCountPerWindow[i] else 0,
+                            sum(0 if k == qwin else v for k,v in viewCountPerWindow[i].items()),
                     )
-            )
-            inView = (not (itemRect.bottom() < 0 or itemRect.y() > self.viewport().height())) if self.flow() == QListView.TopToBottom \
-                    else (not (itemRect.right() < 0 or itemRect.x() > self.viewport().width()))
+                    for i in range(count)
+                    if not self.item(i).isHidden()
+            ]
+            self._itemsToDraw = sorted(self._itemsToDraw, key = lambda d: not d[4]) # sort by is itemHovered
+            self._itemsToDraw = sorted(self._itemsToDraw, key = lambda d: not d[3]) # sort by is activeDoc
             
-            if not inView:
-                continue
+        # translate item rects and remove out-of-view items.
+        itemsToDraw = [
+                (i[0], i[1].translated(-hscroll, -vscroll), i[2], i[3], i[4], i[5], i[6], i[7])
+                for i in self._itemsToDraw
+        ]
+        
+        itemsToDraw = list(filter(
+                lambda v: (not (v[1].bottom() < 0 or v[1].y() > vpheight)) if self.flow() == QListView.TopToBottom \
+                          else (not (v[1].right() < 0 or v[1].x() > vpwidth)),
+                itemsToDraw
+        ))
+        
+        if len(itemsToDraw) == 0:
+            return
+        
+        # ~ for i in enumerate(itemsToDraw):
+            # ~ # print(i[0], i[1])
+            # ~ print("#{}: pos in doc list: {}, doc: {}, itemrect: {}, isActive: {}, isHovered: {}, in selectedItems: {}, views this/other wins: {}/{}".format(
+                    # ~ i[0],
+                    # ~ ODD.documents.index(ODD.docDataFromDocument(i[1][0].data(self.oddDocker.ItemDocumentRole))),
+                    # ~ ODD.documentDisplayName(i[1][2]),
+                    # ~ i[1][1], i[1][3], i[1][4], i[1][5], i[1][6], i[1][7]
+            # ~ ))
+        
+        # begin main draw loop.
+        
+        for i in range(3):
             
-            doc = item.data(self.oddDocker.ItemDocumentRole)
-            viewCountPerWindow = self.odd.docDataFromDocument(doc)["viewCountPerWindow"]
-            viewsThisWindowCount = viewCountPerWindow[qwin] if qwin in viewCountPerWindow else 0
-            viewsOtherWindowsCount = sum(0 if k == qwin else v for k,v in viewCountPerWindow.items())
+            # (s for special.)
+            s_item = itemsToDraw[i][0]
+            s_itemRect = itemsToDraw[i][1]
+            s_isItemActiveDoc = itemsToDraw[i][3]
+            s_isItemHovered = itemsToDraw[i][4]
             
-            pm = item.data(Qt.DecorationRole)
-            x = itemRect.x()
-            y = itemRect.y()
-            w = itemRect.width()
-            h = itemRect.height()
+            if i <= 3:
+                painter.setOpacity(
+                        opacityItemHoveredActive if (s_item == self.itemHovered and s_isItemActiveDoc) else (
+                                opacityItemHoveredNotActive if (s_item == self.itemHovered) else (
+                                        opacityListHoveredActive if (self.mouseEntered and s_isItemActiveDoc) else (
+                                                opacityListHoveredNotActive if (self.mouseEntered) else (
+                                                        opacityNotHoveredActive if s_isItemActiveDoc else opacityNotHoveredNotActive
+                                                )
+                                        )
+                                )
+                        )
+                )
             
-            if pm:
-                if isStretchToFit:
-                    painter.drawPixmap(itemRect, pm)
-                else:
-                    aspectLimit = float(self.oddDocker.vs.readSetting("thumbAspectLimit"))
-                    cropRect = pm.rect()
-                    itemRatio = h/w
-                    pmRatio = pm.height()/pm.width()
-                    if pmRatio < 1.0:
-                        itemToPmScale = pm.height() / h
-                        cropWidth = w * itemToPmScale
-                        cropRect.setWidth(round(cropWidth))
-                        cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
-                        #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
-                    elif pmRatio > 1.0:
-                        itemToPmScale = pm.width() / w
-                        cropHeight = h * itemToPmScale
-                        cropRect.setHeight(round(cropHeight))
-                        cropRect.moveTop(round((pm.height() - cropHeight) / 2))
-                        #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
-                    cropRect.moveLeft(max(0, cropRect.left()))
-                    cropRect.moveTop(max(0, cropRect.top()))
-                    cropRect.setWidth(min(pm.width(), cropRect.width()))
-                    cropRect.setHeight(min(pm.height(), cropRect.height()))
-                    #logger.debug("#"+str(i)+": %s %s %s", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
-                    painter.drawPixmap(itemRect, pm, cropRect)
+            rStart = i
+            rEnd = len(itemsToDraw) if not (s_isItemActiveDoc or s_isItemHovered) else rStart+1
+            # ~ print("i:{}, range:{}-{}, opacity:{}".format(i, rStart, rEnd, painter.opacity()))
             
-            if isItemActiveDoc:
+            # draw pixmap.
+            for itemToDraw in range(rStart, rEnd):
+                item, itemRect = itemsToDraw[itemToDraw][0], itemsToDraw[itemToDraw][1]
+                #option.rect, option.showDecorationSelected = itemRect, itemsToDraw[itemToDraw][5]
+                option.showDecorationSelected = itemsToDraw[itemToDraw][5]
+                pm, x, y, w, h = item.data(Qt.DecorationRole), itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                
+                if pm:
+                    if isStretchToFit:
+                        painter.drawPixmap(itemRect, pm)
+                    else:
+                        cropRect = pm.rect()
+                        itemRatio = h/w
+                        pmRatio = pm.height()/pm.width()
+                        if pmRatio < 1.0:
+                            itemToPmScale = pm.height() / h
+                            cropWidth = w * itemToPmScale
+                            cropRect.setWidth(round(cropWidth))
+                            cropRect.moveLeft(round((pm.width() - cropWidth) / 2))
+                            #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
+                        elif pmRatio > 1.0:
+                            itemToPmScale = pm.width() / w
+                            cropHeight = h * itemToPmScale
+                            cropRect.setHeight(round(cropHeight))
+                            cropRect.moveTop(round((pm.height() - cropHeight) / 2))
+                            #logger.debug("%s %s %s %s", itemRect, pm.rect(), itemToPmScale, cropRect)
+                        cropRect.moveLeft(max(0, cropRect.left()))
+                        cropRect.moveTop(max(0, cropRect.top()))
+                        cropRect.setWidth(min(pm.width(), cropRect.width()))
+                        cropRect.setHeight(min(pm.height(), cropRect.height()))
+                        #logger.debug("#"+str(i)+": %s %s %s", itemRect, QRect(0,0,pm.width(),pm.height()), cropRect)
+                        painter.drawPixmap(itemRect, pm, cropRect)
+            
+            # draw active item border.
+            if s_isItemActiveDoc:
+                item, itemRect = s_item, s_itemRect
+                option.rect, option.showDecorationSelected = itemRect, itemsToDraw[i][5]
+                x, y, w, h = itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                
                 painter.setBrush(Qt.NoBrush)
                 painter.setPen(QColor(255,255,255,127))
                 o = int(isGrid)
                 painter.drawRect(x, y, w-1-o, h-1-o)
                 painter.setPen(QColor(0,0,0,127))
                 painter.drawRect(x+1, y+1, w-3-o, h-3-o)
-            if (item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "") and canShowModIcon:
-                topRight = QPoint(x + w-1, y)
+            
+            # draw icons.
+            if canShowModIcon:
                 if isModIconTypeText:
-                    font = painter.font()
-                    font.setWeight(QFont.ExtraBold)
-                    painter.setFont(font)
-                    pos = topRight + posOffset
-                    painter.setPen(QColor(16,16,16))
-                    painter.drawText(pos + dropShadowOffset, "*")
-                    font.setWeight(QFont.Normal)
-                    painter.setFont(font)
-                    painter.setPen(QColor(239,239,239))
-                    painter.drawText(pos, "*")
+                    for itemToDraw in range(rStart, rEnd):
+                        item, itemRect = itemsToDraw[itemToDraw][0], itemsToDraw[itemToDraw][1]
+                        #option.rect, option.showDecorationSelected = itemRect, itemsToDraw[itemToDraw][5]
+                        option.showDecorationSelected = itemsToDraw[itemToDraw][5]
+                        x, y, w, h = itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                        
+                        if item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "":
+                            topRight = QPoint(x + w-1, y)
+                            font = painter.font()
+                            font.setWeight(QFont.ExtraBold)
+                            painter.setFont(font)
+                            pos = topRight + posOffset
+                            painter.setPen(QColor(16,16,16))
+                            painter.drawText(pos + dropShadowOffset, "*")
+                            font.setWeight(QFont.Normal)
+                            painter.setFont(font)
+                            painter.setPen(QColor(239,239,239))
+                            painter.drawText(pos, "*")
+                            
                 else:
                     brush = painter.brush()
                     brush.setStyle(Qt.SolidPattern)
                     brush.setColor(colorModIconFill)
                     painter.setBrush(brush)
                     painter.setPen(colorModIconLine)
-                    if isModIconTypeCorner:
-                        painter.drawConvexPolygon(cornerPoly.translated(topRight))
-                    elif isModIconTypeSquare:
-                        painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
-                    elif isModIconTypeCircle:
-                        painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+                    for itemToDraw in range(rStart, rEnd):
+                        item, itemRect = itemsToDraw[itemToDraw][0], itemsToDraw[itemToDraw][1]
+                        #option.rect, option.showDecorationSelected = itemRect, itemsToDraw[itemToDraw][5]
+                        option.showDecorationSelected = itemsToDraw[itemToDraw][5]
+                        x, y, w, h = itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                        
+                        if item.data(self.oddDocker.ItemModifiedStatusRole) or modIconPreview != "":
+                            topRight = QPoint(x + w-1, y)
+                            if isModIconTypeCorner:
+                                painter.drawConvexPolygon(cornerPoly.translated(topRight))
+                            elif isModIconTypeSquare:
+                                painter.drawRect(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+                            elif isModIconTypeCircle:
+                                painter.drawEllipse(topRight.x() - modIconSize - padding, topRight.y() + padding, modIconSize, modIconSize)
+            
+            # draw grid lines.
             if isGrid:
                 painter.setBrush(Qt.NoBrush)
                 painter.setPen(colorGridLine)
-                painter.drawLine(x, y+h-1, x+w-1, y+h-1)
-                painter.drawLine(x+w-1, y, x+w-1, y+h-1)
+                
+                for itemToDraw in range(rStart, rEnd):
+                    item, itemRect = itemsToDraw[itemToDraw][0], itemsToDraw[itemToDraw][1]
+                    #option.rect, option.showDecorationSelected = itemRect, itemsToDraw[itemToDraw][5]
+                    option.showDecorationSelected = itemsToDraw[itemToDraw][5]
+                    x, y, w, h = itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                    
+                    painter.drawLine(x, y+h-1, x+w-1, y+h-1)
+                    painter.drawLine(x+w-1, y, x+w-1, y+h-1)
             
-            if viewsThisWindowCount == 0:
+            # draw no views in window indicator.
+            brush = painter.brush()
+            brush.setStyle(Qt.SolidPattern)
+            brush.setColor(QColor(239,239,239,80))
+            painter.setBrush(brush)
+            painter.setPen(Qt.NoPen)
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setCompositionMode(QPainter.CompositionMode_Difference)
+            
+            for itemToDraw in range(rStart, rEnd):
+                viewsThisWindowCount = itemsToDraw[itemToDraw][6]
+                if viewsThisWindowCount == 0:
+                    item, itemRect = itemsToDraw[itemToDraw][0], itemsToDraw[itemToDraw][1]
+                    #option.rect, option.showDecorationSelected = itemRect, itemsToDraw[itemToDraw][5]
+                    option.showDecorationSelected = itemsToDraw[itemToDraw][5]
+                    x, y, w, h = itemRect.x(), itemRect.y(), itemRect.width(), itemRect.height()
+                    
+                    s = min(24, min(w, h))
+                    
+                    painter.save()
+                    painter.scale(s, s)
+                    sInv = 1.0/s
+                    painter.translate((x+2)*sInv, (y+2)*sInv)
+                    painter.drawPolygon(noViewsIconPolyBox, len(noViewsIconPolyBox))
+                    painter.translate(0, (-0.2)*sInv)
+                    painter.drawPolygon(noViewsIconPolyArrow, len(noViewsIconPolyArrow))
+                    painter.restore()
+                    
+            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+            painter.setRenderHint(QPainter.Antialiasing, False)
                 
-                brush = painter.brush()
-                brush.setStyle(Qt.SolidPattern)
-                brush.setColor(QColor(239,239,239,80))
-                painter.setBrush(brush)
-                painter.setPen(Qt.NoPen)
-                painter.setRenderHint(QPainter.Antialiasing, True)
-                painter.setCompositionMode(QPainter.CompositionMode_Difference)
-                
-                s = min(24, min(w, h))
-                
-                poly = [i*s + QPointF(x+2, y+2) for i in noViewsIconPolyBox]
-                painter.drawPolygon(poly, len(poly))
-                
-                poly = [i*s + QPointF(x+2, y+1.8) for i in noViewsIconPolyArrow]
-                painter.drawPolygon(poly, len(poly))
-                
-                painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
-                painter.setRenderHint(QPainter.Antialiasing, False)
-        
+            if rEnd == len(itemsToDraw):
+                break
+            
         painter.end()
 
     def contextMenuEvent(self, event, viewOptionsOnly=False):

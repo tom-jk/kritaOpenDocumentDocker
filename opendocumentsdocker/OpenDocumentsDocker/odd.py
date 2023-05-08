@@ -239,6 +239,11 @@ class ODD(Extension):
             # ~ logger.debug("%s: %s", i[0], i[1])
         
         cls.updateDocumentsFromViews()
+        
+        for docker in cls.dockers:
+            # ensure list shows no-win-in-view icons as appropriate.
+            docker.list._isItemsToDrawDirty = True
+            docker.list.viewport().update()
     
     @classmethod
     def viewClosed(cls, view):
@@ -278,6 +283,9 @@ class ODD(Extension):
         for docker in cls.dockers:
             if docker.filtButton.isChecked():
                 docker.toggleDockerFiltering()
+            # ensure list shows no-win-in-view icons as appropriate.
+            docker.list._isItemsToDrawDirty = True
+            docker.list.viewport().update()
     
     @classmethod
     def updateDocumentsFromViews(cls):
