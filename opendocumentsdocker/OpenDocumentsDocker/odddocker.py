@@ -576,8 +576,12 @@ class ODDDocker(krita.DockWidget):
             docData = ODD.docDataFromDocument(doc)
             qwin = self.parent()
             win = ODD.windowFromQWindow(qwin)
-            docData["lastViewInWindow"][qwin] = win.activeView()
-            logger.debug("last view on {} in {} set to {}".format(doc, qwin.objectName(), docData["lastViewInWindow"][self.parent()]))
+            activeView = win.activeView()
+            if activeView.document() == doc:
+                docData["lastViewInWindow"][qwin] = activeView
+                logger.debug("last view on {} in {} set to {}".format(doc, qwin.objectName(), activeView))
+            else:
+                logger.warning("ODDDocker.activeViewChanged: mismatch of active doc and view doc, don't set lastViewInWindow.")
         self.ensureListSelectionIsActiveDocument()
         ODDImageChangeDetector.startCooldown()
     
