@@ -768,11 +768,10 @@ class ODDListWidget(QListWidget):
         aData = action.data()
         if aData:
             if aData[0] == "goToViewInWin":
-                logger.info("go to view in win %s", aData[1].qwindow().objectName())
+                logger.info("go to view on doc %s in win %s", doc.fileName(), aData[1].qwindow().objectName())
                 win = aData[1]
                 win.activate()
                 qwin = win.qwindow()
-                docData = self.odd.docDataFromDocument(doc)
                 toView = None
                 if qwin in docData["lastViewInWindow"]:
                     toView = docData["lastViewInWindow"][qwin]
@@ -802,20 +801,23 @@ class ODDListWidget(QListWidget):
                 newview.setVisible()
             elif aData[0] == "closeViewsInThisWin":
                 logger.info("close views in this window")
+                viewCount = docData["viewCountPerWindow"][activeWin.qwindow()]
                 self.viewCloser = ODDViewProcessor(
                     operation = lambda : Application.action('file_close').trigger(),
                     selectionCondition = lambda view : view.document() == doc and view.window() == activeWin,
-                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=True),
+                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=True, count=viewCount),
                     finishedCallback = lambda: self.viewCloserFinished(doc)
                 )
                 self.viewCloser.targetDoc = doc
                 self.viewCloser.start()
             elif aData[0] == "closeViewsInOtherWins":
                 logger.info("close views in other windows")
+                qwin = activeWin.qwindow()
+                viewCount = sum(0 if k == qwin else v for k,v in docData["viewCountPerWindow"].items())
                 self.viewCloser = ODDViewProcessor(
                     operation = lambda : Application.action('file_close').trigger(),
                     selectionCondition = lambda view : view.document() == doc and view.window() != activeWin,
-                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=False),
+                    preprocessCallback = lambda: self.prepareToCloseViews(doc, inThisWin=False, count=viewCount),
                     finishedCallback = lambda: self.viewCloserFinished(doc)
                 )
                 self.viewCloser.targetDoc = doc
@@ -844,12 +846,12 @@ class ODDListWidget(QListWidget):
         
         menu.deleteLater()
     
-    def closeViewsPrompt(self, doc, inThisWin):
+    def closeViewsPrompt(self, doc, inThisWin, count):
         msgBox = QMessageBox(
                 QMessageBox.Question,
                 "Krita",
-                "All {} on the document <b>'{}'</b> {} will be closed.<br/><br/>Are you sure?".format(
-                        "but one view" if doc.modified() else "views",
+                "All views {}on the document <b>'{}'</b> {} will be closed.<br/><br/>Are you sure?".format(
+                        "({}) ".format(count) if count else "",
                         self.odd.__class__.documentDisplayName(doc, False, 'Untitled'),
                         "in the current window" if inThisWin else "in all other windows"
                 ),
@@ -862,8 +864,8 @@ class ODDListWidget(QListWidget):
         msgBox.exec()
         return msgBox.clickedButton() == btnYes
     
-    def prepareToCloseViews(self, doc, inThisWin):
-        if not self.closeViewsPrompt(doc, inThisWin):
+    def prepareToCloseViews(self, doc, inThisWin, count):
+        if not self.closeViewsPrompt(doc, inThisWin, count):
             logger.debug("close views cancelled for %s", str(doc)[-15:-1])
             return False
         
