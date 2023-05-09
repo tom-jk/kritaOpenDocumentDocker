@@ -65,7 +65,7 @@ class ODDImageChangeDetector(QObject):
                 cls.refreshCheckTimer.stop()
         
         if cls.checkTimer.isActive():
-            if stopReason & (cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc):
+            if stopReason & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc):
                 logger.info("ODDImageChangeDetector: stopping checkTimer. (reason=%s)", stopReason)
                 cls.checkTimer.stop()
     
@@ -79,7 +79,7 @@ class ODDImageChangeDetector(QObject):
         cls.stopReasons &= ~stopReason
         
         if not cls.checkTimer.isActive():
-            if not (cls.stopReasons & (cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc)):
+            if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc)):
                 logger.info("ODDImageChangeDetector: restarting checkTimer.")
                 cls.checkTimer.start()
         
