@@ -61,12 +61,12 @@ class ODDImageChangeDetector(QObject):
         
         if cls.refreshCheckTimer.isActive():
             if stopReason & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonNoChanges):
-                logger.info("ODDImageChangeDetector: stopping refreshCheckTimer. (reason=%s)", stopReason)
+                logger.debug("ODDImageChangeDetector: stopping refreshCheckTimer. (reason=%s)", stopReason)
                 cls.refreshCheckTimer.stop()
         
         if cls.checkTimer.isActive():
             if stopReason & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc):
-                logger.info("ODDImageChangeDetector: stopping checkTimer. (reason=%s)", stopReason)
+                logger.debug("ODDImageChangeDetector: stopping checkTimer. (reason=%s)", stopReason)
                 cls.checkTimer.stop()
     
     @classmethod
@@ -80,23 +80,23 @@ class ODDImageChangeDetector(QObject):
         
         if not cls.checkTimer.isActive():
             if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonCooldown | cls.StopReasonNoDoc)):
-                logger.info("ODDImageChangeDetector: restarting checkTimer.")
+                logger.debug("ODDImageChangeDetector: restarting checkTimer.")
                 cls.checkTimer.start()
         
         if not cls.refreshCheckTimer.isActive():
             if not (cls.stopReasons & (cls.StopReasonUser | cls.StopReasonBlur | cls.StopReasonNoChanges)):
-                logger.info("ODDImageChangeDetector: restarting refreshCheckTimer.")
+                logger.debug("ODDImageChangeDetector: restarting refreshCheckTimer.")
                 cls.refreshCheckTimer.start()
     
     @classmethod
     def startCooldown(cls):
-        logger.info("ODDImageChangeDetector: cooldown starting...")
+        logger.debug("ODDImageChangeDetector: cooldown starting...")
         cls.cooldownTimer.start()
         cls.addStopper(cls.StopReasonCooldown)
     
     @classmethod
     def cooldownTimerTimeout(cls):
-        logger.info("ODDImageChangeDetector: ...cooldown finished.")
+        logger.debug("ODDImageChangeDetector: ...cooldown finished.")
         cls.removeStopper(cls.StopReasonCooldown)
     
     @classmethod
