@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from PyQt5.QtCore import QTimer, QSize
 from krita import *
 from .odd import ODD

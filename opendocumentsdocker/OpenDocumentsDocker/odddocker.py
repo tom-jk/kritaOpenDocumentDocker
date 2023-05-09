@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: CC0-1.0
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QPoint, QSize
 from PyQt5.QtGui import QPixmap, QScreen, QContextMenuEvent

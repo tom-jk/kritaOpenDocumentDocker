@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from PyQt5.QtWidgets import QApplication
 from time import *
 from datetime import datetime

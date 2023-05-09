@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from math import ceil
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import QPoint, QPointF, QSize, QRectF
