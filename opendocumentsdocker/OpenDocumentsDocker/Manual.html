@@ -2,20 +2,68 @@
 <!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
-<!--BBD's Krita Script Starter, Feb 2018 -->
 <head><title>Open Documents Docker</title>
 </head>
 <body>
 <h3>Open Documents Docker</h3>
 
- A Krita docker that provides a compact vertical list of your open images and can switch between them.
+ A Krita docker that provides a compact list of your open images and can switch between them.
 
 <h3>Usage</h3>
 
-<p>Left-click on the thumbnail of an image to switch to it.</p>
-<p>Right-click for a menu of common file actions: save, save as, export, etc.</p>
-<p>The list will automatically add and remove items as files are created, opened and closed.</p>
-<p>The list will not automatically update thumbnails as you edit images, but you can manually with the refresh button.</p>
+<p>
+    Left-click on the thumbnail of an image to switch to it.<br/>
+    <small>
+        Subsequent clicks cycle through its views in the current window.
+    </small>
+</p>
+<p>
+    Right-click for a menu of common file actions: save, save as, export, etc.<br/>
+    <small>
+        You can also manage the documents views.
+    </small>
+</p>
+<p>
+    Settings can be adjusted by clicking the 'hamburger' menu button.<br/>
+    <small>
+        Most settings have tooltips that describe what they do.
+    </small>
+</p>
+<p>
+    You can set how and when thumbnails are updated.<br/>
+    <small>
+        Refresh on save setting: update the thumbnail when the document is saved.<br/>
+        Refresh periodically setting: update after the document has changed.<br/>
+        Refresh manually: you can use the button in the docker to update on demand.
+    </small>
+</p>
+
+<h4>Context Menu</h4>
+
+<p>Besides regular krita actions, ODD provides two additional actions:</p>
+
+<p>
+    Revert: close the document and reload it from disk.<br/>
+    <small>
+        You have the option to continue using the existing views.
+    </small>
+</p>
+<p>
+    Quick Copy Merged: Quickly copy whole image to clipboard.<br/>
+    <small>
+        switches to the document and performs the following actions:<br/>
+        select all, copy merged, undo (copy merged), undo (select all).
+    </small>
+</p>
+
+<h4>Development</h4>
+
+<p>
+    Reporting Bugs<br/>
+    <small>
+        You can submit issues at the <a href="https://github.com/tom-jk/kritaOpenDocumentDocker">ODD Github repository</a>.
+    </small>
+</p>
 
 </body>
 </html>
