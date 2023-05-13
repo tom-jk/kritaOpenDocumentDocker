@@ -102,7 +102,7 @@ class ODDSettings(QObject):
                     "flags"  :["perInstance"],
             },
             "gridMode": {
-                    "default":"stretchToFit",
+                    "default":"masonry",
                     "strings":["Stretch to fit", "Keep aspect ratio", "Crop to fit", "Masonry"],
                     "values" :["stretchToFit", "keepAspectRatio", "cropToFit", "masonry"],
                     "tooltips":[
@@ -161,7 +161,7 @@ class ODDSettings(QObject):
             },
             "thumbAspectLimit": {
                     "label"  :"Aspect limit",
-                    "default":"1",
+                    "default":"10",
                     "min": 1.0,
                     "max": 10.0,
                     "pow":10,
@@ -229,7 +229,7 @@ class ODDSettings(QObject):
             },
             "thumbShowModified": {
                     "label"  :"Modified indicator",
-                    "default":"none",
+                    "default":"corner",
                     "strings":["Don't show", "Corner", "Square", "Circle", "Asterisk", "Big Corner", "Big Square", "Big Circle", "Big Asterisk"],
                     "values" :["none", "corner", "square", "circle", "asterisk", "cornerBig", "squareBig", "circleBig", "asteriskBig"],
                     "depends": {
@@ -253,7 +253,7 @@ class ODDSettings(QObject):
             },
             "tooltipThumbLimit": {
                     "label"  :"Limit",
-                    "default":"4096",
+                    "default":"8192",
                     "strings":["never","128","256","512","1024","2048","4096","8192","16384","always"],
                     "prefix" :"≤",
                     "suffix" :"px²",
