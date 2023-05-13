@@ -694,6 +694,7 @@ class ODDSettings(QObject):
         self.dockerThumbsDisplayScaleGridSlider.setVisible(state)
         self.dockerDisplayToggleButton.setVisible(state)
         self.dockerRefreshPeriodicallyToggleButton.setVisible(state)
+        self.oddDocker.buttonWidget.layout().update()
     
     def startRefreshAllDelayTimer(self):
         delay = self.oddDocker.refreshAllDelay
@@ -812,7 +813,7 @@ class ODDSettings(QObject):
         self.UI["display"]["btnText"      ] = QRadioButton("Text", self.panel)
         self.UI["display"]["btnText"      ].setObjectName("text")
         
-        self.dockerDisplayToggleButton = QToolButton()
+        self.dockerDisplayToggleButton = QPushButton()
         self.dockerDisplayToggleButton.setCheckable(True)
         self.dockerDisplayToggleButton.setIcon(Application.icon('folder-pictures'))
         self.dockerDisplayToggleButton.setChecked(self.readSetting("display") == "thumbnails")
@@ -957,7 +958,7 @@ class ODDSettings(QObject):
                         "Aggressive settings may degrade performance."
         )
         
-        self.dockerRefreshPeriodicallyToggleButton = QToolButton()
+        self.dockerRefreshPeriodicallyToggleButton = QPushButton()
         self.dockerRefreshPeriodicallyToggleButton.setCheckable(True)
         self.dockerRefreshPeriodicallyToggleButton.setIcon(Application.icon('animation_play'))
         self.dockerRefreshPeriodicallyToggleButton.setChecked(self.UI["refreshPeriodically"]["btn"].isChecked())
@@ -1223,11 +1224,8 @@ class ODDSettings(QObject):
         
         self.oddDocker.layout.insertLayout(1, self.dockerThumbsDisplayScaleStack)
         self.oddDocker.layout.setStretch(1, 0)
-        self.dockerCommonControlsLayout = QBoxLayout(QBoxLayout.LeftToRight)
-        self.dockerCommonControlsLayout.setSpacing(0)
-        self.dockerCommonControlsLayout.addWidget(self.dockerDisplayToggleButton)
-        self.dockerCommonControlsLayout.addWidget(self.dockerRefreshPeriodicallyToggleButton)
-        self.oddDocker.buttonLayout.insertLayout(1, self.dockerCommonControlsLayout)
+        self.oddDocker.buttonLayout.insertWidget(0, self.dockerDisplayToggleButton)
+        self.oddDocker.buttonLayout.insertWidget(1, self.dockerRefreshPeriodicallyToggleButton)
         
         self.UI["thumbAspectLimit"         ]["slider"].valueChanged.connect(self.changedThumbAspectLimitSlider)
         self.UI["thumbDisplayScale"        ]["slider"].valueChanged.connect(

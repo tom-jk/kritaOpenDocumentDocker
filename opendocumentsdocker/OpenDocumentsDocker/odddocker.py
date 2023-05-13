@@ -10,6 +10,7 @@ from pathlib import Path
 from .odd import ODD
 from .oddsettings import ODDSettings, convertSettingStringToValue, convertSettingValueToString
 from .oddlistwidget import ODDListWidget
+from .multirowboxlayout import MultiRowBoxLayout
 
 import logging
 logger = logging.getLogger("odd")
@@ -43,11 +44,8 @@ class ODDDocker(krita.DockWidget):
         self.list = ODDListWidget(ODD.instance, self)
         self.listToolTip = QLabel(self)
         self.listToolTip.setWindowFlags(Qt.ToolTip)
-        self.buttonLayout = QBoxLayout(QBoxLayout.LeftToRight)
-        self.loadButton = QPushButton(self.baseWidget)
-        self.loadButton.setIcon(Application.icon('view-refresh'))
-        self.viewButton = QPushButton(self.baseWidget)
-        self.viewButton.setIcon(Application.icon('view-choose'))
+        self.buttonWidget = QWidget(self)
+        self.buttonLayout = MultiRowBoxLayout(QBoxLayout.LeftToRight)
         self.infoButton = QPushButton(self.baseWidget)
         self.infoButton.setIcon(Application.icon('selection-info'))
         self.infoButton.setCheckable(True)
@@ -55,6 +53,10 @@ class ODDDocker(krita.DockWidget):
         self.filtButton.setIcon(Application.icon('view-filter'))
         self.filtButton.setCheckable(True)
         self.filtButton.setToolTip("Filter out documents with no views in this window.")
+        self.loadButton = QPushButton(self.baseWidget)
+        self.loadButton.setIcon(Application.icon('view-refresh'))
+        self.viewButton = QPushButton(self.baseWidget)
+        self.viewButton.setIcon(Application.icon('view-choose'))
         
         self.setDockerDirection(self.vs.readSetting("direction"))
         self.list.setMovement(QListView.Free)
@@ -96,19 +98,29 @@ class ODDDocker(krita.DockWidget):
         
         self.viewButton.clicked.connect(self.vs.clickedViewButton)
         self.buttonLayout.setSpacing(0)
-        self.buttonLayout.addWidget(self.loadButton)
-        self.buttonLayout.addWidget(self.viewButton)
         self.buttonLayout.addWidget(self.infoButton)
         self.buttonLayout.addWidget(self.filtButton)
-        self.buttonLayout.setStretch(0, 1)
-        self.buttonLayout.setStretch(1, 1)
-        self.layout.addLayout(self.buttonLayout)
+        self.buttonLayout.addWidget(self.loadButton)
+        self.buttonLayout.addWidget(self.viewButton)
+        self.buttonWidget.setLayout(self.buttonLayout)
+        self.buttonWidget.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        self.layout.addWidget(self.buttonWidget)
         self.vs.createPanel()
+        
+        btnMinSize = min(self.loadButton.sizeHint().width(), self.loadButton.sizeHint().height())
+        for i in range(self.buttonLayout.count()):
+            item = self.buttonLayout.itemAt(i)
+            btn = item.widget()
+            btn.setMinimumWidth(btnMinSize)
+            btn.setMinimumHeight(btnMinSize)
+            btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        self.buttonLayout.setBreakPoint(2)
+        self.buttonLayout.setBreakPoint(4)
         
         self.layout.setSpacing(3)
         self.baseWidget.setLayout(self.layout)
-        self.baseWidget.setMinimumWidth(32)
-        self.baseWidget.setMinimumHeight(32)
+        self.baseWidget.setMinimumWidth(btnMinSize*2 + 2)
+        self.baseWidget.setMinimumHeight(btnMinSize*2 + 2)
         self.setWidget(self.baseWidget)
         
         self.lastSize = self.baseWidget.size()
@@ -484,20 +496,7 @@ class ODDDocker(krita.DockWidget):
             if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
                 self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Vertical)
                 self.vs.dockerThumbsDisplayScaleGridSlider.setOrientation(Qt.Vertical)
-                self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.TopToBottom)
-                self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-                self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-                if self.baseWidget.height() >= 110:
-                    self.layout.removeItem(self.vs.dockerCommonControlsLayout)
-                    self.buttonLayout.insertLayout(1, self.vs.dockerCommonControlsLayout)
-                    self.buttonLayout.setStretch(1, 2)
-                else:
-                    self.buttonLayout.removeItem(self.vs.dockerCommonControlsLayout)
-                    self.layout.insertLayout(2, self.vs.dockerCommonControlsLayout)
             self.buttonLayout.setDirection(QBoxLayout.TopToBottom)
-            self.loadButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-            self.viewButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-            self.infoButton.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
             try:
                 self.list.verticalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
@@ -510,20 +509,7 @@ class ODDDocker(krita.DockWidget):
             if hasattr(self.vs, "dockerThumbsDisplayScaleSlider"):
                 self.vs.dockerThumbsDisplayScaleSlider.setOrientation(Qt.Horizontal)
                 self.vs.dockerThumbsDisplayScaleGridSlider.setOrientation(Qt.Horizontal)
-                self.vs.dockerCommonControlsLayout.setDirection(QBoxLayout.LeftToRight)
-                self.vs.dockerDisplayToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-                self.vs.dockerRefreshPeriodicallyToggleButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-                if self.baseWidget.width() >= 110:
-                    self.layout.removeItem(self.vs.dockerCommonControlsLayout)
-                    self.buttonLayout.insertLayout(1, self.vs.dockerCommonControlsLayout)
-                    self.buttonLayout.setStretch(1, 2)
-                else:
-                    self.buttonLayout.removeItem(self.vs.dockerCommonControlsLayout)
-                    self.layout.insertLayout(2, self.vs.dockerCommonControlsLayout)
             self.buttonLayout.setDirection(QBoxLayout.LeftToRight)
-            self.loadButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            self.viewButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            self.infoButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             try:
                 self.list.horizontalScrollBar().valueChanged.disconnect(self.listScrolled)
             except TypeError:
