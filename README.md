@@ -67,6 +67,7 @@ Issue reports are welcome.
 **Latest**: Most recent release at time of writing (Krita 5.1.4 stable)
 
 ## Releases
+**[v1.0.0](https://github.com/tom-jk/kritaOpenDocumentDocker/releases/tag/v1.0.0)** - 14ᵗʰ May 23<br/>
 **v0.0.9** - 8ᵗʰ May 23<br/>
 **v0.0.8** - 28ᵗʰ April 23<br/>
 **v0.0.7** - 13ᵗʰ April 23<br/>
