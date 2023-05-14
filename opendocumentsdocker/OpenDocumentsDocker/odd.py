@@ -613,7 +613,7 @@ class ODD(Extension):
             del evictableThumbsSorted[0]
             cls.unusedCacheSize -= size
             logger.debug("removed %s - excess remaining: %s", size, cls.unusedCacheSize-maxSize)
-        logger.debug("result: unused cache size: %s, max allowed: %s, excess: %s", cls.unusedCacheSize, maxSize, cls.unusedCacheSize-(maxSize))
+        logger.debug("result: unused cache size: %s, max allowed: %s, excess: %s", cls.unusedCacheSize, maxSize, cls.unusedCacheSize-maxSize)
         logger.debug(" - evict finished - ")
     
     @classmethod

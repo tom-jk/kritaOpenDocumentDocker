@@ -13,14 +13,17 @@ class CustomFormatter(logging.Formatter):
         result = super().format(record)
         return result
 
+logLevelStream = logging.WARNING
+logLevelFile   = logging.INFO
+
 oddLogger = logging.getLogger("odd")
-oddLogger.setLevel(logging.DEBUG)
+oddLogger.setLevel(min(logLevelStream, logLevelFile))
 oddHandlerS = logging.StreamHandler()
 oddHandlerS.setFormatter(CustomFormatter('ODD %(levelname)s %(message)s'))
-oddHandlerS.setLevel(logging.INFO)
+oddHandlerS.setLevel(logLevelStream)
 oddHandlerF = logging.handlers.RotatingFileHandler(tempfile.gettempdir() + '/kritaodd.log', 'w', 1024*128, 2)
 oddHandlerF.setFormatter(CustomFormatter('%(asctime)s,%(msecs)04d %(levelname)s %(message)s', datefmt='%H:%M:%S'))
-oddHandlerF.setLevel(logging.DEBUG)
+oddHandlerF.setLevel(logLevelFile)
 oddLogger.addHandler(oddHandlerS)
 oddLogger.addHandler(oddHandlerF)
 oddLogger.addFilter(lambda record: not (str(record.msg) if type(record.msg is not str) else record.msg).startswith('Unimportant'))
