@@ -1307,7 +1307,12 @@ class ODDSettings(QObject):
         listTopLeft = self.oddDocker.mapToGlobal(self.oddDocker.list.frameGeometry().topLeft())
         listRect = QRect(listTopLeft, self.oddDocker.list.size())
         
-        screen = self.odd.getScreen(self.oddDocker).availableGeometry()
+        try:
+            screen = self.odd.getScreen(self.oddDocker).availableGeometry()
+        except AttributeError:
+            logger.warning("_updatePanelPosition: could not get screen.")
+            return 0
+        
         screenTopLeft = screen.topLeft()
         screenBottomRight = screen.bottomRight() + QPoint(1,1)
         

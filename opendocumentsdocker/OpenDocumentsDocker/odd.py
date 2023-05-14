@@ -41,6 +41,8 @@ class ODD(Extension):
             cls.viewClosedDelay.timeout.connect(cls._viewClosed)
             cls.instance = self
         
+        ODDImageChangeDetector()
+        
         QApplication.instance().focusWindowChanged.connect(self.focusWindowChanged)
         
         #ODDSettings.debugDump()
@@ -52,8 +54,6 @@ class ODD(Extension):
         appNotifier.viewCreated.connect(cls.viewCreated)
         appNotifier.windowCreated.connect(self.windowCreated)
         appNotifier.windowIsBeingCreated.connect(self.windowIsBeingCreated)
-        
-        ODDImageChangeDetector()
 
     def setup(self):
         logger.debug("ODD:__setup__")
