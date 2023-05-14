@@ -1,7 +1,7 @@
 # Open Documents Docker
 A Krita docker that provides a compact list of your open images and can switch between them.
 
-![krita_odd_githubimage1](https://user-images.githubusercontent.com/64640811/231816347-bcdac35d-2373-4128-b70f-a27925daa606.png)
+![krita_odd_githubimage2](https://user-images.githubusercontent.com/64640811/238210369-fee5cf89-fd9e-4b40-977f-0785641b61e0.png)
 
 
 # Motivation
