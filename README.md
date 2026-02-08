@@ -64,7 +64,8 @@ Issue reports are welcome.
 
 ### Supported Krita versions
 **Earliest**: Krita 5.0.0<br/>
-**Latest**: Most recent release at time of writing (Krita 5.1.4 stable)
+**Latest**: Most recent Krita 5 release at time of writing (Krita 5.3.0 beta1)<br/>
+**Not Currently Supported**: Krita 6
 
 ## Releases
 **[v1.0.0](https://github.com/tom-jk/kritaOpenDocumentDocker/releases/tag/v1.0.0)** - 14ᵗʰ May 23<br/>
