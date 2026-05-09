@@ -19,7 +19,7 @@ Layout as list or grid, vertical and horizontal.
 
 Support for multiple views and windows.
 
-Context menu with new options: revert, quick copy merged, view management options.
+Context menu with common options, plus quick copy merged and view management options.
 
 UI/UX: includes kinetic list scrolling, tabbed settings panel, and filtering docker by window.
 
@@ -39,8 +39,6 @@ Download a zip from the [releases](https://github.com/tom-jk/kritaOpenDocumentDo
 In Krita, select Tools ‣ Scripts ‣ Import Python Plugin from File.<br/>
 Select the downloaded zip file and press Ok. Choose to activate the plugin when prompted, then restart Krita.
 
-This is the recommended way to install the plugin.
-
 ### Download, then install manually in file manager
 Download a zip from the [releases](https://github.com/tom-jk/kritaOpenDocumentDocker/releases) page. Scroll to the notes for the desired version, click Assets, and click Source Code (zip).<br/>
 Extract the zip, and place the "OpenDocumentsDocker" folder and "Open Documents Docker.desktop" file in Krita's plugin folder.
@@ -49,9 +47,7 @@ Extract the zip, and place the "OpenDocumentsDocker" folder and "Open Documents 
 
 ### Install directly with Krita
 In Krita, select Tools ‣ Scripts ‣ Import Python Plugin from Web.<br/>
-Paste https://github.com/tom-jk/kritaOpenDocumentDocker in the dialog, and press Ok. Choose to activate the plugin when prompted, then restart Krita.
-
-Note that this will download the plugin in its current (unstable, in-development) state, not its latest release. The two methods above are preferred.
+Copy and paste the link to the latest release (below) into the dialog, and press Ok. Choose to activate the plugin when prompted, then restart Krita.
 
 ##
 If you can't see the docker, first ensure it is enabled. In Krita, select Settings ‣ Configure Krita, select Python Plugin Manager, and look for Open Documents Docker in the list. If it is unchecked, check it, click Ok, and restart Krita.<br/>
@@ -64,11 +60,12 @@ Issue reports are welcome.
 
 ### Supported Krita versions
 **Earliest**: Krita 5.0.0<br/>
-**Latest**: Most recent Krita 5 release at time of writing (Krita 5.3.0 beta1)<br/>
+**Latest**: Most recent Krita 5 release at time of writing (Krita 5.3.0)<br/>
 **Not Currently Supported**: Krita 6
 
 ## Releases
-**[v1.0.0](https://github.com/tom-jk/kritaOpenDocumentDocker/releases/tag/v1.0.0)** - 14ᵗʰ May 23<br/>
+**[v1.0.1](https://github.com/tom-jk/kritaOpenDocumentDocker/releases/tag/v1.0.1)** - 9ᵗʰ May 26<br/>
+**v1.0.0** - 14ᵗʰ May 23<br/>
 **v0.0.9** - 8ᵗʰ May 23<br/>
 **v0.0.8** - 28ᵗʰ April 23<br/>
 **v0.0.7** - 13ᵗʰ April 23<br/>
