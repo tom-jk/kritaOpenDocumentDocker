@@ -752,11 +752,8 @@ class ODDListWidget(QListWidget):
             menu.addSeparator()
             addDeferredAction(menu, 'ODDQuickCopyMergedAction')
             menu.addSeparator()
-            if doc.fileName():
-                addDeferredAction(menu, 'ODDFileRevertAction')
-            else:
-                menu.addAction("Revert")
-                menu.actions()[-1].setEnabled(False)
+            if app.action("tomjk_revert"):
+                addDeferredAction(menu, 'tomjk_revert')
             a = menu.addAction("Close")
             a.setData(("closeDocument", None))
         
